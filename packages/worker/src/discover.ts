@@ -1,16 +1,12 @@
 /**
- * PDD 后台页面结构采集 v4 — 精准导航
+ * PDD 后台页面采集 v5 — 修复侧边栏深层导航
  *
- * 根据 v3 发现的侧边栏结构，直接导航到目标页面
+ * 变更: 放弃 Playwright 选择器点击，改用 page.evaluate 直接操作 DOM
  *
- * 侧边栏路径映射:
- *   评价管理   → 商品管理 → 评价管理
- *   互动动态   → 店铺管理 → 种草动态
- *   店铺健康度 → 服务数据 → 综合体验星级(tab)
- *   消费者体验 → 售后管理 → 消费者体验
- *   售后退款   → 售后管理 → 售后工作台
- *   申诉中心   → 商家权益保护 → 售后申诉
- *   数据中心   → 数据中心板块
+ * 申诉页面说明:
+ *   订单申诉   → 店铺管理 → 订单申诉   (日常巡店关注)
+ *   售后申诉   → 商家权益保护 → 售后申诉 (售后场景)
+ *   异常单申诉 → 商家权益保护 → 异常单申诉 (异常订单)
  */
 
 import { chromium } from 'playwright';
@@ -20,29 +16,17 @@ import * as path from 'path';
 const OUTPUT_DIR = path.resolve('./data/page-discovery');
 const COOKIE_FILE = path.resolve('./data/discovery-cookie.json');
 
-// 精准导航: {name, section(分组), item(子菜单项), url(已知URL)}
-const TARGETS: { name: string; section: string; item: string; url?: string }[] = [
-  // 之前已成功采集的页面略过，仅采集缺失的 2 个
-  { name: 'fix-01-种草动态', section: '店铺管理', item: '种草动态' },
-  { name: 'fix-02-售后申诉', section: '商家权益保护', item: '售后申诉' },
-];
-
-// 服务数据页面下的 tab 页（需要额外点击）
-const SERVICE_TABS = [
-  '综合体验星级',
-  '消费者体验指标',
-  '商品领航员',
-  '售后数据',
-  '评价数据',
-  '客服数据',
+// 本次只采集之前失败的页面
+const TARGETS = [
+  { name: '种草动态', section: '店铺管理' },
+  { name: '订单申诉', section: '店铺管理' },
+  { name: '售后申诉', section: '商家权益保护' },
+  { name: '异常单申诉', section: '商家权益保护' },
 ];
 
 async function discover() {
-  if (!fs.existsSync(OUTPUT_DIR)) {
-    fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-  }
-
-  console.log('=== PDD 后台页面精准采集 v4 ===\n');
+  if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+  console.log('=== PDD 页面采集 v5 ===\n');
 
   const browser = await chromium.launch({
     headless: false,
@@ -50,8 +34,7 @@ async function discover() {
   });
 
   const context = await browser.newContext({
-    userAgent:
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
     viewport: { width: 1920, height: 1080 },
     locale: 'zh-CN',
   });
@@ -60,18 +43,14 @@ async function discover() {
     try {
       const cookies = JSON.parse(fs.readFileSync(COOKIE_FILE, 'utf-8'));
       await context.addCookies(cookies);
-      console.log('已加载 Cookie');
-    } catch { /* ignore */ }
+    } catch { /* */ }
   }
 
   const page = await context.newPage();
 
-  // ======== LOGIN ========
+  // Login
   console.log('📱 打开 PDD 商家后台...');
-  await page.goto('https://mms.pinduoduo.com/', {
-    waitUntil: 'domcontentloaded',
-    timeout: 30000,
-  });
+  await page.goto('https://mms.pinduoduo.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(3000);
 
   if (page.url().includes('login') || page.url().includes('passport')) {
@@ -81,226 +60,140 @@ async function discover() {
         (url) => !url.toString().includes('login') && !url.toString().includes('passport'),
         { timeout: 120000 },
       );
-      console.log('✅ 登录成功！');
     } catch {
-      console.log('⏰ 超时');
+      console.log('⏰ 登录超时');
       await browser.close();
       process.exit(1);
     }
   }
+  console.log('✅ 已登录');
 
   const cookies = await context.cookies();
   fs.writeFileSync(COOKIE_FILE, JSON.stringify(cookies, null, 2));
   await page.waitForTimeout(3000);
 
-  // ======== NAVIGATE TO EACH TARGET ========
-  for (const target of TARGETS) {
-    console.log(`\n📄 ${target.name}: ${target.section} → ${target.item}`);
+  // ======== NAVIGATE ========
+  for (const t of TARGETS) {
+    console.log(`\n--- ${t.name} (${t.section}) ---`);
 
-    try {
-      const success = await navigateToItem(page, target.section, target.item);
-      if (success) {
-        await page.waitForTimeout(2000);
-        await savePageFull(page, target.name);
-      } else {
-        console.log('  ❌ 导航失败');
-        await savePageFull(page, `${target.name}-FAILED`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.log(`  ❌ ${msg.substring(0, 60)}`);
+    // Step 1: Expand the section by clicking it
+    const expanded = await clickByText(page, t.section);
+    if (expanded) {
+      console.log(`  📂 ${t.section} 已展开`);
+      await page.waitForTimeout(1000);
+    } else {
+      console.log(`  ⚠️ 无法展开 ${t.section}`);
     }
-    await page.waitForTimeout(800);
-  }
 
-  // ======== SERVICE DATA TABS ========
-  console.log('\n📄 进入服务数据 → 采集各 tab 页...');
-  const svcOk = await navigateToItem(page, '数据中心', '服务数据');
-  if (svcOk) {
-    await page.waitForTimeout(2000);
-    await savePageFull(page, '08-服务数据-main');
-
-    for (const tab of SERVICE_TABS) {
-      console.log(`  📑 Tab: ${tab}`);
-      try {
-        const clicked = await clickTab(page, tab);
-        if (clicked) {
-          await page.waitForTimeout(2000);
-          await savePageFull(page, `08b-服务数据-${tab}`);
-        }
-      } catch (err) {
-        console.log(`    ❌ ${String(err).substring(0, 40)}`);
-      }
-      await page.waitForTimeout(500);
+    // Step 2: Click the target item
+    const clicked = await clickByText(page, t.name);
+    if (clicked) {
+      console.log(`  ✅ ${t.name} 已点击`);
+      await page.waitForTimeout(2500);
+      await savePage(page, t.name);
+    } else {
+      console.log(`  ❌ 未找到 ${t.name}`);
+      // Save current page for debugging
+      await savePage(page, `${t.name}-FAILED`);
     }
+    await page.waitForTimeout(500);
   }
 
   console.log('\n=== 采集完成 ===');
-  console.log(`输出: ${OUTPUT_DIR}`);
   await browser.close();
 }
 
 /**
- * 在侧边栏中：先展开分组(section)，再点击子菜单项(item)
+ * 在页面中查找包含 exactText 的元素并点击
+ * 核心：用 page.evaluate 遍历 DOM 找到精确匹配的文本节点，逐层向上找可点击元素
  */
-async function navigateToItem(page: any, section: string, item: string): Promise<boolean> {
-  // Step 1: Try clicking the section header to expand it
-  const sectionClicked = await clickSidebarText(page, section);
-  if (sectionClicked) {
-    console.log(`  📂 点击分组: ${section}`);
-    await page.waitForTimeout(800);
-  } else {
-    console.log(`  ⚠️ 分组未找到或不可点击: ${section}，尝试直接点击子项`);
-  }
+async function clickByText(page: any, exactText: string): Promise<boolean> {
+  const result = await page.evaluate((text: string) => {
+    // Walk through all text-containing elements
+    const allElements = document.querySelectorAll(
+      'a, span, div, li, button, [class*="menu"], [class*="nav"], [class*="item"], [class*="title"]',
+    );
 
-  // Step 2: Try clicking the sub-item (multiple attempts)
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const itemClicked = await clickSidebarText(page, item);
-    if (itemClicked) {
-      console.log(`  ✅ 点击菜单: ${item}`);
-      return true;
-    }
-    // Scroll sidebar to reveal more items and retry
-    if (attempt < 2) {
-      await page.evaluate(() => {
-        const nav = document.querySelector('nav, aside, [class*="sidebar"], [class*="menu"]');
-        if (nav) nav.scrollBy(0, 200);
-      });
-      await page.waitForTimeout(500);
-    }
-  }
+    for (const el of allElements) {
+      // Check if this element's OWN text (not children) matches exactly
+      // We use childNodes to check direct text content
+      const ownText = Array.from(el.childNodes)
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent?.trim())
+        .join('');
 
-  console.log(`  ❌ 菜单项未找到: ${item}`);
-  return false;
-}
+      // Also check if element has a single text child
+      const allText = (el as HTMLElement).innerText?.trim() || '';
 
-/**
- * 在侧边栏中查找并点击包含指定文本的元素
- */
-async function clickSidebarText(page: any, text: string): Promise<boolean> {
-  // First, try to scroll the sidebar to find the text
-  const sidebarSelectors = [
-    'nav', 'aside', '[class*="sidebar"]', '[class*="menu"]',
-    '[class*="sider"]', '[class*="nav"]',
-  ];
+      if (ownText === text || allText === text) {
+        // Found exact match — now try to click it
+        const htmlEl = el as HTMLElement;
 
-  // Find the sidebar and scroll through it
-  for (const sidebarSel of sidebarSelectors) {
-    try {
-      const sidebar = await page.$(sidebarSel);
-      if (!sidebar) continue;
+        // Scroll into view
+        htmlEl.scrollIntoView({ block: 'center', behavior: 'instant' });
 
-      // Scroll the sidebar all the way down to reveal all items
-      await sidebar.evaluate((el: HTMLElement) => {
-        el.scrollTop = 0;
-        el.scrollTo(0, el.scrollHeight);
-      });
-      await page.waitForTimeout(300);
-      await sidebar.evaluate((el: HTMLElement) => el.scrollTo(0, 0));
-      await page.waitForTimeout(300);
-    } catch { /* continue */ }
-  }
+        // Try to find a clickable ancestor (or self)
+        let clickTarget: HTMLElement = htmlEl;
+        let depth = 0;
+        while (clickTarget && depth < 5) {
+          const tag = clickTarget.tagName.toLowerCase();
+          const hasHref = clickTarget.hasAttribute('href');
+          const isClickable = tag === 'a' || tag === 'button' || hasHref ||
+            clickTarget.onclick !== null ||
+            clickTarget.getAttribute('role') === 'button' ||
+            clickTarget.style.cursor === 'pointer';
 
-  // Now search for the element with matching text
-  const selectors = [
-    'nav a', 'aside a', '[class*="sidebar"] a', '[class*="menu"] a',
-    '[class*="sider"] a', '[class*="nav"] a',
-    'nav span', 'aside span', '[class*="menu"] span',
-    '[class*="sider"] span', 'nav li', 'aside li', '[class*="menu"] li',
-  ];
-
-  for (const sel of selectors) {
-    try {
-      const elements = await page.$$(sel);
-      for (const el of elements) {
-        const elText = (await el.innerText())?.trim();
-        if (elText === text) {
-          // Check visibility and scroll if needed
-          const isVisible = await el.evaluate((e: HTMLElement) => {
-            const rect = e.getBoundingClientRect();
-            return rect.top >= 0 && rect.bottom <= window.innerHeight;
-          });
-
-          if (!isVisible) {
-            // Scroll the parent container
-            await el.evaluate((e: HTMLElement) => {
-              e.scrollIntoView({ block: 'center', behavior: 'instant' });
-            });
-            await page.waitForTimeout(300);
-          }
-
-          await el.click({ timeout: 3000 });
-          await page.waitForTimeout(800);
-          return true;
+          if (isClickable) break;
+          clickTarget = clickTarget.parentElement as HTMLElement;
+          depth++;
         }
-      }
-    } catch { /* continue */ }
-  }
 
+        // Click it
+        clickTarget.click();
+
+        // Return useful debug info
+        return {
+          found: true,
+          tag: htmlEl.tagName,
+          clickTag: clickTarget.tagName,
+          className: htmlEl.className?.substring(0, 50) || '',
+          boundingTop: htmlEl.getBoundingClientRect().top,
+        };
+      }
+    }
+
+    return { found: false };
+  }, exactText);
+
+  if (result.found) {
+    console.log(`    [${result.tag}→${result.clickTag} top=${Math.round(result.boundingTop)}]`);
+    return true;
+  }
   return false;
 }
 
-/**
- * 点击页面内的 tab 标签
- */
-async function clickTab(page: any, tabName: string): Promise<boolean> {
-  const tabSelectors = [
-    '[class*="tab"]',
-    '[role="tab"]',
-    '[class*="ant-tabs-tab"]',
-    '.tab-item',
-    '[class*="tabs"] > *',
-  ];
-
-  for (const sel of tabSelectors) {
-    try {
-      const tabs = await page.$$(sel);
-      for (const tab of tabs) {
-        const text = (await tab.innerText())?.trim();
-        if (text === tabName) {
-          await tab.click({ timeout: 3000 });
-          return true;
-        }
-      }
-    } catch { /* continue */ }
-  }
-
-  return false;
-}
-
-/**
- * 保存页面信息（只保存主内容区，排除侧边栏）
- */
-async function savePageFull(page: any, name: string) {
+async function savePage(page: any, name: string) {
   const url = page.url();
   const title = await page.title();
+  const safeName = name.replace(/[<>:"/\\|?*]/g, '-').substring(0, 40);
 
   // Screenshot
-  const ssPath = path.join(OUTPUT_DIR, `${name}.png`);
+  const ssPath = path.join(OUTPUT_DIR, `${safeName}.png`);
   await page.screenshot({ path: ssPath, fullPage: false });
   console.log(`  📸 ${ssPath}`);
 
-  // Extract main content area text (exclude sidebar)
-  const contentText = await page.evaluate(() => {
-    // Try to get main content only
+  // Extract main content (exclude sidebar)
+  const text = await page.evaluate(() => {
     const main = document.querySelector(
-      'main, [class*="main-content"], [class*="content-wrap"], [class*="page-content"], .ant-layout-content, [class*="body"]',
+      'main, [class*="main-content"], [class*="content-wrap"], [class*="page-content"], .ant-layout-content',
     );
-    if (main) return (main as HTMLElement).innerText?.substring(0, 8000) || '';
-
-    // Fallback: get body text without nav/aside
-    const body = document.body.cloneNode(true) as HTMLElement;
-    body.querySelectorAll('nav, aside, [class*="sidebar"], [class*="sider"]').forEach((el) => el.remove());
-    return body.innerText?.substring(0, 8000) || '';
+    return (main as HTMLElement)?.innerText?.substring(0, 6000)
+      || document.body.innerText?.substring(0, 6000)
+      || '';
   });
 
-  const txtPath = path.join(OUTPUT_DIR, `${name}.txt`);
-  fs.writeFileSync(txtPath, `URL: ${url}\nTitle: ${title}\n\n${contentText}`);
-
-  // Save HTML (main content area, limited size)
-  const htmlPath = path.join(OUTPUT_DIR, `${name}.html`);
-  const html = await page.content();
-  fs.writeFileSync(htmlPath, html.substring(0, 80000));
+  const txtPath = path.join(OUTPUT_DIR, `${safeName}.txt`);
+  fs.writeFileSync(txtPath, `URL: ${url}\nTitle: ${title}\n\n${text}`);
 }
 
 discover().catch((err) => {
