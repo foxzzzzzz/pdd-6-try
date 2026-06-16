@@ -10,7 +10,7 @@
     "db:generate": "pnpm --filter @pdd-inspector/core run db:generate",
     "db:push": "pnpm --filter @pdd-inspector/core run db:push",
     "db:migrate": "pnpm --filter @pdd-inspector/core run db:migrate",
-    "discover": "tsx packages/worker/src/discover.ts"
+    "discover": "pnpm --filter @pdd-inspector/worker run discover"
   },
   "engines": {
     "node": ">=20.0.0"

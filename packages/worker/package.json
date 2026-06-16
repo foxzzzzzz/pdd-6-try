@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "discover": "tsx src/discover.ts"
   },
   "dependencies": {
     "@pdd-inspector/core": "workspace:*",
