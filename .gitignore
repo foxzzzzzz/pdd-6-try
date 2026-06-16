@@ -4,6 +4,10 @@ dist/
 *.db
 *.db-journal
 data/screenshots/
+data/page-discovery/
+data/discovery-cookie.json
+packages/worker/data/
+packages/web/data/
 .superpowers/
 .turbo/
 coverage/
