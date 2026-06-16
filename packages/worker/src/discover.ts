@@ -76,16 +76,7 @@ async function discover() {
   for (const t of TARGETS) {
     console.log(`\n--- ${t.name} (${t.section}) ---`);
 
-    // Step 1: Expand the section by clicking it
-    const expanded = await clickByText(page, t.section);
-    if (expanded) {
-      console.log(`  📂 ${t.section} 已展开`);
-      await page.waitForTimeout(1000);
-    } else {
-      console.log(`  ⚠️ 无法展开 ${t.section}`);
-    }
-
-    // Step 2: Click the target item
+    // 菜单默认已展开，直接点击子项即可
     const clicked = await clickByText(page, t.name);
     if (clicked) {
       console.log(`  ✅ ${t.name} 已点击`);
