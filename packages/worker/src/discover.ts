@@ -22,15 +22,9 @@ const COOKIE_FILE = path.resolve('./data/discovery-cookie.json');
 
 // 精准导航: {name, section(分组), item(子菜单项), url(已知URL)}
 const TARGETS: { name: string; section: string; item: string; url?: string }[] = [
-  { name: '01-评价管理', section: '商品管理', item: '评价管理', url: '/goods/evaluation/index' },
-  { name: '02-种草动态', section: '店铺管理', item: '种草动态' },
-  { name: '03-消费者体验', section: '售后管理', item: '消费者体验' },
-  { name: '04-售后工作台', section: '售后管理', item: '售后工作台' },
-  { name: '05-售后申诉', section: '商家权益保护', item: '售后申诉' },
-  { name: '06-商品数据', section: '数据中心', item: '商品数据' },
-  { name: '07-交易数据', section: '数据中心', item: '交易数据' },
-  { name: '08-服务数据', section: '数据中心', item: '服务数据' },
-  { name: '09-经营总览', section: '数据中心', item: '经营总览' },
+  // 之前已成功采集的页面略过，仅采集缺失的 2 个
+  { name: 'fix-01-种草动态', section: '店铺管理', item: '种草动态' },
+  { name: 'fix-02-售后申诉', section: '商家权益保护', item: '售后申诉' },
 ];
 
 // 服务数据页面下的 tab 页（需要额外点击）
@@ -150,24 +144,33 @@ async function discover() {
  * 在侧边栏中：先展开分组(section)，再点击子菜单项(item)
  */
 async function navigateToItem(page: any, section: string, item: string): Promise<boolean> {
-  // Step 1: find and expand the section in sidebar
-  // Section headers are text nodes in the sidebar
-  const sectionExpanded = await clickSidebarText(page, section);
-  if (sectionExpanded) {
-    console.log(`  ✅ 展开分组: ${section}`);
-    await page.waitForTimeout(500);
+  // Step 1: Try clicking the section header to expand it
+  const sectionClicked = await clickSidebarText(page, section);
+  if (sectionClicked) {
+    console.log(`  📂 点击分组: ${section}`);
+    await page.waitForTimeout(800);
   } else {
-    console.log(`  ⚠️ 分组可能已展开或未找到: ${section}`);
+    console.log(`  ⚠️ 分组未找到或不可点击: ${section}，尝试直接点击子项`);
   }
 
-  // Step 2: click the sub-item
-  const itemClicked = await clickSidebarText(page, item);
-  if (itemClicked) {
-    console.log(`  ✅ 点击菜单: ${item}`);
-    return true;
+  // Step 2: Try clicking the sub-item (multiple attempts)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const itemClicked = await clickSidebarText(page, item);
+    if (itemClicked) {
+      console.log(`  ✅ 点击菜单: ${item}`);
+      return true;
+    }
+    // Scroll sidebar to reveal more items and retry
+    if (attempt < 2) {
+      await page.evaluate(() => {
+        const nav = document.querySelector('nav, aside, [class*="sidebar"], [class*="menu"]');
+        if (nav) nav.scrollBy(0, 200);
+      });
+      await page.waitForTimeout(500);
+    }
   }
 
-  console.log(`  ⚠️ 菜单项未找到: ${item}`);
+  console.log(`  ❌ 菜单项未找到: ${item}`);
   return false;
 }
 
@@ -175,21 +178,35 @@ async function navigateToItem(page: any, section: string, item: string): Promise
  * 在侧边栏中查找并点击包含指定文本的元素
  */
 async function clickSidebarText(page: any, text: string): Promise<boolean> {
-  // Try to find and click a sidebar item with exact text match
+  // First, try to scroll the sidebar to find the text
+  const sidebarSelectors = [
+    'nav', 'aside', '[class*="sidebar"]', '[class*="menu"]',
+    '[class*="sider"]', '[class*="nav"]',
+  ];
+
+  // Find the sidebar and scroll through it
+  for (const sidebarSel of sidebarSelectors) {
+    try {
+      const sidebar = await page.$(sidebarSel);
+      if (!sidebar) continue;
+
+      // Scroll the sidebar all the way down to reveal all items
+      await sidebar.evaluate((el: HTMLElement) => {
+        el.scrollTop = 0;
+        el.scrollTo(0, el.scrollHeight);
+      });
+      await page.waitForTimeout(300);
+      await sidebar.evaluate((el: HTMLElement) => el.scrollTo(0, 0));
+      await page.waitForTimeout(300);
+    } catch { /* continue */ }
+  }
+
+  // Now search for the element with matching text
   const selectors = [
-    'nav a',
-    'aside a',
-    '[class*="sidebar"] a',
-    '[class*="menu"] a',
-    '[class*="sider"] a',
-    '[class*="nav"] a',
-    'nav span',
-    'aside span',
-    '[class*="menu"] span',
-    '[class*="sider"] span',
-    'nav li',
-    'aside li',
-    '[class*="menu"] li',
+    'nav a', 'aside a', '[class*="sidebar"] a', '[class*="menu"] a',
+    '[class*="sider"] a', '[class*="nav"] a',
+    'nav span', 'aside span', '[class*="menu"] span',
+    '[class*="sider"] span', 'nav li', 'aside li', '[class*="menu"] li',
   ];
 
   for (const sel of selectors) {
@@ -198,8 +215,20 @@ async function clickSidebarText(page: any, text: string): Promise<boolean> {
       for (const el of elements) {
         const elText = (await el.innerText())?.trim();
         if (elText === text) {
-          await el.scrollIntoViewIfNeeded();
-          await page.waitForTimeout(200);
+          // Check visibility and scroll if needed
+          const isVisible = await el.evaluate((e: HTMLElement) => {
+            const rect = e.getBoundingClientRect();
+            return rect.top >= 0 && rect.bottom <= window.innerHeight;
+          });
+
+          if (!isVisible) {
+            // Scroll the parent container
+            await el.evaluate((e: HTMLElement) => {
+              e.scrollIntoView({ block: 'center', behavior: 'instant' });
+            });
+            await page.waitForTimeout(300);
+          }
+
           await el.click({ timeout: 3000 });
           await page.waitForTimeout(800);
           return true;
