@@ -84,11 +84,16 @@ worker.on('error', (err) => {
 
 const shutdown = async () => {
   log('\nShutting down worker...');
-  await worker.close();
+  await worker.close(true);
   process.exit(0);
 };
+
+// Clean stale locks from previous instance (hot reload safety)
+await worker.waitUntilReady();
+const staleCount = await worker.drain();
+if (staleCount > 0) log(`Cleaned ${staleCount} stale jobs`);
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-log('Worker is ready, waiting for jobs...');
+log('Worker ready — code changes auto-reload via tsx watch');
