@@ -18,7 +18,15 @@ export async function collectExperienceMetrics(
     const data = JSON.parse(await page.evaluate(`(function () {
       var text = document.body.innerText || '';
       function ex(label) {
-        var idx = text.indexOf(label);
+        // Find the LAST occurrence (page has duplicate labels, score is at the end)
+        var idx = -1;
+        var searchFrom = 0;
+        while (true) {
+          var pos = text.indexOf(label, searchFrom);
+          if (pos === -1) break;
+          idx = pos;
+          searchFrom = pos + label.length;
+        }
         if (idx === -1) return null;
         var sub = text.substring(idx + label.length, idx + label.length + 100);
         // Look for score before "/5" pattern
