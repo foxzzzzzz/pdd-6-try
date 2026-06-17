@@ -230,6 +230,24 @@ export async function inspectStore(
       ...appealMetrics,
     };
 
+    // Calculate change rates from previous inspection
+    const prevMetrics = db
+      .select().from(schema.storeMetrics)
+      .where(eq(schema.storeMetrics.storeId, storeId))
+      .orderBy(desc(schema.storeMetrics.date))
+      .limit(1).all()
+      .filter((m) => m.date !== date);
+
+    if (prevMetrics.length > 0) {
+      var pm = prevMetrics[0];
+      if (mergedMetrics.rating != null && pm.rating != null) {
+        mergedMetrics.ratingChange = mergedMetrics.rating - pm.rating;
+      }
+      if (mergedMetrics.defectRate != null && pm.defectRate != null) {
+        mergedMetrics.defectRateChange = mergedMetrics.defectRate - pm.defectRate;
+      }
+    }
+
     // Get inspection record ID
     const record = resolvedConfig.inspectionId != null
       ? db

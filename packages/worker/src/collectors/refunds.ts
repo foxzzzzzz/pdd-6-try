@@ -1,5 +1,8 @@
 /**
- * 售后/退款数据采集
+ * 售后/退款数据采集 — /aftersales/aftersale_list
+ *
+ * 主要采集: 消费者服务体验分(售后视角)、投诉预警数、
+ * 待处理售后单数、纠纷退款相关数据
  */
 import { BrowserManager } from '../browser';
 import { MetricsSnapshot } from '@pdd-inspector/core';
@@ -33,14 +36,20 @@ export async function collectRefundMetrics(
         return ms[0];
       }
       return JSON.stringify({
-        expScore: ex('消费者服务体验分'),
         complaintWarn: ex('投诉预警'),
         overdueSoon: ex('待处理即将逾期'),
         pendingMerchant: ex('待商家处理'),
+        needProof: ex('待商家举证'),
+        buyerUrge: ex('买家催处理'),
+        disputeCount: ex('纠纷退款'),
       });
     })()`));
 
-    if (data.expScore) metrics.refundDuration = parseFloat(data.expScore);
+    // 售后等待处理数量 — 用于衡量退款压力
+    if (data.pendingMerchant) metrics.refundDuration = parseFloat(data.pendingMerchant);
+
+    // 纠纷退款数 — 用于衡量纠纷率
+    if (data.disputeCount) metrics.disputeRate = parseFloat(data.disputeCount);
 
     await browser.takeScreenshot(storeId, 'refunds');
   } catch (err) {
