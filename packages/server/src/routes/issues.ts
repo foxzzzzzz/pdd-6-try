@@ -16,7 +16,7 @@ export async function issueRoutes(app: FastifyInstance) {
       const db = await getDb();
       let issues = db.select().from(schema.issues).orderBy(desc(schema.issues.createdAt)).all();
 
-      if (req.query.storeId) issues = issues.filter((i) => i.storeId === parseInt(req.query.storeId));
+      if (req.query.storeId) issues = issues.filter((i) => i.storeId === Number(req.query.storeId));
       if (req.query.factory) issues = issues.filter((i) => i.factory === req.query.factory);
       if (req.query.status) issues = issues.filter((i) => i.rectificationStatus === req.query.status);
       if (req.query.severity) issues = issues.filter((i) => i.severity === req.query.severity);
@@ -113,7 +113,7 @@ export async function issueRoutes(app: FastifyInstance) {
     const db = await getDb();
     let issues = db.select().from(schema.issues).orderBy(desc(schema.issues.createdAt)).all();
     if (req.query.factory) issues = issues.filter((i) => i.factory === req.query.factory);
-    if (req.query.storeId) issues = issues.filter((i) => i.storeId === parseInt(req.query.storeId));
+    if (req.query.storeId) issues = issues.filter((i) => i.storeId === Number(req.query.storeId));
 
     const stores = db.select().from(schema.stores).all();
 

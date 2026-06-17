@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import { Queue } from 'bullmq';
-import Redis from 'ioredis';
 import { INSPECTION_QUEUE, InspectionJobData, getDb, schema } from '@pdd-inspector/core';
 import { eq } from 'drizzle-orm';
 
@@ -8,11 +7,11 @@ const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
 const DAILY_CRON = process.env.SCHEDULE_CRON || '0 8 * * *'; // Default: daily at 8:00 AM
 
-const connection = new Redis({
+const connection = {
   host: REDIS_HOST,
   port: REDIS_PORT,
   maxRetriesPerRequest: null,
-});
+};
 
 async function scheduleDailyInspection() {
   console.log('PDD Inspection Scheduler');
@@ -83,6 +82,5 @@ scheduleDailyInspection().catch((err) => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nShutting down scheduler...');
-  connection.disconnect();
   process.exit(0);
 });

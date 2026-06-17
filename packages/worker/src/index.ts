@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import { Worker } from 'bullmq';
-import Redis from 'ioredis';
 import { inspectStore } from './inspector';
 import { INSPECTION_QUEUE, InspectionJobData } from '@pdd-inspector/core';
 
@@ -9,11 +8,11 @@ const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
 const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '3', 10);
 const HEADLESS = process.env.HEADLESS !== 'false'; // default true
 
-const connection = new Redis({
+const connection = {
   host: REDIS_HOST,
   port: REDIS_PORT,
   maxRetriesPerRequest: null,
-});
+};
 
 console.log('Starting PDD Inspection Worker...');
 console.log(`  Redis: ${REDIS_HOST}:${REDIS_PORT}`);
@@ -73,7 +72,6 @@ worker.on('error', (err) => {
 const shutdown = async () => {
   console.log('\nShutting down worker...');
   await worker.close();
-  connection.disconnect();
   process.exit(0);
 };
 

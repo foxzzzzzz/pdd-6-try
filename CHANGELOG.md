@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased
+
+### 修复
+- 恢复 monorepo 全量构建：补齐 Node/sql.js 类型、统一 Drizzle 版本、为 server/worker/scheduler 显式声明 Drizzle 依赖，并避免 BullMQ 直接接收 ioredis 实例导致的类型冲突。
+
 ## v1.0.0 (2026-06-17) — 🎉 全功能交付
 
 ### Phase 5: 规模化 + 工厂协作

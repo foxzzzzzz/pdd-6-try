@@ -1,38 +1,4 @@
 // ============================================================
-// AI Provider Types
-// ============================================================
-
-export type AIProviderName = 'claude' | 'openai' | 'deepseek' | 'local';
-
-export interface AIConfig {
-  provider: AIProviderName;
-  model?: string;
-  apiKey?: string;
-  baseUrl?: string;
-}
-
-export interface Classification {
-  label: string;
-  confidence: number;
-  reasoning?: string;
-}
-
-export interface SentimentResult {
-  sentiment: 'negative' | 'neutral' | 'positive';
-  confidence: number;
-  keywords: string[];
-  shouldHide: boolean;
-  reasoning?: string;
-}
-
-export interface AnomalyResult {
-  isAnomaly: boolean;
-  severity: 'normal' | 'warning' | 'critical';
-  flags: string[];
-  description: string;
-}
-
-// ============================================================
 // Store & Inspection Types
 // ============================================================
 

@@ -5,8 +5,8 @@ import { collectStoreMetrics } from './collectors/metrics';
 import { collectExperienceMetrics } from './collectors/experience';
 import { collectRefundMetrics } from './collectors/refunds';
 import { collectAppealMetrics } from './collectors/appeals';
-import { replyToGoodReviews, reportBadReviews } from './actions/reviews';
-import { handleInteractions } from './actions/interactions';
+import { replyToGoodReviews, reportBadReviews, ReviewActionResult } from './actions/reviews';
+import { handleInteractions, InteractionActionResult } from './actions/interactions';
 import { getLightProvider, getHeavyProvider } from './ai/provider-factory';
 import { detectAnomaliesByRules } from './ai/anomaly-detector';
 import { generateDailyReport, generateSummaryByTemplate, StoreReportData } from './ai/report-generator';
@@ -57,12 +57,14 @@ export async function inspectStore(
   storeId: number,
   storeName: string,
   date: string,
-  config: InspectionConfig = DEFAULT_CONFIG,
+  config: Partial<InspectionConfig> = {},
 ): Promise<{ success: boolean; completionRate: number; errors: string[] }> {
+  const resolvedConfig: InspectionConfig = { ...DEFAULT_CONFIG, ...config };
   const db = await getDb();
   const errors: string[] = [];
   const totalSteps = 7; // 4 data + 3 actions (reply, report, hide)
   let completedSteps = 0;
+  let completionRate = 0;
 
   // Update inspection record: running
   db.update(schema.inspectionRecords)
@@ -80,7 +82,7 @@ export async function inspectStore(
       throw new Error(`Store ${storeId} not found`);
     }
 
-    await browser.init(config.headless);
+    await browser.init(resolvedConfig.headless);
     const loggedIn = await browser.login(storeId, store.storageState);
 
     if (!loggedIn) {
@@ -126,11 +128,11 @@ export async function inspectStore(
     console.log(`[${storeName}] Appeal data collected`);
 
     // ======== PHASE 2.5: REVIEW ACTIONS ========
-    let reviewResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
-    let interactionResult = { details: [], hidden: 0, ignored: 0, skipped: 0 };
+    let reviewResult: ReviewActionResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
+    let interactionResult: InteractionActionResult = { details: [], hidden: 0, ignored: 0, skipped: 0 };
 
     // Step 5: Reply to good reviews
-    if (config.enableReply) {
+    if (resolvedConfig.enableReply) {
       try {
         reviewResult = await replyToGoodReviews(browser, storeId, DEFAULT_REPLY_TEMPLATE);
         console.log(`[${storeName}] Reviews: ${reviewResult.replied} replied, ${reviewResult.skipped} skipped`);
@@ -141,11 +143,11 @@ export async function inspectStore(
     completedSteps++;
 
     // Step 6: Report bad reviews
-    if (config.enableReport) {
+    if (resolvedConfig.enableReport) {
       try {
         // AI 介入点 1&2: 尝试用 AI 匹配话术
         var reportTemplateFn = ruleBasedReportTemplate;
-        if (config.useAI) {
+        if (resolvedConfig.useAI) {
           try {
             var aiProvider = getLightProvider(store.aiConfig);
             reportTemplateFn = function (review: { content: string; stars: number }) {
@@ -169,7 +171,7 @@ export async function inspectStore(
 
     // Step 7: Handle bad interactions (介入点 3)
     var interactionJudgeFn = ruleBasedInteractionJudge;
-    if (config.useAI) {
+    if (resolvedConfig.useAI) {
       try {
         var aiHeavy = getHeavyProvider(store.aiConfig);
         interactionJudgeFn = function (content: string) {
@@ -179,7 +181,7 @@ export async function inspectStore(
         };
       } catch { /* AI not available, use rules */ }
     }
-    if (config.enableHideInteractions) {
+    if (resolvedConfig.enableHideInteractions) {
       try {
         interactionResult = await handleInteractions(browser, storeId, interactionJudgeFn);
         console.log(`[${storeName}] Interactions: ${interactionResult.hidden} hidden, ${interactionResult.ignored} ignored`);
@@ -295,8 +297,7 @@ export async function inspectStore(
 
         if (anomalyResult.isAnomaly) {
           console.log(`[${storeName}] ⚠️ Anomaly: ${anomalyResult.description}`);
-          mergedMetrics.anomalyFlags = JSON.stringify(anomalyResult.flags);
-          mergedMetrics.severity = anomalyResult.severity;
+          // Persisted in the dedicated anomaly-fix change.
         }
       } catch (err) {
         console.error(`Anomaly detection error:`, err);
@@ -324,7 +325,7 @@ export async function inspectStore(
     errors.push(errMsg);
     console.error(`[${storeName}] Inspection error:`, errMsg);
 
-    if (config.screenshotOnError) {
+    if (resolvedConfig.screenshotOnError) {
       try {
         await browser.takeScreenshot(storeId, 'error');
       } catch { /* ignore screenshot errors */ }

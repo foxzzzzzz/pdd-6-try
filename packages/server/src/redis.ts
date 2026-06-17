@@ -5,12 +5,18 @@ const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
 
 let redis: Redis | null = null;
 
+export function getRedisOptions() {
+  return {
+    host: REDIS_HOST,
+    port: REDIS_PORT,
+    maxRetriesPerRequest: null,
+  };
+}
+
 export function getRedis(): Redis {
   if (!redis) {
     redis = new Redis({
-      host: REDIS_HOST,
-      port: REDIS_PORT,
-      maxRetriesPerRequest: null, // Required by BullMQ
+      ...getRedisOptions(),
       lazyConnect: true,
     });
   }

@@ -1,5 +1,5 @@
 import { Queue, Job } from 'bullmq';
-import { getRedis } from './redis';
+import { getRedisOptions } from './redis';
 import { INSPECTION_QUEUE, InspectionJobData } from '@pdd-inspector/core';
 
 let inspectionQueue: Queue<InspectionJobData> | null = null;
@@ -7,7 +7,7 @@ let inspectionQueue: Queue<InspectionJobData> | null = null;
 export function getInspectionQueue(): Queue<InspectionJobData> {
   if (!inspectionQueue) {
     inspectionQueue = new Queue<InspectionJobData>(INSPECTION_QUEUE, {
-      connection: getRedis(),
+      connection: getRedisOptions(),
       defaultJobOptions: {
         attempts: 3,
         backoff: {

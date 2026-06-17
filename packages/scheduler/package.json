@@ -11,12 +11,13 @@
   "dependencies": {
     "@pdd-inspector/core": "workspace:*",
     "bullmq": "^5.0.0",
-    "ioredis": "^5.0.0",
-    "dotenv": "^16.4.0"
+    "dotenv": "^16.4.0",
+    "drizzle-orm": "0.44.7",
+    "ioredis": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.8.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
   }
 }

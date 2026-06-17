@@ -13,12 +13,14 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
-    "drizzle-orm": "^0.44.0",
+    "drizzle-orm": "^0.44.7",
     "sql.js": "^1.12.0"
   },
   "devDependencies": {
+    "@types/node": "^22.19.21",
+    "@types/sql.js": "^1.4.11",
     "drizzle-kit": "^0.31.0",
-    "typescript": "^5.8.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
   }
 }
