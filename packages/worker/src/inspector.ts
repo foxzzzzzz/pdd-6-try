@@ -11,6 +11,7 @@ import { getLightProvider, getHeavyProvider } from './ai/provider-factory';
 import { detectAnomaliesByRules } from './ai/anomaly-detector';
 import { generateDailyReport, generateSummaryByTemplate, StoreReportData } from './ai/report-generator';
 import { buildMetricInsertValues } from './inspection-results';
+import { shouldRunRuleBasedAnomalyDetection } from './inspection-config';
 
 export interface InspectionConfig {
   inspectionId?: number;
@@ -249,7 +250,7 @@ export async function inspectStore(
     // ======== PHASE 4: AI ANALYSIS (介入点 4 & 5) ========
     // Anomaly detection (介入点4)
     let anomalyResult = null;
-    if (resolvedConfig.useAI || true) { // Always run rule-based detection
+    if (shouldRunRuleBasedAnomalyDetection(resolvedConfig)) {
       try {
         const historicalMetrics = db
           .select()

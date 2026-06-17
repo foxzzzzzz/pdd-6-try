@@ -13,6 +13,7 @@ import {
   INSPECTION_QUEUE,
   SCHEDULER_QUEUE,
 } from '@pdd-inspector/core';
+import { shouldRunRuleBasedAnomalyDetection } from '../inspection-config';
 import { buildMetricInsertValues } from '../inspection-results';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
@@ -42,6 +43,8 @@ assert('队列任务携带 inspectionId', jobData.inspectionId === 99);
 const schedulerJobData = createSchedulerJobData();
 assert('调度任务使用独立队列', SCHEDULER_QUEUE !== INSPECTION_QUEUE);
 assert('调度任务不伪造店铺 ID', !('storeId' in schedulerJobData));
+assert('关闭 AI 时仍运行规则异常检测', shouldRunRuleBasedAnomalyDetection({ useAI: false }));
+assert('开启 AI 时仍运行规则异常检测', shouldRunRuleBasedAnomalyDetection({ useAI: true }));
 
 const metricValues = buildMetricInsertValues(
   {
