@@ -8,8 +8,10 @@ export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
+  private headless = true;
 
   async init(headless = true): Promise<void> {
+    this.headless = headless;
     this.browser = await chromium.launch({
       headless,
       args: [
@@ -57,8 +59,24 @@ export class BrowserManager {
 
     if (isLoginPage) {
       console.log(`Store ${storeId}: Login required — please scan QR code or enter credentials`);
-      // Take screenshot and save for manual intervention
       await this.takeScreenshot(storeId, 'login-required');
+
+      if (this.headless || !this.browser.isConnected()) return false;
+      try {
+        await this.page.waitForURL(
+          (url) => !url.toString().includes('login') && !url.toString().includes('passport'),
+          { timeout: 180000 },
+        );
+        await this.page.waitForTimeout(3000);
+        const stillLoginPage = await this.page.$('input[placeholder*="手机"], .login-form, [class*="login"]');
+        if (!stillLoginPage) {
+          console.log(`Store ${storeId}: Manual login completed`);
+          return true;
+        }
+      } catch {
+        // Manual login timed out.
+      }
+
       return false; // Needs manual login
     }
 

@@ -108,6 +108,13 @@ export async function inspectStore(
       saveDb(db);
 
       errors.push('Login required — manual intervention needed');
+      updateInspectionRecord({
+        status: 'failed',
+        endTime: new Date().toISOString(),
+        duration: Math.floor((Date.now() - startTime) / 1000),
+        completionRate: 0,
+      });
+      saveDb(db);
       return { success: false, completionRate: 0, errors };
     }
 

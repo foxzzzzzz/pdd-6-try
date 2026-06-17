@@ -12,7 +12,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [inspecting, setInspecting] = useState(false);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+    const timer = window.setInterval(loadData, 10000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function loadData() {
     try {

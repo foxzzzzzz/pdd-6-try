@@ -8,7 +8,11 @@ export default function StoreConfig() {
   const [form, setForm] = useState({ name: '', pddStoreId: '', owner: '', factory: '' });
   const [inspecting, setInspecting] = useState<number | null>(null);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const timer = window.setInterval(load, 10000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function load() {
     try { setStores(await api.getStores() as any[]); } finally { setLoading(false); }
