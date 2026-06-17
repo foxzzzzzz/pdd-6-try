@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 修复
+- 店铺 API 响应统一脱敏 `cookie` 和 `storageState`，避免前端列表、详情、创建或更新响应泄露登录凭证。
 - 店铺新增/更新/删除和巡店触发接口在写入 sql.js 后立即调用 `saveDb()`，避免进程退出后丢失店铺配置或巡店记录；模板写接口已验证具备持久化调用。
 - `/api/inspections` 列表接口返回巡店记录时同步附带指标快照和异常等级，Dashboard/单店详情可直接展示最新指标和预警状态。
 - Scheduler 改用独立调度队列承载 repeatable job，巡店队列只接收真实店铺任务，避免 Worker 消费 `storeId=0` 的占位任务。

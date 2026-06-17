@@ -1,12 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { getDb, saveDb, schema } from '@pdd-inspector/core';
 import { eq } from 'drizzle-orm';
+import { sanitizeStore } from '../store-response';
 
 export async function storeRoutes(app: FastifyInstance) {
   // List all stores
   app.get('/api/stores', async () => {
     const db = await getDb();
-    return db.select().from(schema.stores).all();
+    return db.select().from(schema.stores).all().map(sanitizeStore);
   });
 
   // Get single store
@@ -20,7 +21,7 @@ export async function storeRoutes(app: FastifyInstance) {
     if (!store) {
       throw { statusCode: 404, message: 'Store not found' };
     }
-    return store;
+    return sanitizeStore(store);
   });
 
   // Create store
@@ -45,7 +46,7 @@ export async function storeRoutes(app: FastifyInstance) {
       .returning()
       .get();
     saveDb();
-    return result;
+    return sanitizeStore(result);
   });
 
   // Update store
@@ -68,7 +69,7 @@ export async function storeRoutes(app: FastifyInstance) {
       .returning()
       .get();
     saveDb();
-    return result;
+    return sanitizeStore(result);
   });
 
   // Delete store
