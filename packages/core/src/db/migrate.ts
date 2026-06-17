@@ -163,7 +163,7 @@ async function migrate() {
     )
   `);
 
-  saveDb();
+  saveDb(db);
   console.log('Migration complete: all 9 tables created.');
 
   await closeDb();

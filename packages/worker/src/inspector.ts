@@ -105,7 +105,7 @@ export async function inspectStore(
         .set({ status: 'pending_login', updatedAt: new Date().toISOString() })
         .where(eq(schema.stores.id, storeId))
         .run();
-      saveDb();
+      saveDb(db);
 
       errors.push('Login required — manual intervention needed');
       return { success: false, completionRate: 0, errors };
@@ -353,7 +353,7 @@ export async function inspectStore(
       completionRate,
     });
 
-    saveDb();
+    saveDb(db);
     log(`[${storeName}] Inspection complete: ${completionRate * 100}% in ${duration}s`);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -373,7 +373,7 @@ export async function inspectStore(
       duration: Math.floor((Date.now() - startTime) / 1000),
       completionRate: completedSteps / totalSteps,
     });
-    saveDb();
+    saveDb(db);
   } finally {
     await browser.close();
   }

@@ -45,7 +45,7 @@ async function seed() {
     }
   }
 
-  saveDb();
+  saveDb(db);
   console.log('Seed complete.');
 
   // Verify

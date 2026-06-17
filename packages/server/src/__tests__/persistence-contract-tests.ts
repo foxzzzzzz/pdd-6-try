@@ -16,7 +16,7 @@ function assert(description: string, condition: boolean, detail = '') {
 
 function countSaveDbCalls(file: string) {
   const source = fs.readFileSync(path.resolve(process.cwd(), 'src/routes', file), 'utf8');
-  return (source.match(/\bsaveDb\(\)/g) ?? []).length;
+  return (source.match(/\bsaveDb\(db\)/g) ?? []).length;
 }
 
 console.log('\n📋 测试: Server 写接口持久化契约');

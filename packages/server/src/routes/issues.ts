@@ -49,7 +49,7 @@ export async function issueRoutes(app: FastifyInstance) {
         })
         .returning()
         .get();
-      saveDb();
+      saveDb(db);
       return { ...result, shareUrl: `/factory/${shareToken}` };
     },
   );
@@ -65,7 +65,7 @@ export async function issueRoutes(app: FastifyInstance) {
       if (req.body.rectificationStatus) update.rectificationStatus = req.body.rectificationStatus;
       if (req.body.handler) update.handler = req.body.handler;
       const result = db.update(schema.issues).set(update).where(eq(schema.issues.id, parseInt(req.params.id))).returning().get();
-      saveDb();
+      saveDb(db);
       return result;
     },
   );
@@ -74,7 +74,7 @@ export async function issueRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/api/issues/:id', async (req) => {
     const db = await getDb();
     db.delete(schema.issues).where(eq(schema.issues.id, parseInt(req.params.id))).run();
-    saveDb();
+    saveDb(db);
     return { success: true };
   });
 
@@ -102,7 +102,7 @@ export async function issueRoutes(app: FastifyInstance) {
       if (req.body.rectificationStatus) update.rectificationStatus = req.body.rectificationStatus;
 
       db.update(schema.issues).set(update).where(eq(schema.issues.id, issue.id)).run();
-      saveDb();
+      saveDb(db);
       return { success: true };
     },
   );

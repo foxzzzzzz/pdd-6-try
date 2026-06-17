@@ -37,7 +37,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
 
     // Add to queue
     const job = await addInspectionJob(store.id, store.name, date, record.id);
-    saveDb();
+    saveDb(db);
 
     return {
       inspectionId: record.id,
@@ -84,7 +84,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
         jobId: job.id,
       });
     }
-    saveDb();
+    saveDb(db);
 
     return {
       totalStores: activeStores.length,

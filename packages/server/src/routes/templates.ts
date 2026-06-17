@@ -43,7 +43,7 @@ export async function templateRoutes(app: FastifyInstance) {
         })
         .returning()
         .get();
-      saveDb();
+      saveDb(db);
       return result;
     },
   );
@@ -67,7 +67,7 @@ export async function templateRoutes(app: FastifyInstance) {
         .where(eq(schema.replyTemplates.id, parseInt(req.params.id)))
         .returning()
         .get();
-      saveDb();
+      saveDb(db);
       return result;
     },
   );
@@ -76,7 +76,7 @@ export async function templateRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/api/reply-templates/:id', async (req) => {
     const db = await getDb();
     db.delete(schema.replyTemplates).where(eq(schema.replyTemplates.id, parseInt(req.params.id))).run();
-    saveDb();
+    saveDb(db);
     return { success: true };
   });
 
@@ -113,7 +113,7 @@ export async function templateRoutes(app: FastifyInstance) {
         })
         .returning()
         .get();
-      saveDb();
+      saveDb(db);
       return result;
     },
   );
@@ -135,7 +135,7 @@ export async function templateRoutes(app: FastifyInstance) {
         .where(eq(schema.reportTemplates.id, parseInt(req.params.id)))
         .returning()
         .get();
-      saveDb();
+      saveDb(db);
       return result;
     },
   );
@@ -143,7 +143,7 @@ export async function templateRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/api/report-templates/:id', async (req) => {
     const db = await getDb();
     db.delete(schema.reportTemplates).where(eq(schema.reportTemplates.id, parseInt(req.params.id))).run();
-    saveDb();
+    saveDb(db);
     return { success: true };
   });
 }

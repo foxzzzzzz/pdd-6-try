@@ -104,7 +104,7 @@ async function triggerAllStores(queue: Queue<InspectionJobData>) {
     console.log(`  Queued: ${store.name}`);
   }
 
-  saveDb();
+  saveDb(db);
   console.log(`Total queued: ${activeStores.length} stores`);
 }
 

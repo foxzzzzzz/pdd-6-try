@@ -45,7 +45,7 @@ export async function storeRoutes(app: FastifyInstance) {
       })
       .returning()
       .get();
-    saveDb();
+    saveDb(db);
     return sanitizeStore(result);
   });
 
@@ -68,7 +68,7 @@ export async function storeRoutes(app: FastifyInstance) {
       .where(eq(schema.stores.id, parseInt(req.params.id)))
       .returning()
       .get();
-    saveDb();
+    saveDb(db);
     return sanitizeStore(result);
   });
 
@@ -78,7 +78,7 @@ export async function storeRoutes(app: FastifyInstance) {
     db.delete(schema.stores)
       .where(eq(schema.stores.id, parseInt(req.params.id)))
       .run();
-    saveDb();
+    saveDb(db);
     return { success: true };
   });
 }
