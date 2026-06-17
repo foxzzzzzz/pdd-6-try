@@ -63,9 +63,6 @@ importers:
       '@pdd-inspector/core':
         specifier: workspace:*
         version: link:../core
-      '@pdd-inspector/worker':
-        specifier: workspace:*
-        version: link:../worker
       bullmq:
         specifier: ^5.0.0
         version: 5.78.1
