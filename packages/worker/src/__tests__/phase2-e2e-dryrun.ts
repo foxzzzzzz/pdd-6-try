@@ -124,20 +124,20 @@ async function dryRun() {
     await navigateTo(page, 'https://mms.pinduoduo.com/sycm/goods_quality/help');
 
     const expScores = await page.evaluate(() => {
-      const text = document.body.innerText || '';
-      const extract = (label: string) => {
-        const idx = text.indexOf(label);
+      var text = document.body.innerText || '';
+      var ex = function (label: string) {
+        var idx = text.indexOf(label);
         if (idx === -1) return null;
-        const m = text.substring(idx, idx + 50).match(/(\d+\.?\d*)/);
+        var m = text.substring(idx, idx + 50).match(/(\d+\.?\d*)/);
         return m ? m[1] : null;
       };
       return {
-        '总分': extract('消费者服务体验分'),
-        '商品服务': extract('商品服务体验分'),
-        '发货服务': extract('发货服务体验分'),
-        '物流服务': extract('物流服务体验分'),
-        '服务态度': extract('服务态度体验分'),
-        '基础服务': extract('基础服务体验分'),
+        '总分': ex('消费者服务体验分'),
+        '商品服务': ex('商品服务体验分'),
+        '发货服务': ex('发货服务体验分'),
+        '物流服务': ex('物流服务体验分'),
+        '服务态度': ex('服务态度体验分'),
+        '基础服务': ex('基础服务体验分'),
       };
     });
 
@@ -153,18 +153,18 @@ async function dryRun() {
     await navigateTo(page, 'https://mms.pinduoduo.com/aftersales/aftersale_list?msfrom=mms_sidenav');
 
     const aftersaleData = await page.evaluate(() => {
-      const text = document.body.innerText || '';
-      const extract = (label: string) => {
-        const idx = text.indexOf(label);
+      var text = document.body.innerText || '';
+      var ex = function (label: string) {
+        var idx = text.indexOf(label);
         if (idx === -1) return null;
-        const m = text.substring(idx, idx + 50).match(/(\d+\.?\d*)/);
+        var m = text.substring(idx, idx + 50).match(/(\d+\.?\d*)/);
         return m ? m[1] : null;
       };
       return {
-        '体验总分': extract('消费者服务体验分'),
-        '投诉预警': extract('投诉预警'),
-        '待处理即将逾期': extract('待处理即将逾期'),
-        '待商家处理': extract('待商家处理'),
+        '体验总分': ex('消费者服务体验分'),
+        '投诉预警': ex('投诉预警'),
+        '待处理即将逾期': ex('待处理即将逾期'),
+        '待商家处理': ex('待商家处理'),
       };
     });
 
