@@ -12,6 +12,7 @@
     "@pdd-inspector/core": "workspace:*",
     "fastify": "^5.0.0",
     "@fastify/cors": "^11.0.0",
+    "@fastify/static": "^8.0.0",
     "bullmq": "^5.0.0",
     "ioredis": "^5.0.0",
     "dotenv": "^16.4.0"

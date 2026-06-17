@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## v0.4.0 (2026-06-17) — Web 仪表盘
+
+### 新增
+- Dashboard 总览页：三色分级 + 一键巡店 + 店铺状态卡片
+- 单店详情页：指标网格 + ECharts 趋势图 + 巡店记录表
+- 模板管理页：回复/举报模板 CRUD + 全局/店铺专属标记
+- 店铺配置页：添加/编辑/删除 + 单店触发巡店
+- 侧边栏导航 + API Client 全覆盖
+
+### 技术栈
+- React 19 + React Router 7 + Tailwind CSS
+- ECharts 动态加载 (lazy import)
+- 构建输出: 1.3MB (gzip 430KB)
+
 ## v0.3.0 (2026-06-17) — AI 增强：Provider 抽象层 + 异常检测 + 日报生成
 
 ### 新增

@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
+import * as path from 'path';
 import { storeRoutes } from './routes/stores';
 import { inspectionRoutes } from './routes/inspections';
 import { templateRoutes } from './routes/templates';
@@ -14,6 +16,23 @@ const HOST = process.env.HOST || '0.0.0.0';
 const app = Fastify({ logger: true });
 
 async function start() {
+  // Serve web build (production)
+  const webDist = path.resolve(process.cwd(), '../web/dist');
+  try {
+    await app.register(fastifyStatic, { root: webDist, prefix: '/' });
+    // SPA fallback for non-API routes
+    app.setNotFoundHandler((_req, reply) => {
+      if (!_req.url.startsWith('/api')) {
+        reply.sendFile('index.html');
+      } else {
+        reply.code(404).send({ message: 'Not found' });
+      }
+    });
+    app.log.info('Web static files served from ' + webDist);
+  } catch {
+    app.log.warn('Web build not found — run "pnpm --filter @pdd-inspector/web build" first');
+  }
+
   // Register plugins
   await app.register(cors, { origin: true });
 
