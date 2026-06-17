@@ -26,6 +26,8 @@ log(`  Redis: ${REDIS_HOST}:${REDIS_PORT}`);
 log(`  Concurrency: ${CONCURRENCY} | Headless: ${HEADLESS}`);
 log(`  Ops: reply=${ENABLE_REPLY} report=${ENABLE_REPORT} hide=${ENABLE_HIDE} ai=${ENABLE_AI}`);
 
+async function start() {
+
 const worker = new Worker<InspectionJobData>(
   INSPECTION_QUEUE,
   async (job) => {
@@ -97,3 +99,7 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 log('Worker ready — code changes auto-reload via tsx watch');
+
+}
+
+start();
