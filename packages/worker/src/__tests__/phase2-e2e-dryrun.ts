@@ -123,26 +123,27 @@ async function dryRun() {
     console.log('━━━ STEP 2: 消费者体验指标 ━━━');
     await navigateTo(page, 'https://mms.pinduoduo.com/sycm/goods_quality/help');
 
-    const expScores = await page.evaluate(() => {
+    const expScores = await page.evaluate(`(function () {
       var text = document.body.innerText || '';
-      var ex = function (label: string) {
+      function ex(label) {
         var idx = text.indexOf(label);
         if (idx === -1) return null;
-        var m = text.substring(idx, idx + 50).match(/(\d+\.?\d*)/);
+        var m = text.substring(idx, idx + 50).match(/(\\d+\\.?\\d*)/);
         return m ? m[1] : null;
-      };
-      return {
-        '总分': ex('消费者服务体验分'),
-        '商品服务': ex('商品服务体验分'),
-        '发货服务': ex('发货服务体验分'),
-        '物流服务': ex('物流服务体验分'),
-        '服务态度': ex('服务态度体验分'),
-        '基础服务': ex('基础服务体验分'),
-      };
-    });
+      }
+      return JSON.stringify({
+        total: ex('消费者服务体验分'),
+        product: ex('商品服务体验分'),
+        shipping: ex('发货服务体验分'),
+        logistics: ex('物流服务体验分'),
+        attitude: ex('服务态度体验分'),
+        basic: ex('基础服务体验分'),
+      });
+    })()`);
+    const expParsed = JSON.parse(expScores);
 
-    for (const [k, v] of Object.entries(expScores)) {
-      report.metrics[`体验分-${k}`] = { value: v, status: v ? 'ok' : 'warn' };
+    for (const [k, v] of Object.entries(expParsed)) {
+      report.metrics[`体验分-${k}`] = { value: String(v ?? ''), status: v ? 'ok' : 'warn' };
       console.log(`  ${v ? '✅' : '⚠️'} 体验分-${k}: ${v || '未采集到'}`);
     }
     await page.screenshot({ path: path.join(OUTPUT_DIR, '02-消费者体验.png'), fullPage: true });
@@ -152,25 +153,26 @@ async function dryRun() {
     console.log('━━━ STEP 3: 售后工作台 ━━━');
     await navigateTo(page, 'https://mms.pinduoduo.com/aftersales/aftersale_list?msfrom=mms_sidenav');
 
-    const aftersaleData = await page.evaluate(() => {
+    const aftersaleData = JSON.parse(await page.evaluate(`(function () {
       var text = document.body.innerText || '';
-      var ex = function (label: string) {
+      function ex(label) {
         var idx = text.indexOf(label);
         if (idx === -1) return null;
-        var m = text.substring(idx, idx + 50).match(/(\d+\.?\d*)/);
+        var m = text.substring(idx, idx + 50).match(/(\\d+\\.?\\d*)/);
         return m ? m[1] : null;
-      };
-      return {
-        '体验总分': ex('消费者服务体验分'),
-        '投诉预警': ex('投诉预警'),
-        '待处理即将逾期': ex('待处理即将逾期'),
-        '待商家处理': ex('待商家处理'),
-      };
-    });
+      }
+      return JSON.stringify({
+        expScore: ex('消费者服务体验分'),
+        complaintWarn: ex('投诉预警'),
+        overdueSoon: ex('待处理即将逾期'),
+        pendingMerchant: ex('待商家处理'),
+      });
+    })()`));
 
+    var asLabels: Record<string, string> = { expScore: '体验总分', complaintWarn: '投诉预警', overdueSoon: '待处理即将逾期', pendingMerchant: '待商家处理' };
     for (const [k, v] of Object.entries(aftersaleData)) {
-      report.metrics[`售后-${k}`] = { value: v, status: v ? 'ok' : 'warn' };
-      console.log(`  ${v ? '✅' : '⚠️'} 售后-${k}: ${v || '0'}`);
+      report.metrics[`售后-${asLabels[k] || k}`] = { value: String(v ?? ''), status: v ? 'ok' : 'warn' };
+      console.log(`  ${v ? '✅' : '⚠️'} 售后-${asLabels[k] || k}: ${v || '0'}`);
     }
     await page.screenshot({ path: path.join(OUTPUT_DIR, '03-售后工作台.png'), fullPage: true });
     console.log();
@@ -179,17 +181,17 @@ async function dryRun() {
     console.log('━━━ STEP 4: 申诉中心 ━━━');
     await navigateTo(page, 'https://mms.pinduoduo.com/orders/appeals?msfrom=mms_sidenav');
 
-    const appealData = await page.evaluate(() => {
-      const text = document.body.innerText || '';
-      const totalMatch = text.match(/共有\s*(\d+)\s*条/);
-      const passedMatch = text.match(/全部通过/g);
-      const rejectedMatch = text.match(/全部驳回/g);
-      return {
+    const appealData = JSON.parse(await page.evaluate(`(function () {
+      var text = document.body.innerText || '';
+      var totalMatch = text.match(/共有\\s*(\\d+)\\s*条/);
+      var passedMatch = text.match(/全部通过/g);
+      var rejectedMatch = text.match(/全部驳回/g);
+      return JSON.stringify({
         total: totalMatch ? totalMatch[1] : '0',
         passed: passedMatch ? String(passedMatch.length) : '0',
         rejected: rejectedMatch ? String(rejectedMatch.length) : '0',
-      };
-    });
+      });
+    })()`));
 
     report.metrics['申诉总数'] = { value: appealData.total, status: 'ok' };
     report.metrics['申诉通过'] = { value: appealData.passed, status: 'ok' };
@@ -201,38 +203,34 @@ async function dryRun() {
     console.log('━━━ STEP 5: 评价管理 (扫描模式) ━━━');
     await navigateTo(page, 'https://mms.pinduoduo.com/goods/evaluation/index?msfrom=mms_sidenav');
 
-    const reviewScan = await page.evaluate(() => {
-      const text = document.body.innerText || '';
-      const result = { total: 0, good: 0, bad: 0, goodSample: '', badSample: '' };
-
-      // Count reviews
-      const totalMatch = text.match(/近90日评价数\s*(\d+)/);
+    const reviewScan = JSON.parse(await page.evaluate(`(function () {
+      var text = document.body.innerText || '';
+      var result = { total: 0, good: 0, bad: 0, goodSample: '', badSample: '' };
+      var totalMatch = text.match(/近90日评价数\\s*(\\d+)/);
       result.total = totalMatch ? parseInt(totalMatch[1]) : 0;
-
-      // Check for star ratings in the review list
-      const starPatterns = text.match(/([1-5])星/g);
+      var starPatterns = text.match(/([1-5])星/g);
       if (starPatterns) {
-        for (const s of starPatterns) {
-          const star = parseInt(s[0]);
+        for (var i = 0; i < starPatterns.length; i++) {
+          var star = parseInt(starPatterns[i][0]);
           if (star >= 4) result.good++;
           else result.bad++;
         }
       }
-
-      // Get sample review content
-      const lines = text.split('\n');
-      const reviewStart = lines.findIndex((l) => l.includes('评价列表'));
+      var lines = text.split('\\n');
+      var reviewStart = -1;
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].indexOf('评价列表') !== -1) { reviewStart = i; break; }
+      }
       if (reviewStart >= 0) {
-        for (let i = reviewStart; i < Math.min(lines.length, reviewStart + 20); i++) {
-          if (lines[i].length > 15 && !lines[i].includes('评价') && !lines[i].includes('筛选')) {
+        for (var i = reviewStart; i < Math.min(lines.length, reviewStart + 20); i++) {
+          if (lines[i].length > 15 && lines[i].indexOf('评价') === -1 && lines[i].indexOf('筛选') === -1) {
             if (!result.goodSample) result.goodSample = lines[i].substring(0, 80);
             else if (!result.badSample) result.badSample = lines[i].substring(0, 80);
           }
         }
       }
-
-      return result;
-    });
+      return JSON.stringify(result);
+    })()`));
 
     report.reviews = reviewScan;
     console.log(`  评价总数(~90日): ${reviewScan.total}`);
@@ -252,33 +250,35 @@ async function dryRun() {
     console.log('━━━ STEP 6: 种草动态 (扫描模式) ━━━');
     await navigateTo(page, 'https://mms.pinduoduo.com/mall-feed/home?msfrom=mms_sidenav');
 
-    const interactionScan = await page.evaluate(() => {
-      const posts: { content: string; action: string }[] = [];
-      const negativeWords = ['差', '烂', '垃圾', '骗', '假', '投诉', '退款', '退货', '不好', '太差', '失望'];
-
-      // Find post rows
-      const rows = document.querySelectorAll('tr, [class*="item"], [class*="card"], [class*="row"]');
-      rows.forEach((row) => {
-        const text = (row as HTMLElement).innerText?.trim() || '';
-        if (text.length > 20 && !text.includes('曝光量') && !text.includes('动态类型') && !text.includes('一键发布')) {
-          const found = negativeWords.filter((w) => text.includes(w));
+    const interactionScan = JSON.parse(await page.evaluate(`(function () {
+      var posts = [];
+      var negativeWords = ['差', '烂', '垃圾', '骗', '假', '投诉', '退款', '退货', '不好', '太差', '失望'];
+      var rows = document.querySelectorAll('tr, [class*="item"], [class*="card"], [class*="row"]');
+      for (var i = 0; i < rows.length; i++) {
+        var text = rows[i].innerText ? rows[i].innerText.trim() : '';
+        if (text.length > 20 && text.indexOf('曝光量') === -1 && text.indexOf('动态类型') === -1 && text.indexOf('一键发布') === -1) {
+          var found = [];
+          for (var j = 0; j < negativeWords.length; j++) {
+            if (text.indexOf(negativeWords[j]) !== -1) found.push(negativeWords[j]);
+          }
           posts.push({
             content: text.substring(0, 120),
-            action: found.length > 0 ? `⚠️ 将隐藏 (负面词: ${found.join(',')})` : '✅ 保留',
+            action: found.length > 0 ? 'HIDE:' + found.join(',') : 'KEEP',
           });
         }
-      });
-      return posts;
-    });
+      }
+      return JSON.stringify(posts);
+    })()`));
 
     report.interactions.posts = interactionScan;
     report.interactions.total = interactionScan.length;
-    report.interactions.wouldHide = interactionScan.filter((p) => p.action.includes('将隐藏')).length;
+    report.interactions.wouldHide = interactionScan.filter(function (p: any) { return p.action.startsWith('HIDE'); }).length;
 
     console.log(`  动态总数: ${interactionScan.length}`);
     console.log(`  将隐藏: ${report.interactions.wouldHide}  |  将保留: ${interactionScan.length - report.interactions.wouldHide}`);
-    for (const post of interactionScan.slice(0, 5)) {
-      console.log(`  ${post.action}`);
+    for (var _k = 0; _k < Math.min(interactionScan.length, 5); _k++) {
+      var p = interactionScan[_k];
+      console.log(`  ${p.action.startsWith('HIDE') ? '⚠️ 将隐藏' : '✅ 保留'}: ${(p.content || '').substring(0, 60)}`);
     }
     if (interactionScan.length > 5) console.log(`  ... 共 ${interactionScan.length} 条`);
 
@@ -315,14 +315,14 @@ async function navigateTo(page: Page, url: string) {
 }
 
 async function extractNear(page: Page, label: string): Promise<string | null> {
-  return page.evaluate((labelText: string) => {
-    const text = document.body.innerText || '';
-    const idx = text.indexOf(labelText);
+  return page.evaluate(`(function () {
+    var text = document.body.innerText || '';
+    var idx = text.indexOf('${label.replace(/'/g, "\\'")}');
     if (idx === -1) return null;
-    const sub = text.substring(idx, idx + 80);
-    const m = sub.match(/(\d+\.?\d*%?)/);
+    var sub = text.substring(idx, idx + 80);
+    var m = sub.match(/(\\d+\\.?\\d*%?)/);
     return m ? m[1] : null;
-  }, label);
+  })()`);
 }
 
 function generateMarkdown(r: DryRunReport, ok: number, total: number): string {
