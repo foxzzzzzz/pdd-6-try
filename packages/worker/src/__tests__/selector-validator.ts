@@ -1,10 +1,6 @@
 /**
- * Phase 2 选择器验证脚本
- *
- * 用于在真实 PDD 后台验证所有选择器是否可用。
- * 运行: pnpm --filter @pdd-inspector/worker exec tsx src/__tests__/selector-validator.ts
+ * Phase 2 选择器验证脚本 — 使用字符串 evaluate 避免 __name 问题
  */
-
 import { chromium } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -12,18 +8,8 @@ import * as path from 'path';
 const COOKIE_FILE = path.resolve('./data/discovery-cookie.json');
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-selector-test.md');
 
-interface TestCase {
-  name: string;
-  url: string;
-  checks: SelectorCheck[];
-}
-
-interface SelectorCheck {
-  description: string;
-  type: 'text' | 'element' | 'value';
-  target: string; // text to find or selector
-  expected?: string;
-}
+interface TestCase { name: string; url: string; checks: SelectorCheck[]; }
+interface SelectorCheck { description: string; type: 'text' | 'element' | 'value'; target: string; }
 
 const TEST_CASES: TestCase[] = [
   {
@@ -36,8 +22,8 @@ const TEST_CASES: TestCase[] = [
       { description: '筛选器-评价标签', type: 'text', target: '评价标签' },
       { description: '店铺评价分排名', type: 'value', target: '店铺评价分排名' },
       { description: '近90日评价数', type: 'value', target: '近90日评价数' },
-      { description: '回复按钮存在', type: 'element', target: 'button:has-text("回复"), span:has-text("回复")' },
-      { description: '举报按钮存在', type: 'element', target: 'button:has-text("举报"), span:has-text("举报")' },
+      { description: '回复按钮存在', type: 'element', target: '回复' },
+      { description: '举报按钮存在', type: 'element', target: '举报' },
     ],
   },
   {
@@ -86,129 +72,88 @@ const TEST_CASES: TestCase[] = [
     checks: [
       { description: '种草动态标题', type: 'text', target: '种草动态' },
       { description: '动态列表', type: 'text', target: '我发布的动态' },
-      { description: '删除/操作按钮存在', type: 'element', target: 'button:has-text("删除"), span:has-text("删除"), a:has-text("查看详情")' },
+      { description: '操作按钮存在', type: 'element', target: '查看详情' },
     ],
   },
 ];
 
 async function runTests() {
   console.log('=== Phase 2 选择器验证测试 ===\n');
-
   const results: string[] = [];
-  let passed = 0;
-  let failed = 0;
+  var passed = 0;
+  var failed = 0;
 
   const browser = await chromium.launch({ headless: false });
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-    viewport: { width: 1920, height: 1080 },
-    locale: 'zh-CN',
+    viewport: { width: 1920, height: 1080 }, locale: 'zh-CN',
   });
 
-  // Load cookies
   if (fs.existsSync(COOKIE_FILE)) {
-    try {
-      const cookies = JSON.parse(fs.readFileSync(COOKIE_FILE, 'utf-8'));
-      await context.addCookies(cookies);
-    } catch { /* */ }
+    try { const c = JSON.parse(fs.readFileSync(COOKIE_FILE, 'utf-8')); await context.addCookies(c); } catch { /* */ }
   }
-
   const page = await context.newPage();
 
-  // Login check
   await page.goto('https://mms.pinduoduo.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(3000);
   if (page.url().includes('login')) {
     console.log('🔐 请扫码登录...');
-    try {
-      await page.waitForURL((url) => !url.toString().includes('login'), { timeout: 120000 });
-    } catch {
-      console.log('⏰ 登录超时');
-      await browser.close();
-      return;
-    }
+    try { await page.waitForURL(function (url) { return !url.toString().includes('login'); }, { timeout: 120000 }); } catch { console.log('⏰ 超时'); await browser.close(); return; }
   }
-
-  // Save cookies
   const cookies = await context.cookies();
   fs.writeFileSync(COOKIE_FILE, JSON.stringify(cookies, null, 2));
 
-  // Run test cases
-  for (const tc of TEST_CASES) {
-    console.log(`\n📄 ${tc.name}`);
-    console.log(`   URL: ${tc.url}`);
+  for (var _t = 0; _t < TEST_CASES.length; _t++) {
+    var tc = TEST_CASES[_t];
+    console.log(`\n📄 ${tc.name}\n   URL: ${tc.url}`);
+    try { await page.goto(tc.url, { waitUntil: 'domcontentloaded', timeout: 20000 }); await page.waitForTimeout(3000); } catch { failed += tc.checks.length; continue; }
 
-    try {
-      await page.goto(tc.url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-      await page.waitForTimeout(3000);
-    } catch {
-      console.log('   ❌ 页面加载失败');
-      failed += tc.checks.length;
-      continue;
-    }
-
-    for (const check of tc.checks) {
-      let ok = false;
-      let detail = '';
-
+    for (var _c = 0; _c < tc.checks.length; _c++) {
+      var check = tc.checks[_c];
+      var ok = false;
+      var detail = '';
       try {
-        switch (check.type) {
-          case 'text': {
-            const bodyText = await page.evaluate(() => document.body.innerText || '');
-            ok = bodyText.includes(check.target);
-            detail = ok ? '找到文本' : '未找到文本';
-            break;
-          }
-          case 'element': {
-            const el = await page.$(check.target);
-            ok = el !== null;
-            detail = ok ? '元素存在' : '元素不存在';
-            break;
-          }
-          case 'value': {
-            const bodyText = await page.evaluate(() => document.body.innerText || '');
-            const hasNumber = new RegExp(`${check.target}[\\s\\S]*?\\d`).test(bodyText);
-            ok = bodyText.includes(check.target) && hasNumber;
-            detail = ok ? '找到数值' : bodyText.includes(check.target) ? '找到标签但无数值' : '未找到';
-            break;
-          }
+        if (check.type === 'text') {
+          var txt = await page.evaluate(`(function () { return document.body.innerText || ''; })()`);
+          ok = txt.indexOf(check.target) !== -1;
+          detail = ok ? '找到文本' : '未找到文本';
+        } else if (check.type === 'element') {
+          var el = await page.$(`button:has-text("${check.target}"), a:has-text("${check.target}"), span:has-text("${check.target}")`);
+          ok = el !== null;
+          detail = ok ? '元素存在' : '元素不存在';
+        } else if (check.type === 'value') {
+          var val = await page.evaluate(`(function () {
+            var text = document.body.innerText || '';
+            var idx = text.indexOf('${check.target}');
+            if (idx === -1) return '';
+            var sub = text.substring(idx, idx + 80);
+            var ms = sub.match(/(\\d+\\.?\\d*)/g);
+            if (!ms) return '';
+            for (var i = 0; i < ms.length; i++) {
+              var v = ms[i];
+              if (v === '2026' || v === '2025') continue;
+              if (v.length >= 4 && v.indexOf('.') === -1) continue;
+              return v;
+            }
+            return ms[0] || '';
+          })()`);
+          ok = val !== '';
+          detail = ok ? `找到数值: ${val}` : '未找到数值';
         }
-      } catch {
-        detail = '检查异常';
-      }
+      } catch { detail = '检查异常'; }
 
-      const status = ok ? '✅' : '❌';
+      var status = ok ? '✅' : '❌';
       console.log(`   ${status} ${check.description}: ${detail}`);
       results.push(`| ${tc.name} | ${check.description} | ${status} | ${detail} |`);
       if (ok) passed++; else failed++;
     }
   }
-
   await browser.close();
 
-  // Generate report
-  const totalTests = passed + failed;
-  const report = `# Phase 2 选择器验证测试报告
-
-**日期**: ${new Date().toISOString().split('T')[0]}
-**版本**: v0.2.0
-**结果**: ${passed}/${totalTests} 通过 (${Math.round(passed / totalTests * 100)}%)
-
-## 测试用例
-
-| 页面 | 检查项 | 结果 | 详情 |
-|------|--------|------|------|
-${results.join('\n')}
-
-## 汇总
-- ✅ 通过: ${passed}
-- ❌ 失败: ${failed}
-- 📊 通过率: ${Math.round(passed / totalTests * 100)}%
-`;
-
+  var total = passed + failed;
+  var report = `# Phase 2 选择器验证测试报告\n\n**日期**: ${new Date().toISOString().split('T')[0]}\n**版本**: v0.2.0\n**结果**: ${passed}/${total} (${Math.round(passed / total * 100)}%)\n\n| 页面 | 检查项 | 结果 | 详情 |\n|------|--------|------|------|\n${results.join('\n')}\n\n## 汇总\n- ✅ 通过: ${passed}\n- ❌ 失败: ${failed}\n`;
   fs.writeFileSync(REPORT_FILE, report);
-  console.log(`\n\n报告已保存: ${REPORT_FILE}`);
-  console.log(`结果: ${passed}/${totalTests} 通过 (${Math.round(passed / totalTests * 100)}%)`);
+  console.log(`\n📄 报告: ${REPORT_FILE}\n结果: ${passed}/${total} 通过`);
 }
 
 runTests().catch(console.error);

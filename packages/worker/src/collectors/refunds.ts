@@ -15,33 +15,35 @@ export async function collectRefundMetrics(
     await browser.navigateWithRetry('https://mms.pinduoduo.com/aftersales/aftersale_list?msfrom=mms_sidenav');
     await page.waitForTimeout(3000);
 
-    const data = await page.evaluate(function () {
+    const data = JSON.parse(await page.evaluate(`(function () {
       var text = document.body.innerText || '';
-      function ex(label: string): string {
+      function ex(label) {
         var idx = text.indexOf(label);
         if (idx === -1) return '';
-        var sub = text.substring(idx, idx + 60);
-        var m = sub.match(/(\d+\.?\d*)/);
-        return m ? m[1] : '';
+        var sub = text.substring(idx, idx + 80);
+        var ms = sub.match(/(\\d+\\.?\\d*)/g);
+        if (!ms) return '';
+        for (var i = 0; i < ms.length; i++) {
+          var v = ms[i];
+          if (v === '2026' || v === '2025' || v === '2024') continue;
+          if (v.length >= 4 && v.indexOf('.') === -1) continue;
+          return v;
+        }
+        return ms[0];
       }
-      return {
+      return JSON.stringify({
         expScore: ex('消费者服务体验分'),
         complaintWarn: ex('投诉预警'),
         overdueSoon: ex('待处理即将逾期'),
         pendingMerchant: ex('待商家处理'),
-      };
-    });
+      });
+    })()`));
 
-    metrics.refundDuration = parseOrNull(data.expScore);
+    if (data.expScore) metrics.refundDuration = parseFloat(data.expScore);
 
     await browser.takeScreenshot(storeId, 'refunds');
   } catch (err) {
     console.error(`Refund metrics error for ${storeId}:`, err);
   }
-
   return metrics;
-}
-
-function parseOrNull(s: string): number | null {
-  return s ? parseFloat(s) : null;
 }

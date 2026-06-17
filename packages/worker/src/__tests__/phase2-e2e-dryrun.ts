@@ -128,8 +128,14 @@ async function dryRun() {
       function ex(label) {
         var idx = text.indexOf(label);
         if (idx === -1) return null;
-        var m = text.substring(idx, idx + 50).match(/(\\d+\\.?\\d*)/);
-        return m ? m[1] : null;
+        // Skip past the label and any date line, find the score before "/5" or "分"
+        var sub = text.substring(idx, idx + 100);
+        var scoreMatch = sub.match(/(\\d+\\.?\\d*)\\s*\\/\\s*5/);
+        if (scoreMatch && parseFloat(scoreMatch[1]) <= 5) return scoreMatch[1];
+        // Fallback: find a small number near "分" that isn't a year
+        var m = sub.match(/(\\d+\\.?\\d*)\\s*分/);
+        if (m && parseFloat(m[1]) <= 5 && m[1].length < 4) return m[1];
+        return null;
       }
       return JSON.stringify({
         total: ex('消费者服务体验分'),
@@ -253,10 +259,14 @@ async function dryRun() {
     const interactionScan = JSON.parse(await page.evaluate(`(function () {
       var posts = [];
       var negativeWords = ['差', '烂', '垃圾', '骗', '假', '投诉', '退款', '退货', '不好', '太差', '失望'];
-      var rows = document.querySelectorAll('tr, [class*="item"], [class*="card"], [class*="row"]');
+      // Only look inside main content area — exclude nav/aside/sidebar
+      var main = document.querySelector('main, [class*="content-wrap"], [class*="page-content"], [class*="main-content"], .ant-layout-content');
+      var container = main || document.body;
+      var rows = container.querySelectorAll('tr');
       for (var i = 0; i < rows.length; i++) {
         var text = rows[i].innerText ? rows[i].innerText.trim() : '';
-        if (text.length > 20 && text.indexOf('曝光量') === -1 && text.indexOf('动态类型') === -1 && text.indexOf('一键发布') === -1) {
+        // Must contain video/dynamic content keywords or be an actual post row
+        if (text.length > 30 && text.indexOf('曝光量') === -1 && text.indexOf('动态类型') === -1 && text.indexOf('一键发布') === -1 && text.indexOf('客户端') === -1 && text.indexOf('签约入驻') === -1 && text.indexOf('TEMU') === -1) {
           var found = [];
           for (var j = 0; j < negativeWords.length; j++) {
             if (text.indexOf(negativeWords[j]) !== -1) found.push(negativeWords[j]);
@@ -296,7 +306,7 @@ async function dryRun() {
     fs.writeFileSync(REPORT_FILE, markdown);
     console.log(`\n📄 报告: ${REPORT_FILE}`);
     console.log(`📸 截图: ${OUTPUT_DIR}`);
-    console.log(`\n指标采集: ${okMetrics}/${totalMetrics} | 评价操作(模拟): ${report.reviews.wouldReply + report.reviews.wouldReport} 条 | 互动处理(模拟): ${report.interactions.wouldHide} 条`);
+    console.log(`\n指标采集: ${okMetrics}/${totalMetrics} | 评价操作(模拟): 回复${report.reviews.good}条 + 举报${report.reviews.bad}条 | 互动处理(模拟): 隐藏${report.interactions.wouldHide}条`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('❌', msg);
@@ -320,8 +330,16 @@ async function extractNear(page: Page, label: string): Promise<string | null> {
     var idx = text.indexOf('${label.replace(/'/g, "\\'")}');
     if (idx === -1) return null;
     var sub = text.substring(idx, idx + 80);
-    var m = sub.match(/(\\d+\\.?\\d*%?)/);
-    return m ? m[1] : null;
+    var matches = sub.match(/(\\d+\\.?\\d*%?)/g);
+    if (!matches) return null;
+    // Skip year-like numbers (4 digits, 20xx) and find the real metric
+    for (var i = 0; i < matches.length; i++) {
+      var val = matches[i];
+      if (val === '2026' || val === '2025' || val === '2024') continue;
+      if (val.length >= 4 && val.indexOf('.') === -1) continue; // skip 4-digit integers
+      return val;
+    }
+    return matches[0];
   })()`);
 }
 
@@ -348,8 +366,8 @@ function generateMarkdown(r: DryRunReport, ok: number, total: number): string {
   lines.push('## 2. 评价管理 (模拟)');
   lines.push('');
   lines.push(`- 评价总数(~90日): ${r.reviews.total}`);
-  lines.push(`- 好评(将回复): ${r.reviews.wouldReply} 条`);
-  lines.push(`- 差评(将举报): ${r.reviews.wouldReport} 条`);
+  lines.push(`- 好评(将回复): ${r.reviews.good} 条`);
+  lines.push(`- 差评(将举报): ${r.reviews.bad} 条`);
   lines.push('');
 
   lines.push('## 3. 互动动态 (模拟)');
