@@ -63,6 +63,10 @@ const worker = new Worker<InspectionJobData>(
   },
 );
 
+worker.on('active', (job) => {
+  console.log(`▶️  Job active: ${job.data.storeName} (inspectionId=${job.data.inspectionId})`);
+});
+
 worker.on('completed', (job) => {
   console.log(`✅ Job completed: ${job.data.storeName}`);
 });
