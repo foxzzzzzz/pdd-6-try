@@ -1,11 +1,10 @@
+/**
+ * 申诉数据采集
+ * URL: /orders/appeals
+ */
 import { BrowserManager } from '../browser';
 import { MetricsSnapshot } from '@pdd-inspector/core';
 
-/**
- * Collect appeal/投诉 metrics from PDD merchant backend.
- *
- * NOTE: CSS selectors are PLACEHOLDERS.
- */
 export async function collectAppealMetrics(
   browser: BrowserManager,
   storeId: number,
@@ -14,26 +13,31 @@ export async function collectAppealMetrics(
   const metrics: Partial<MetricsSnapshot> = {};
 
   try {
-    // Navigate to appeal center
-    await browser.navigateWithRetry('https://mms.pinduoduo.com/appeal/center');
+    await browser.navigateWithRetry('https://mms.pinduoduo.com/orders/appeals?msfrom=mms_sidenav');
+    await page.waitForTimeout(3000);
 
-    // Appeal count
-    const countText = await browser.extractText('.appeal-count .value, .total-count, [data-type="appeal-count"]');
+    // 申诉记录数量
+    const countText = await page.evaluate(() => {
+      const body = document.body.innerText;
+      const m = body.match(/共有\s*(\d+)\s*条/);
+      return m ? m[1] : null;
+    });
     if (countText) {
-      metrics.appealCount = parseInt(countText.replace(/[^0-9]/g, ''), 10);
+      metrics.appealCount = parseInt(countText, 10);
     }
 
-    // Appeal success rate
-    const successText = await browser.extractText(
-      '.appeal-success .value, .success-rate, [data-type="appeal-success"]',
-    );
-    if (successText) {
-      metrics.appealSuccessRate = parseFloat(successText.replace('%', '')) / 100;
-    }
+    // 申诉成功率 — 统计审核状态
+    const successRate = await page.evaluate(() => {
+      const body = document.body.innerText;
+      const allPassed = (body.match(/全部通过/g) || []).length;
+      const total = (body.match(/全部[通过驳回]/g) || []).length;
+      return total > 0 ? allPassed / total : null;
+    });
+    metrics.appealSuccessRate = successRate;
 
-    await browser.takeScreenshot(storeId, 'appeals-collected');
+    await browser.takeScreenshot(storeId, 'appeals');
   } catch (err) {
-    console.error(`Failed to collect appeal metrics for store ${storeId}:`, err);
+    console.error(`Appeal metrics error for ${storeId}:`, err);
   }
 
   return metrics;

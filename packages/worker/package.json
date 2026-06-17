@@ -7,7 +7,10 @@
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "discover": "tsx src/discover.ts"
+    "discover": "tsx src/discover.ts",
+    "test:selectors": "tsx src/__tests__/selector-validator.ts",
+    "test:unit": "tsx src/__tests__/unit-tests.ts",
+    "test": "tsx src/__tests__/unit-tests.ts"
   },
   "dependencies": {
     "@pdd-inspector/core": "workspace:*",
