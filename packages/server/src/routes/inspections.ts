@@ -17,7 +17,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
     reply.send({ inspectionId: record.id, storeId: store.id, status: 'running', message: `Inspection started for ${store.name} (direct mode)` });
 
     // 异步执行巡店（不阻塞 HTTP 响应）
-    const { inspectStore } = await import('@pdd-inspector/worker/inspector');
+    const { inspectStore } = await import('../../../worker/src/inspector');
     try {
       const result = await inspectStore(store.id, store.name, date, {
         headless: true, screenshotOnError: true,

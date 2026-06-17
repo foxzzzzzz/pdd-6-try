@@ -11,3 +11,4 @@ packages/web/data/
 .superpowers/
 .turbo/
 coverage/
+*.png
