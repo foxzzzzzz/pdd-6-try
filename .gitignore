@@ -11,3 +11,6 @@ packages/web/data/
 .superpowers/
 .turbo/
 coverage/
+packages/*/.env
+CLAUDE.md
+tools/

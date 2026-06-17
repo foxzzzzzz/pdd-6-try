@@ -24,22 +24,27 @@ const DB_PATH = process.env.DATABASE_PATH
   ? path.resolve(WORKSPACE_ROOT, process.env.DATABASE_PATH)
   : path.join(WORKSPACE_ROOT, 'data', 'pdd-inspector.db');
 
+let initPromise: Promise<typeof import('sql.js')> | null = null;
+
 export async function getDb(): Promise<SQLJsDatabase<typeof schema>> {
-  if (db) return db;
+  // Reload from disk every time to support multi-process access
+  if (!initPromise) {
+    initPromise = initSqlJs();
+  }
+  const SQL = await initPromise;
 
-  const SQL = await initSqlJs();
-
-  // Ensure data directory exists
   const dir = path.dirname(DB_PATH);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  // Load existing database or create new one
+  // Always load fresh from disk
   if (fs.existsSync(DB_PATH)) {
     const buffer = fs.readFileSync(DB_PATH);
+    if (sqlDb) sqlDb.close();
     sqlDb = new SQL.Database(buffer);
   } else {
+    if (sqlDb) sqlDb.close();
     sqlDb = new SQL.Database();
   }
 
@@ -52,6 +57,11 @@ export function saveDb(): void {
   const data = sqlDb.export();
   const buffer = Buffer.from(data);
   fs.writeFileSync(DB_PATH, buffer);
+}
+
+export async function reloadDb(): Promise<void> {
+  db = null;
+  await getDb();
 }
 
 export async function closeDb(): Promise<void> {
