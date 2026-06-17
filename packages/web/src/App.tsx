@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import StoreDetail from './pages/StoreDetail';
 import Templates from './pages/Templates';
 import StoreConfig from './pages/StoreConfig';
+import FactoryView from './pages/FactoryView';
 
 export default function App() {
   return (
@@ -16,6 +17,8 @@ export default function App() {
           <Route path="/templates" element={<Templates />} />
           <Route path="/stores" element={<StoreConfig />} />
         </Route>
+        {/* 工厂协作 - 无需登录 */}
+        <Route path="/factory/:token" element={<FactoryView />} />
       </Routes>
     </BrowserRouter>
   );

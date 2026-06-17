@@ -10,11 +10,11 @@
 |------|------|------|
 | GET /api/health | ✅ | Server should return ok |
 | GET /api/stores (empty or list) | ✅ |  |
-| POST /api/stores (create) | ✅ | Created store id=undefined |
+| POST /api/stores (create) | ✅ | Created store id=0 |
 | GET /api/stores/:id | ✅ |  |
 | PUT /api/stores/:id (update) | ✅ |  |
 | GET /api/reply-templates | ✅ |  |
-| POST /api/reply-templates | ✅ |  |
+| POST /api/reply-templates | ✅ | id=0 |
 | GET /api/reply-templates?global=true | ✅ |  |
 | DELETE /api/reply-templates/:id | ❌ | FAIL |
 | GET /api/report-templates | ✅ |  |
