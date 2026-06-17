@@ -1,0 +1,113 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { api } from '../api';
+import MetricsChart from '../components/MetricsChart';
+
+export default function StoreDetail() {
+  const { id } = useParams<{ id: string }>();
+  const [store, setStore] = useState<any>(null);
+  const [inspections, setInspections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([
+      api.getStore(parseInt(id)),
+      api.getInspections({ storeId: parseInt(id), limit: 30 }),
+    ]).then(([s, ins]) => {
+      setStore(s); setInspections(ins as any[]);
+    }).finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) return <div className="text-center py-20 text-gray-400">加载中...</div>;
+  if (!store) return <div className="text-center py-20 text-red-400">店铺不存在</div>;
+
+  const latest = inspections[0];
+  const metrics = latest?.metrics || {};
+
+  return (
+    <div>
+      <Link to="/" className="text-blue-500 text-sm mb-4 inline-block">← 返回总览</Link>
+
+      {/* Store Header */}
+      <div className="bg-white rounded-lg border p-6 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">{store.name}</h2>
+            <p className="text-sm text-gray-500">ID: {store.pddStoreId} · {store.factory || '未关联工厂'}</p>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+            store.status === 'active' ? 'bg-green-100 text-green-700' :
+            store.status === 'pending_login' ? 'bg-yellow-100 text-yellow-700' :
+            'bg-gray-100 text-gray-600'
+          }`}>
+            {store.status === 'active' ? '运行中' : store.status === 'pending_login' ? '待登录' : '已暂停'}
+          </span>
+        </div>
+      </div>
+
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <MetricBox label="店铺星级" value={metrics.rating || '-'} unit="星" />
+        <MetricBox label="劣质率" value={metrics.defectRate != null ? (metrics.defectRate * 100).toFixed(1) + '%' : '-'} />
+        <MetricBox label="消费者体验分" value={metrics.expBasic || '-'} unit="/5" />
+        <MetricBox label="行业排名" value={metrics.dsrRankChange || '-'} />
+        <MetricBox label="描述相符" value={metrics.dsrDesc || '-'} />
+        <MetricBox label="服务态度" value={metrics.dsrService || '-'} />
+        <MetricBox label="物流服务" value={metrics.dsrLogistics || '-'} />
+        <MetricBox label="退款时长" value={metrics.refundDuration || '-'} unit="h" />
+      </div>
+
+      {/* Trend Chart */}
+      <div className="bg-white rounded-lg border p-6 mb-6">
+        <h3 className="font-semibold text-gray-700 mb-4">📈 指标趋势 (近30天)</h3>
+        <MetricsChart inspections={inspections} />
+      </div>
+
+      {/* Recent Inspections */}
+      <div className="bg-white rounded-lg border p-6">
+        <h3 className="font-semibold text-gray-700 mb-4">📋 最近巡店记录</h3>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-gray-500 border-b">
+              <th className="pb-2">日期</th>
+              <th className="pb-2">状态</th>
+              <th className="pb-2">完成率</th>
+              <th className="pb-2">耗时</th>
+              <th className="pb-2">摘要</th>
+            </tr>
+          </thead>
+          <tbody>
+            {inspections.slice(0, 10).map((ins: any) => (
+              <tr key={ins.id} className="border-b last:border-0">
+                <td className="py-2">{ins.date}</td>
+                <td className="py-2">
+                  <span className={`px-2 py-0.5 rounded text-xs ${
+                    ins.status === 'completed' ? 'bg-green-100 text-green-700' :
+                    ins.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
+                    ins.status === 'failed' ? 'bg-red-100 text-red-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>{ins.status}</span>
+                </td>
+                <td className="py-2">{ins.completionRate ? Math.round(ins.completionRate * 100) + '%' : '-'}</td>
+                <td className="py-2">{ins.duration ? ins.duration + 's' : '-'}</td>
+                <td className="py-2 text-gray-500 text-xs">{ins.summary || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function MetricBox({ label, value, unit }: { label: string; value: string; unit?: string }) {
+  return (
+    <div className="bg-white rounded-lg border p-4">
+      <div className="text-xs text-gray-500 mb-1">{label}</div>
+      <div className="text-xl font-bold text-gray-800">
+        {value}{unit ? <span className="text-sm text-gray-400 ml-1">{unit}</span> : null}
+      </div>
+    </div>
+  );
+}
