@@ -3,14 +3,8 @@ import { Worker } from 'bullmq';
 import { inspectStore } from './inspector';
 import { INSPECTION_QUEUE, InspectionJobData } from '@pdd-inspector/core';
 
-// Log to file (avoids Windows stdout buffering issues with tsx watch)
-import * as fs from 'fs';
-const LOG_FILE = 'data/worker.log';
-function log(...args: any[]) {
-  const msg = args.join(' ') + '\n';
-  process.stdout.write(msg);
-  fs.appendFileSync(LOG_FILE, new Date().toISOString().substring(11, 19) + ' ' + msg);
-}
+// Force stdout flush on Windows — prevents buffering when running via pnpm
+const log = (...args: any[]) => process.stdout.write(args.join(' ') + '\n');
 
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
