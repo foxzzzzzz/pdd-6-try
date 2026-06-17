@@ -1,9 +1,47 @@
 import { FastifyInstance } from 'fastify';
-import { getDb, schema } from '@pdd-inspector/core';
+import { getDb, saveDb, schema, MetricsSnapshot } from '@pdd-inspector/core';
 import { eq, desc, and } from 'drizzle-orm';
 import { addInspectionJob, getInspectionQueue } from '../queue';
 
 export async function inspectionRoutes(app: FastifyInstance) {
+  // ========== 直接模式 (无 Redis) — 同步执行巡店 ==========
+  app.post<{ Params: { id: string } }>('/api/stores/:id/inspect-direct', async (req, reply) => {
+    const db = await getDb();
+    const store = db.select().from(schema.stores).where(eq(schema.stores.id, parseInt(req.params.id))).get();
+    if (!store) return reply.code(404).send({ error: 'Store not found' });
+    if (store.status !== 'active') return reply.code(400).send({ error: 'Store not active' });
+
+    const date = new Date().toISOString().split('T')[0];
+    const record = db.insert(schema.inspectionRecords).values({ storeId: store.id, date, status: 'running', startTime: new Date().toISOString() }).returning().get();
+
+    reply.send({ inspectionId: record.id, storeId: store.id, status: 'running', message: `Inspection started for ${store.name} (direct mode)` });
+
+    // 异步执行巡店（不阻塞 HTTP 响应）
+    const { inspectStore } = await import('@pdd-inspector/worker/inspector');
+    try {
+      const result = await inspectStore(store.id, store.name, date, {
+        headless: true, screenshotOnError: true,
+        enableReply: false,  // 直接模式下不执行写操作（安全）
+        enableReport: false,
+        enableHideInteractions: false,
+        useAI: false,
+      });
+      db.update(schema.inspectionRecords).set({
+        status: result.completionRate >= 1 ? 'completed' : 'partial',
+        endTime: new Date().toISOString(),
+        duration: 0, completionRate: result.completionRate,
+      }).where(eq(schema.inspectionRecords.id, record.id)).run();
+      saveDb();
+      app.log.info(`Direct inspection done: ${store.name} — ${result.completionRate * 100}%`);
+    } catch (err: any) {
+      db.update(schema.inspectionRecords).set({ status: 'failed', endTime: new Date().toISOString() })
+        .where(eq(schema.inspectionRecords.id, record.id)).run();
+      saveDb();
+      app.log.error(`Direct inspection failed: ${store.name} — ${err.message}`);
+    }
+  });
+
+  // ========== 队列模式 (需 Redis) — 异步通过 BullMQ ==========
   // Trigger inspection for a store
   app.post<{ Params: { id: string } }>('/api/stores/:id/inspect', async (req) => {
     const db = await getDb();
