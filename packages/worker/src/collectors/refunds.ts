@@ -20,7 +20,8 @@ export async function collectRefundMetrics(
       function ex(label) {
         var idx = text.indexOf(label);
         if (idx === -1) return '';
-        var sub = text.substring(idx, idx + 80);
+        var start = idx + label.length;
+        var sub = text.substring(start, start + 80);
         var ms = sub.match(/(\\d+\\.?\\d*)/g);
         if (!ms) return '';
         for (var i = 0; i < ms.length; i++) {

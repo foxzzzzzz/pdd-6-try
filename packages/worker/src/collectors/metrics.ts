@@ -20,7 +20,8 @@ export async function collectStoreMetrics(
       function find(label) {
         var idx = text.indexOf(label);
         if (idx === -1) return '';
-        var sub = text.substring(idx, idx + 80);
+        var start = idx + label.length;
+        var sub = text.substring(start, start + 80);
         var matches = sub.match(/(\\d+\\.?\\d*%?)/g);
         if (!matches) return '';
         for (var i = 0; i < matches.length; i++) {

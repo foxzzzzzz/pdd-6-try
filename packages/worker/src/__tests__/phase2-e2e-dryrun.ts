@@ -164,8 +164,17 @@ async function dryRun() {
       function ex(label) {
         var idx = text.indexOf(label);
         if (idx === -1) return null;
-        var m = text.substring(idx, idx + 50).match(/(\\d+\\.?\\d*)/);
-        return m ? m[1] : null;
+        var start = idx + label.length;
+        var sub = text.substring(start, start + 80);
+        var ms = sub.match(/(\\d+\\.?\\d*)/g);
+        if (!ms) return null;
+        for (var i = 0; i < ms.length; i++) {
+          var v = ms[i];
+          if (v === '2026' || v === '2025') continue;
+          if (v.length >= 4 && v.indexOf('.') === -1) continue;
+          return v;
+        }
+        return ms[0];
       }
       return JSON.stringify({
         expScore: ex('消费者服务体验分'),
@@ -329,14 +338,15 @@ async function extractNear(page: Page, label: string): Promise<string | null> {
     var text = document.body.innerText || '';
     var idx = text.indexOf('${label.replace(/'/g, "\\'")}');
     if (idx === -1) return null;
-    var sub = text.substring(idx, idx + 80);
+    // Start AFTER the label text (skip label's own numbers like "近90天")
+    var start = idx + ${label.length};
+    var sub = text.substring(start, start + 80);
     var matches = sub.match(/(\\d+\\.?\\d*%?)/g);
     if (!matches) return null;
-    // Skip year-like numbers (4 digits, 20xx) and find the real metric
     for (var i = 0; i < matches.length; i++) {
       var val = matches[i];
       if (val === '2026' || val === '2025' || val === '2024') continue;
-      if (val.length >= 4 && val.indexOf('.') === -1) continue; // skip 4-digit integers
+      if (val.length >= 4 && val.indexOf('.') === -1) continue;
       return val;
     }
     return matches[0];
