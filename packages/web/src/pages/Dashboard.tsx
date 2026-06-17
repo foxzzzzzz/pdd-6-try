@@ -42,17 +42,9 @@ export default function Dashboard() {
   async function handleInspectAll() {
     setInspecting(true);
     try {
-      const activeStores = stores.filter((s) => s.status === 'active');
-      if (activeStores.length === 0) { alert('没有可巡店的活跃店铺'); return; }
-      let done = 0;
-      for (const store of activeStores) {
-        try {
-          await api.triggerInspect(store.id);
-          done++;
-        } catch { /* continue */ }
-      }
-      alert(`已触发 ${done}/${activeStores.length} 家店铺巡店，请等待约 1-2 分钟后刷新查看结果`);
-      setTimeout(loadData, 30000);
+      const result = await api.triggerInspectAll();
+      alert(`已触发 ${result.totalStores} 家店铺巡店`);
+      setTimeout(loadData, 5000); // Refresh after 5s
     } catch (err: any) {
       alert('触发失败: ' + err.message);
     } finally {
