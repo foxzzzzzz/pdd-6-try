@@ -3,6 +3,9 @@ import { Worker } from 'bullmq';
 import { inspectStore } from './inspector';
 import { INSPECTION_QUEUE, InspectionJobData } from '@pdd-inspector/core';
 
+// Force stdout flush on Windows — prevents buffering when running via pnpm
+const log = (...args: any[]) => process.stdout.write(args.join(' ') + '\n');
+
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
 const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '3', 10);
@@ -18,16 +21,16 @@ const connection = {
   maxRetriesPerRequest: null,
 };
 
-console.log('Starting PDD Inspection Worker...');
-console.log(`  Redis: ${REDIS_HOST}:${REDIS_PORT}`);
-console.log(`  Concurrency: ${CONCURRENCY} | Headless: ${HEADLESS}`);
-console.log(`  Ops: reply=${ENABLE_REPLY} report=${ENABLE_REPORT} hide=${ENABLE_HIDE} ai=${ENABLE_AI}`);
+log('Starting PDD Inspection Worker...');
+log(`  Redis: ${REDIS_HOST}:${REDIS_PORT}`);
+log(`  Concurrency: ${CONCURRENCY} | Headless: ${HEADLESS}`);
+log(`  Ops: reply=${ENABLE_REPLY} report=${ENABLE_REPORT} hide=${ENABLE_HIDE} ai=${ENABLE_AI}`);
 
 const worker = new Worker<InspectionJobData>(
   INSPECTION_QUEUE,
   async (job) => {
     const { storeId, storeName, date, inspectionId } = job.data;
-    console.log(`\n=== Processing: ${storeName} (ID: ${storeId}) ===`);
+    log(`\n=== Processing: ${storeName} (ID: ${storeId}) ===`);
     await job.updateProgress(10);
 
     const result = await inspectStore(storeId, storeName, date, {
@@ -64,23 +67,23 @@ const worker = new Worker<InspectionJobData>(
 );
 
 worker.on('active', (job) => {
-  console.log(`▶️  Job active: ${job.data.storeName} (inspectionId=${job.data.inspectionId})`);
+  log(`▶️  Job active: ${job.data.storeName} (inspectionId=${job.data.inspectionId})`);
 });
 
 worker.on('completed', (job) => {
-  console.log(`✅ Job completed: ${job.data.storeName}`);
+  log(`✅ Job completed: ${job.data.storeName}`);
 });
 
 worker.on('failed', (job, err) => {
-  console.error(`❌ Job failed: ${job?.data.storeName} — ${err.message}`);
+  log('[ERROR]',`❌ Job failed: ${job?.data.storeName} — ${err.message}`);
 });
 
 worker.on('error', (err) => {
-  console.error('Worker error:', err);
+  log('[ERROR]','Worker error:', err);
 });
 
 const shutdown = async () => {
-  console.log('\nShutting down worker...');
+  log('\nShutting down worker...');
   await worker.close();
   process.exit(0);
 };
@@ -88,4 +91,4 @@ const shutdown = async () => {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-console.log('Worker is ready, waiting for jobs...');
+log('Worker is ready, waiting for jobs...');

@@ -1,5 +1,7 @@
 import { BrowserManager } from './browser';
 import { getDb, saveDb, schema, MetricsSnapshot } from '@pdd-inspector/core';
+
+const log = (...args: any[]) => process.stdout.write(args.join(' ') + '\n');
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { collectStoreMetrics } from './collectors/metrics';
 import { collectExperienceMetrics } from './collectors/experience';
@@ -117,27 +119,27 @@ export async function inspectStore(
       .run();
 
     // ======== PHASE 2: DATA COLLECTION ========
-    console.log(`[${storeName}] Starting data collection...`);
+    log(`[${storeName}] Starting data collection...`);
 
     // Step 1: Store health metrics
     const healthMetrics = await collectStoreMetrics(browser, storeId);
     completedSteps++;
-    console.log(`[${storeName}] Store health collected`);
+    log(`[${storeName}] Store health collected`);
 
     // Step 2: Consumer experience
     const expMetrics = await collectExperienceMetrics(browser, storeId);
     completedSteps++;
-    console.log(`[${storeName}] Consumer experience collected`);
+    log(`[${storeName}] Consumer experience collected`);
 
     // Step 3: Refund data
     const refundMetrics = await collectRefundMetrics(browser, storeId);
     completedSteps++;
-    console.log(`[${storeName}] Refund data collected`);
+    log(`[${storeName}] Refund data collected`);
 
     // Step 4: Appeal data
     const appealMetrics = await collectAppealMetrics(browser, storeId);
     completedSteps++;
-    console.log(`[${storeName}] Appeal data collected`);
+    log(`[${storeName}] Appeal data collected`);
 
     // ======== PHASE 2.5: REVIEW ACTIONS ========
     let reviewResult: ReviewActionResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
@@ -147,7 +149,7 @@ export async function inspectStore(
     if (resolvedConfig.enableReply) {
       try {
         reviewResult = await replyToGoodReviews(browser, storeId, DEFAULT_REPLY_TEMPLATE);
-        console.log(`[${storeName}] Reviews: ${reviewResult.replied} replied, ${reviewResult.skipped} skipped`);
+        log(`[${storeName}] Reviews: ${reviewResult.replied} replied, ${reviewResult.skipped} skipped`);
       } catch (err) {
         errors.push(`Reply failed: ${err}`);
       }
@@ -174,7 +176,7 @@ export async function inspectStore(
         reviewResult.skipped += reportResult.skipped;
         reviewResult.failed += reportResult.failed;
         reviewResult.details.push(...reportResult.details);
-        console.log(`[${storeName}] Reports: ${reportResult.reported} reported, ${reportResult.skipped} skipped`);
+        log(`[${storeName}] Reports: ${reportResult.reported} reported, ${reportResult.skipped} skipped`);
       } catch (err) {
         errors.push(`Report failed: ${err}`);
       }
@@ -196,7 +198,7 @@ export async function inspectStore(
     if (resolvedConfig.enableHideInteractions) {
       try {
         interactionResult = await handleInteractions(browser, storeId, interactionJudgeFn);
-        console.log(`[${storeName}] Interactions: ${interactionResult.hidden} hidden, ${interactionResult.ignored} ignored`);
+        log(`[${storeName}] Interactions: ${interactionResult.hidden} hidden, ${interactionResult.ignored} ignored`);
       } catch (err) {
         errors.push(`Interactions failed: ${err}`);
       }
@@ -295,11 +297,11 @@ export async function inspectStore(
         anomalyResult = detectAnomaliesByRules(currentNums, historyNums);
 
         if (anomalyResult.isAnomaly) {
-          console.log(`[${storeName}] ⚠️ Anomaly: ${anomalyResult.description}`);
+          log(`[${storeName}] ⚠️ Anomaly: ${anomalyResult.description}`);
           // Persisted in the dedicated anomaly-fix change.
         }
       } catch (err) {
-        console.error(`Anomaly detection error:`, err);
+        log('[ERROR]',`Anomaly detection error:`, err);
       }
     }
 
@@ -351,11 +353,11 @@ export async function inspectStore(
     });
 
     saveDb();
-    console.log(`[${storeName}] Inspection complete: ${completionRate * 100}% in ${duration}s`);
+    log(`[${storeName}] Inspection complete: ${completionRate * 100}% in ${duration}s`);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     errors.push(errMsg);
-    console.error(`[${storeName}] Inspection error:`, errMsg);
+    log('[ERROR]',`[${storeName}] Inspection error:`, errMsg);
 
     if (resolvedConfig.screenshotOnError) {
       try {
