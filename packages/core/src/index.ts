@@ -7,3 +7,6 @@ export * from './types';
 
 // Queue
 export * from './queue';
+
+// AI
+export * from './ai/types';
