@@ -63,6 +63,25 @@ export default function StoreDetail() {
         <MetricBox label="退款时长" value={metrics.refundDuration || '-'} unit="h" />
       </div>
 
+      <div className="mb-6">
+        <h3 className="font-semibold text-gray-700 mb-4">售后重点指标</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <CoreMetricBox label="纠纷退款率" value={formatPercent(metrics.disputeRefundRate ?? metrics.disputeRate)} />
+          <CoreMetricBox label="平台介入率" value={formatPercent(metrics.platformInterventionRate)} />
+          <CoreMetricBox label="品质退款率" value={formatPercent(metrics.qualityRefundRate)} />
+          <CoreMetricBox label="平均退款时长" value={formatNumber(metrics.averageRefundDuration ?? metrics.refundDuration)} unit="h" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricBox label="纠纷退款数" value={formatNumber(metrics.disputeRefundCount)} />
+          <MetricBox label="介入订单数" value={formatNumber(metrics.interventionOrderCount)} />
+          <MetricBox label="成功退款订单数" value={formatNumber(metrics.successfulRefundOrderCount)} />
+          <MetricBox label="成功退款金额" value={formatMoney(metrics.successfulRefundAmount)} />
+          <MetricBox label="成功退款率" value={formatPercent(metrics.successfulRefundRate ?? metrics.refundRate)} />
+          <MetricBox label="退货退款自主完结时长" value={formatNumber(metrics.returnRefundAutoDuration)} unit="h" />
+          <MetricBox label="退款自主完结时长" value={formatNumber(metrics.refundAutoDuration)} unit="h" />
+        </div>
+      </div>
+
       {/* Trend Chart */}
       <div className="bg-white rounded-lg border p-6 mb-6">
         <h3 className="font-semibold text-gray-700 mb-4">📈 指标趋势 (近30天)</h3>
@@ -106,7 +125,31 @@ export default function StoreDetail() {
   );
 }
 
-function MetricBox({ label, value, unit }: { label: string; value: string; unit?: string }) {
+function formatNumber(value: number | string | null | undefined): string {
+  if (value == null || value === '') return '-';
+  return typeof value === 'number' ? String(value) : value;
+}
+
+function formatPercent(value: number | null | undefined): string {
+  return value == null ? '-' : `${(value * 100).toFixed(2)}%`;
+}
+
+function formatMoney(value: number | null | undefined): string {
+  return value == null ? '-' : `${value.toFixed(2)}元`;
+}
+
+function CoreMetricBox({ label, value, unit }: { label: string; value: React.ReactNode; unit?: string }) {
+  return (
+    <div className="bg-white rounded-lg border border-blue-200 p-4 shadow-sm">
+      <div className="text-xs font-medium text-blue-600 mb-2">{label}</div>
+      <div className="text-2xl font-bold text-gray-900">
+        {value}{unit ? <span className="text-sm text-gray-400 ml-1">{unit}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function MetricBox({ label, value, unit }: { label: string; value: React.ReactNode; unit?: string }) {
   return (
     <div className="bg-white rounded-lg border p-4">
       <div className="text-xs text-gray-500 mb-1">{label}</div>

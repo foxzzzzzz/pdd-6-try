@@ -88,6 +88,17 @@ export const storeMetrics = sqliteTable('store_metrics', {
   refundDuration: real('refund_duration'),                // 退款时长 (小时)
   refundRate: real('refund_rate'),                        // 退款率
   disputeRate: real('dispute_rate'),                      // 纠纷率
+  disputeRefundCount: integer('dispute_refund_count'),    // 纠纷退款数
+  disputeRefundRate: real('dispute_refund_rate'),         // 纠纷退款率
+  interventionOrderCount: integer('intervention_order_count'), // 介入订单数
+  platformInterventionRate: real('platform_intervention_rate'), // 平台介入率
+  qualityRefundRate: real('quality_refund_rate'),         // 品质退款率
+  averageRefundDuration: real('average_refund_duration'), // 平均退款时长 (小时)
+  successfulRefundOrderCount: integer('successful_refund_order_count'), // 成功退款订单数
+  successfulRefundAmount: real('successful_refund_amount'), // 成功退款金额
+  successfulRefundRate: real('successful_refund_rate'),   // 成功退款率
+  returnRefundAutoDuration: real('return_refund_auto_duration'), // 退货退款自主完结时长
+  refundAutoDuration: real('refund_auto_duration'),       // 退款自主完结时长
 
   // 订单申诉
   appealCount: integer('appeal_count'),                   // 申诉数量

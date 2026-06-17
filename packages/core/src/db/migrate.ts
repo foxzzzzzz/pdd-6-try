@@ -79,6 +79,17 @@ async function migrate() {
       refund_duration REAL,
       refund_rate REAL,
       dispute_rate REAL,
+      dispute_refund_count INTEGER,
+      dispute_refund_rate REAL,
+      intervention_order_count INTEGER,
+      platform_intervention_rate REAL,
+      quality_refund_rate REAL,
+      average_refund_duration REAL,
+      successful_refund_order_count INTEGER,
+      successful_refund_amount REAL,
+      successful_refund_rate REAL,
+      return_refund_auto_duration REAL,
+      refund_auto_duration REAL,
       appeal_count INTEGER,
       appeal_success_rate REAL,
       anomaly_flags TEXT,
@@ -127,6 +138,26 @@ async function migrate() {
     ['exp_shipping_change', 'REAL'],
     ['exp_product_change', 'REAL'],
     ['exp_logistics_change', 'REAL'],
+  ] as const) {
+    try {
+      db.run(sql.raw(`ALTER TABLE store_metrics ADD COLUMN ${column} ${type}`));
+    } catch {
+      // Existing databases may already have this column.
+    }
+  }
+
+  for (const [column, type] of [
+    ['dispute_refund_count', 'INTEGER'],
+    ['dispute_refund_rate', 'REAL'],
+    ['intervention_order_count', 'INTEGER'],
+    ['platform_intervention_rate', 'REAL'],
+    ['quality_refund_rate', 'REAL'],
+    ['average_refund_duration', 'REAL'],
+    ['successful_refund_order_count', 'INTEGER'],
+    ['successful_refund_amount', 'REAL'],
+    ['successful_refund_rate', 'REAL'],
+    ['return_refund_auto_duration', 'REAL'],
+    ['refund_auto_duration', 'REAL'],
   ] as const) {
     try {
       db.run(sql.raw(`ALTER TABLE store_metrics ADD COLUMN ${column} ${type}`));

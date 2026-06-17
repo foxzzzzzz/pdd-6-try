@@ -64,6 +64,17 @@ export interface MetricsSnapshot {
   refundDuration: number | null;
   refundRate: number | null;
   disputeRate: number | null;
+  disputeRefundCount: number | null;
+  disputeRefundRate: number | null;
+  interventionOrderCount: number | null;
+  platformInterventionRate: number | null;
+  qualityRefundRate: number | null;
+  averageRefundDuration: number | null;
+  successfulRefundOrderCount: number | null;
+  successfulRefundAmount: number | null;
+  successfulRefundRate: number | null;
+  returnRefundAutoDuration: number | null;
+  refundAutoDuration: number | null;
 
   // Appeals
   appealCount: number | null;

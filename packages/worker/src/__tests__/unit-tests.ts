@@ -92,6 +92,17 @@ const metricValues = buildMetricInsertValues(
     refundDuration: null,
     refundRate: null,
     disputeRate: null,
+    disputeRefundCount: null,
+    disputeRefundRate: null,
+    interventionOrderCount: null,
+    platformInterventionRate: null,
+    qualityRefundRate: null,
+    averageRefundDuration: null,
+    successfulRefundOrderCount: null,
+    successfulRefundAmount: null,
+    successfulRefundRate: null,
+    returnRefundAutoDuration: null,
+    refundAutoDuration: null,
     appealCount: null,
     appealSuccessRate: null,
   },
@@ -212,11 +223,19 @@ assert('提取真实 DSR 服务态度分', realStoreMetrics.dsrService === 4.8);
 assert('提取真实 DSR 物流服务分', realStoreMetrics.dsrLogistics === 4.6);
 
 const refundMetrics = parseRefundMetricsText(
-  '待商家处理6 纠纷退款率 0.40% 品质退款率 3.20% 平均退款时长 12.5小时 成功退款率 13.70%',
+  '待商家处理6 纠纷退款数 0 纠纷退款率 0.40% 介入订单数 1 平台介入率 0.65% 品质退款率 3.20% 平均退款时长 12.5小时 成功退款订单数 2 成功退款金额 99.50元 成功退款率 13.70% 退货退款自主完结时长 29.57小时 退款自主完结时长 0.00小时',
 );
 assert('不把待商家处理数量误写为退款时长', refundMetrics.refundDuration === 12.5);
 assert('提取成功退款率为小数', nearlyEqual(refundMetrics.refundRate, 0.137));
 assert('提取纠纷率为小数', nearlyEqual(refundMetrics.disputeRate, 0.004));
+assert('提取纠纷退款数', refundMetrics.disputeRefundCount === 0);
+assert('提取介入订单数', refundMetrics.interventionOrderCount === 1);
+assert('提取平台介入率', nearlyEqual(refundMetrics.platformInterventionRate, 0.0065));
+assert('提取品质退款率', nearlyEqual(refundMetrics.qualityRefundRate, 0.032));
+assert('提取成功退款订单数', refundMetrics.successfulRefundOrderCount === 2);
+assert('提取成功退款金额', refundMetrics.successfulRefundAmount === 99.5);
+assert('提取退货退款自主完结时长', refundMetrics.returnRefundAutoDuration === 29.57);
+assert('提取退款自主完结时长', refundMetrics.refundAutoDuration === 0);
 
 // ========== Test 4: 好评回复模板变量填充 ==========
 console.log('\n📋 测试: 模板变量');
