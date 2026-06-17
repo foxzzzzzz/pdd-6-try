@@ -19,17 +19,31 @@ export async function collectExperienceMetrics(
 
     // 只取纯文本，解析逻辑放 Node.js 侧
     const pageText: string = await page.evaluate('document.body.innerText || ""');
-
-    metrics.expBasic = extractScore(pageText, '消费者服务体验分');
-    metrics.expProduct = extractScore(pageText, '商品服务体验分');
-    metrics.expShipping = extractScore(pageText, '发货服务体验分');
-    metrics.expLogistics = extractScore(pageText, '物流服务体验分');
+    Object.assign(metrics, parseExperienceMetricsText(pageText));
 
     await browser.takeScreenshot(storeId, 'experience');
   } catch (err) {
     console.error(`Experience metrics error for ${storeId}:`, err);
   }
   return metrics;
+}
+
+export function parseExperienceMetricsText(text: string): Partial<MetricsSnapshot> {
+  return {
+    expBasic: extractScore(text, '消费者服务体验分'),
+    expServiceBasic: extractScore(text, '基础服务体验分'),
+    expAttitude: extractScore(text, '服务态度体验分'),
+    expProduct: extractScore(text, '商品服务体验分'),
+    expShipping: extractScore(text, '发货服务体验分'),
+    expLogistics: extractScore(text, '物流服务体验分'),
+    expIndustryRankRange: extractIndustryRankRange(text),
+    expBasicChange: extractChange(text, '消费者服务体验分'),
+    expServiceBasicChange: extractChange(text, '基础服务体验分'),
+    expAttitudeChange: extractChange(text, '服务态度体验分'),
+    expProductChange: extractChange(text, '商品服务体验分'),
+    expShippingChange: extractChange(text, '发货服务体验分'),
+    expLogisticsChange: extractChange(text, '物流服务体验分'),
+  };
 }
 
 /** 从页面文本中提取"标签 → /5"格式的分数 */
@@ -57,4 +71,35 @@ function extractScore(text: string, label: string): number | null {
   if (m && parseFloat(m[1]) <= 5 && m[1].length < 4) return parseFloat(m[1]);
 
   return null;
+}
+
+function extractChange(text: string, label: string): number | null {
+  const idx = findLastIndex(text, label);
+  if (idx === -1) return null;
+  const sub = text.substring(idx + label.length, idx + label.length + 160);
+  const m = sub.match(/较前7日\s*([↑↓+-]|上升|下降)?\s*(\d+\.?\d*)\s*%/);
+  if (!m) return null;
+
+  const signToken = m[1] || '';
+  if (!signToken) return null;
+  const value = parseFloat(m[2]) / 100;
+  if (signToken === '↓' || signToken === '-' || signToken === '下降') return -value;
+  return value;
+}
+
+function extractIndustryRankRange(text: string): string | null {
+  const m = text.match(/本店铺体验分在同行排名\s*(\d+%\s*[-~至]\s*\d+%)/);
+  return m ? m[1].replace(/\s+/g, '') : null;
+}
+
+function findLastIndex(text: string, label: string): number {
+  let idx = -1;
+  let searchFrom = 0;
+  while (true) {
+    const pos = text.indexOf(label, searchFrom);
+    if (pos === -1) break;
+    idx = pos;
+    searchFrom = pos + 1;
+  }
+  return idx;
 }

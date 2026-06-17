@@ -32,11 +32,33 @@ export interface MetricsSnapshot {
   dsrLogistics: number | null;
   dsrRankChange: string | null;
 
+  // Pilot mall / store star assessment
+  pilotIndustryRank: number | null;
+  platformHelpRate: number | null;
+  threeMinuteReplyRate: number | null;
+  inTransitRefundDuration: number | null;
+  returnRefundDuration: number | null;
+  reviewScoreRank: number | null;
+  positiveReviewRate: number | null;
+  groupToSignDuration: number | null;
+  logisticsViolationRate: number | null;
+  storeActivityRate: number | null;
+  experiencePlanStatus: string | null;
+
   // Consumer experience
   expBasic: number | null;
+  expServiceBasic: number | null;
+  expAttitude: number | null;
   expShipping: number | null;
   expProduct: number | null;
   expLogistics: number | null;
+  expIndustryRankRange: string | null;
+  expBasicChange: number | null;
+  expServiceBasicChange: number | null;
+  expAttitudeChange: number | null;
+  expShippingChange: number | null;
+  expProductChange: number | null;
+  expLogisticsChange: number | null;
 
   // Orders
   refundDuration: number | null;

@@ -52,10 +52,30 @@ async function migrate() {
       dsr_service REAL,
       dsr_logistics REAL,
       dsr_rank_change TEXT,
+      pilot_industry_rank REAL,
+      platform_help_rate REAL,
+      three_minute_reply_rate REAL,
+      in_transit_refund_duration REAL,
+      return_refund_duration REAL,
+      review_score_rank REAL,
+      positive_review_rate REAL,
+      group_to_sign_duration REAL,
+      logistics_violation_rate REAL,
+      store_activity_rate REAL,
+      experience_plan_status TEXT,
       exp_basic REAL,
+      exp_service_basic REAL,
+      exp_attitude REAL,
       exp_shipping REAL,
       exp_product REAL,
       exp_logistics REAL,
+      exp_industry_rank_range TEXT,
+      exp_basic_change REAL,
+      exp_service_basic_change REAL,
+      exp_attitude_change REAL,
+      exp_shipping_change REAL,
+      exp_product_change REAL,
+      exp_logistics_change REAL,
       refund_duration REAL,
       refund_rate REAL,
       dispute_rate REAL,
@@ -66,6 +86,54 @@ async function migrate() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  for (const [column, type] of [
+    ['pilot_industry_rank', 'REAL'],
+    ['platform_help_rate', 'REAL'],
+    ['three_minute_reply_rate', 'REAL'],
+    ['in_transit_refund_duration', 'REAL'],
+    ['return_refund_duration', 'REAL'],
+    ['review_score_rank', 'REAL'],
+    ['positive_review_rate', 'REAL'],
+    ['group_to_sign_duration', 'REAL'],
+    ['logistics_violation_rate', 'REAL'],
+    ['store_activity_rate', 'REAL'],
+    ['experience_plan_status', 'TEXT'],
+  ] as const) {
+    try {
+      db.run(sql.raw(`ALTER TABLE store_metrics ADD COLUMN ${column} ${type}`));
+    } catch {
+      // Existing databases may already have this column.
+    }
+  }
+
+  try {
+    db.run(sql`ALTER TABLE store_metrics ADD COLUMN exp_service_basic REAL`);
+  } catch {
+    // Existing databases may already have this column.
+  }
+
+  try {
+    db.run(sql`ALTER TABLE store_metrics ADD COLUMN exp_attitude REAL`);
+  } catch {
+    // Existing databases may already have this column.
+  }
+
+  for (const [column, type] of [
+    ['exp_industry_rank_range', 'TEXT'],
+    ['exp_basic_change', 'REAL'],
+    ['exp_service_basic_change', 'REAL'],
+    ['exp_attitude_change', 'REAL'],
+    ['exp_shipping_change', 'REAL'],
+    ['exp_product_change', 'REAL'],
+    ['exp_logistics_change', 'REAL'],
+  ] as const) {
+    try {
+      db.run(sql.raw(`ALTER TABLE store_metrics ADD COLUMN ${column} ${type}`));
+    } catch {
+      // Existing databases may already have this column.
+    }
+  }
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS review_actions (

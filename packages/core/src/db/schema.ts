@@ -56,11 +56,33 @@ export const storeMetrics = sqliteTable('store_metrics', {
   dsrLogistics: real('dsr_logistics'),                    // 物流服务
   dsrRankChange: text('dsr_rank_change'),                 // 排名变化
 
+  // 综合体验星级/领航员考核指标
+  pilotIndustryRank: real('pilot_industry_rank'),         // 领航员综合分行业排名
+  platformHelpRate: real('platform_help_rate'),           // 平台求助率
+  threeMinuteReplyRate: real('three_minute_reply_rate'),  // 3分钟人工回复率
+  inTransitRefundDuration: real('in_transit_refund_duration'), // 在途订单退款时长
+  returnRefundDuration: real('return_refund_duration'),   // 退货签收后平均退款时长
+  reviewScoreRank: real('review_score_rank'),             // 用户评价得分排名
+  positiveReviewRate: real('positive_review_rate'),       // 积极评论率
+  groupToSignDuration: real('group_to_sign_duration'),    // 成团-签收时效
+  logisticsViolationRate: real('logistics_violation_rate'), // 物流综合违规处理率
+  storeActivityRate: real('store_activity_rate'),         // 店铺活跃度
+  experiencePlanStatus: text('experience_plan_status'),   // 消费者体验提升计划状态
+
   // 消费者体验分
-  expBasic: real('exp_basic'),                            // 基础分
+  expBasic: real('exp_basic'),                            // 消费者服务体验总分
+  expServiceBasic: real('exp_service_basic'),             // 基础服务体验分
+  expAttitude: real('exp_attitude'),                      // 服务态度分
   expShipping: real('exp_shipping'),                      // 发货分
   expProduct: real('exp_product'),                        // 商品分
   expLogistics: real('exp_logistics'),                    // 物流分
+  expIndustryRankRange: text('exp_industry_rank_range'),  // 同行排名区间
+  expBasicChange: real('exp_basic_change'),               // 消费者服务体验总分变化
+  expServiceBasicChange: real('exp_service_basic_change'), // 基础服务体验分变化
+  expAttitudeChange: real('exp_attitude_change'),         // 服务态度体验分变化
+  expShippingChange: real('exp_shipping_change'),         // 发货服务体验分变化
+  expProductChange: real('exp_product_change'),           // 商品服务体验分变化
+  expLogisticsChange: real('exp_logistics_change'),       // 物流服务体验分变化
 
   // 订单退款
   refundDuration: real('refund_duration'),                // 退款时长 (小时)

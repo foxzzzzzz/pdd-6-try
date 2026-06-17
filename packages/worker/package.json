@@ -11,6 +11,7 @@
     "test:selectors": "tsx src/__tests__/selector-validator.ts",
     "test:unit": "tsx src/__tests__/unit-tests.ts",
     "test:e2e": "tsx src/__tests__/phase2-e2e-dryrun.ts",
+    "test:metrics": "tsx src/__tests__/metrics-only-dryrun.ts",
     "test:ai": "tsx src/__tests__/ai-unit-tests.ts",
     "test": "tsx src/__tests__/unit-tests.ts"
   },
