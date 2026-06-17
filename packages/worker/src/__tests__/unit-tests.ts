@@ -7,7 +7,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { createInspectionJobData } from '@pdd-inspector/core';
+import {
+  createInspectionJobData,
+  createSchedulerJobData,
+  INSPECTION_QUEUE,
+  SCHEDULER_QUEUE,
+} from '@pdd-inspector/core';
 import { buildMetricInsertValues } from '../inspection-results';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
@@ -33,6 +38,10 @@ console.log('\n📋 测试: 巡店记录关联与异常落库');
 
 const jobData = createInspectionJobData(12, '测试店铺', '2026-06-17', 99);
 assert('队列任务携带 inspectionId', jobData.inspectionId === 99);
+
+const schedulerJobData = createSchedulerJobData();
+assert('调度任务使用独立队列', SCHEDULER_QUEUE !== INSPECTION_QUEUE);
+assert('调度任务不伪造店铺 ID', !('storeId' in schedulerJobData));
 
 const metricValues = buildMetricInsertValues(
   {
