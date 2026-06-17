@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { storeRoutes } from './routes/stores';
 import { inspectionRoutes } from './routes/inspections';
+import { templateRoutes } from './routes/templates';
 import { getRedis, closeRedis } from './redis';
 import { getInspectionQueue, closeQueue } from './queue';
 import { getDb, closeDb } from '@pdd-inspector/core';
@@ -38,6 +39,7 @@ async function start() {
   // Register routes
   await app.register(storeRoutes);
   await app.register(inspectionRoutes);
+  await app.register(templateRoutes);
 
   // Health check
   app.get('/api/health', async () => {
