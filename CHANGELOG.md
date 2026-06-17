@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 修复
+- Worker 日志输出在 stdout 写入失败时不再中断巡店进程，降低 Windows/pnpm 管道异常导致 Worker 崩溃的风险。
 - sql.js 持久化改为按调用方 DB 实例保存，并在写盘时增加文件锁和磁盘版本冲突检测，避免多次 `getDb()` 或多进程写入时静默覆盖其它实例的更新。
 - Worker 去除异常检测阶段的 `useAI || true` 硬编码条件，明确规则异常检测不依赖 AI 且始终运行，避免配置语义误读。
 - 店铺 API 响应统一脱敏 `cookie` 和 `storageState`，避免前端列表、详情、创建或更新响应泄露登录凭证。

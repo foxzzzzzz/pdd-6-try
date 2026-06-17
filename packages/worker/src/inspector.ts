@@ -1,7 +1,7 @@
 import { BrowserManager } from './browser';
 import { getDb, saveDb, schema, MetricsSnapshot } from '@pdd-inspector/core';
 
-const log = (...args: any[]) => process.stdout.write(args.join(' ') + '\n');
+const log = (...args: any[]) => { try { process.stdout.write(args.join(' ') + '\n'); } catch { /* ignore */ } };
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { collectStoreMetrics } from './collectors/metrics';
 import { collectExperienceMetrics } from './collectors/experience';

@@ -4,7 +4,7 @@ import { inspectStore } from './inspector';
 import { INSPECTION_QUEUE, InspectionJobData } from '@pdd-inspector/core';
 
 // Force stdout flush on Windows — prevents buffering when running via pnpm
-const log = (...args: any[]) => process.stdout.write(args.join(' ') + '\n');
+const log = (...args: any[]) => { try { process.stdout.write(args.join(' ') + '\n'); } catch { /* ignore */ } };
 
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
