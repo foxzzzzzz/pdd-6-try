@@ -10,6 +10,7 @@
     "discover": "tsx src/discover.ts",
     "test:selectors": "tsx src/__tests__/selector-validator.ts",
     "test:unit": "tsx src/__tests__/unit-tests.ts",
+    "test:e2e": "tsx src/__tests__/phase2-e2e-dryrun.ts",
     "test": "tsx src/__tests__/unit-tests.ts"
   },
   "dependencies": {

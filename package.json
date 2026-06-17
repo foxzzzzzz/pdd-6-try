@@ -9,6 +9,7 @@
     "test": "pnpm --filter @pdd-inspector/worker run test:unit",
     "test:selectors": "pnpm --filter @pdd-inspector/worker run test:selectors",
     "test:all": "pnpm test && pnpm test:selectors",
+    "test:e2e": "pnpm --filter @pdd-inspector/worker run test:e2e",
     "db:generate": "pnpm --filter @pdd-inspector/core run db:generate",
     "db:push": "pnpm --filter @pdd-inspector/core run db:push",
     "db:migrate": "pnpm --filter @pdd-inspector/core run db:migrate",
