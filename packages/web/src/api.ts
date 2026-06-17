@@ -33,7 +33,7 @@ export const api = {
     return request<any[]>(`/inspections${q ? '?' + q : ''}`);
   },
   getInspection: (id: number) => request<any>(`/inspections/${id}`),
-  triggerInspect: (storeId: number) => request<any>(`/stores/${storeId}/inspect-direct`, { method: 'POST' }),
+  triggerInspect: (storeId: number) => request<any>(`/stores/${storeId}/inspect`, { method: 'POST' }),
   triggerInspectAll: () => request<any>('/inspect-all', { method: 'POST' }),
   getQueueStatus: () => request<any>('/queue/status'),
 
