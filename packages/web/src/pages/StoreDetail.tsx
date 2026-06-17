@@ -3,6 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import MetricsChart from '../components/MetricsChart';
 
+function formatCST(utcStr: string): string {
+  if (!utcStr) return '-';
+  return new Date(utcStr + 'Z').toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
+}
+
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const [store, setStore] = useState<any>(null);
@@ -70,7 +75,7 @@ export default function StoreDetail() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-500 border-b">
-              <th className="pb-2">日期</th>
+              <th className="pb-2">时间日期</th>
               <th className="pb-2">状态</th>
               <th className="pb-2">完成率</th>
               <th className="pb-2">耗时</th>
@@ -80,7 +85,7 @@ export default function StoreDetail() {
           <tbody>
             {inspections.slice(0, 10).map((ins: any) => (
               <tr key={ins.id} className="border-b last:border-0">
-                <td className="py-2">{ins.date}</td>
+                <td className="py-2 text-xs">{formatCST(ins.createdAt || ins.date)}</td>
                 <td className="py-2">
                   <span className={`px-2 py-0.5 rounded text-xs ${
                     ins.status === 'completed' ? 'bg-green-100 text-green-700' :

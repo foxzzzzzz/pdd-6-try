@@ -7,7 +7,6 @@ import * as path from 'path';
 let db: SQLJsDatabase<typeof schema> | null = null;
 let sqlDb: SqlJsDatabase | null = null;
 
-/** Find workspace root by looking for pnpm-workspace.yaml */
 function findWorkspaceRoot(): string {
   let dir = process.cwd();
   for (let i = 0; i < 10; i++) {
@@ -26,37 +25,45 @@ const DB_PATH = process.env.DATABASE_PATH
 
 let initPromise: Promise<typeof import('sql.js')> | null = null;
 
+// Mutex — prevents concurrent DB access from corrupting sql.js singleton
+let dbLock: Promise<void> = Promise.resolve();
+
+function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = dbLock;
+  let release: () => void;
+  dbLock = new Promise<void>(resolve => { release = resolve; });
+  return prev.then(fn).finally(() => release!());
+}
+
 export async function getDb(): Promise<SQLJsDatabase<typeof schema>> {
-  // Reload from disk every time to support multi-process access
-  if (!initPromise) {
-    initPromise = initSqlJs();
-  }
-  const SQL = await initPromise;
+  return withLock(async () => {
+    if (!initPromise) initPromise = initSqlJs();
+    const SQL = await initPromise;
 
-  const dir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-  // Always load fresh from disk
-  if (fs.existsSync(DB_PATH)) {
-    const buffer = fs.readFileSync(DB_PATH);
-    if (sqlDb) sqlDb.close();
-    sqlDb = new SQL.Database(buffer);
-  } else {
-    if (sqlDb) sqlDb.close();
-    sqlDb = new SQL.Database();
-  }
+    // Create a new instance WITHOUT closing the old one
+    // (old instance might still be in use by a long-running operation)
+    let newSqlDb: SqlJsDatabase;
+    if (fs.existsSync(DB_PATH)) {
+      const buffer = fs.readFileSync(DB_PATH);
+      newSqlDb = new SQL.Database(buffer);
+    } else {
+      newSqlDb = new SQL.Database();
+    }
 
-  db = drizzle(sqlDb, { schema });
-  return db;
+    // Keep reference for saveDb() — last writer wins
+    sqlDb = newSqlDb;
+    db = drizzle(newSqlDb, { schema });
+    return db;
+  });
 }
 
 export function saveDb(): void {
   if (!sqlDb) return;
   const data = sqlDb.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(DB_PATH, buffer);
+  fs.writeFileSync(DB_PATH, Buffer.from(data));
 }
 
 export async function reloadDb(): Promise<void> {
