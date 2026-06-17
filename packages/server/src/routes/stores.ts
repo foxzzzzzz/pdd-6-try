@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { getDb, schema } from '@pdd-inspector/core';
+import { getDb, saveDb, schema } from '@pdd-inspector/core';
 import { eq } from 'drizzle-orm';
 
 export async function storeRoutes(app: FastifyInstance) {
@@ -44,6 +44,7 @@ export async function storeRoutes(app: FastifyInstance) {
       })
       .returning()
       .get();
+    saveDb();
     return result;
   });
 
@@ -66,6 +67,7 @@ export async function storeRoutes(app: FastifyInstance) {
       .where(eq(schema.stores.id, parseInt(req.params.id)))
       .returning()
       .get();
+    saveDb();
     return result;
   });
 
@@ -75,6 +77,7 @@ export async function storeRoutes(app: FastifyInstance) {
     db.delete(schema.stores)
       .where(eq(schema.stores.id, parseInt(req.params.id)))
       .run();
+    saveDb();
     return { success: true };
   });
 }

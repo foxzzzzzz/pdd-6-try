@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { getDb, schema } from '@pdd-inspector/core';
+import { getDb, saveDb, schema } from '@pdd-inspector/core';
 import { eq, desc, and } from 'drizzle-orm';
 import { addInspectionJob, getInspectionQueue } from '../queue';
 import { mergeInspectionMetrics } from '../inspection-summary';
@@ -37,6 +37,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
 
     // Add to queue
     const job = await addInspectionJob(store.id, store.name, date, record.id);
+    saveDb();
 
     return {
       inspectionId: record.id,
@@ -83,6 +84,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
         jobId: job.id,
       });
     }
+    saveDb();
 
     return {
       totalStores: activeStores.length,
