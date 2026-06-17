@@ -237,8 +237,9 @@ export async function inspectStore(
       .select().from(schema.storeMetrics)
       .where(eq(schema.storeMetrics.storeId, storeId))
       .orderBy(desc(schema.storeMetrics.date))
-      .limit(1).all()
-      .filter((m) => m.date !== date);
+      .limit(2).all()
+      .filter((m) => m.date !== date)
+      .slice(0, 1);
 
     if (prevMetrics.length > 0) {
       var pm = prevMetrics[0];
