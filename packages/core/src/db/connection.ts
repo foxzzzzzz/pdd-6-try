@@ -7,7 +7,22 @@ import * as path from 'path';
 let db: SQLJsDatabase<typeof schema> | null = null;
 let sqlDb: SqlJsDatabase | null = null;
 
-const DB_PATH = path.resolve(process.env.DATABASE_PATH || './data/pdd-inspector.db');
+/** Find workspace root by looking for pnpm-workspace.yaml */
+function findWorkspaceRoot(): string {
+  let dir = process.cwd();
+  for (let i = 0; i < 10; i++) {
+    if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return process.cwd();
+}
+
+const WORKSPACE_ROOT = findWorkspaceRoot();
+const DB_PATH = process.env.DATABASE_PATH
+  ? path.resolve(WORKSPACE_ROOT, process.env.DATABASE_PATH)
+  : path.join(WORKSPACE_ROOT, 'data', 'pdd-inspector.db');
 
 export async function getDb(): Promise<SQLJsDatabase<typeof schema>> {
   if (db) return db;
