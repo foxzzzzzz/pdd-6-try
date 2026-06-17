@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { getDb, schema } from '@pdd-inspector/core';
 import { eq, desc, and } from 'drizzle-orm';
 import { addInspectionJob, getInspectionQueue } from '../queue';
+import { mergeInspectionMetrics } from '../inspection-summary';
 
 export async function inspectionRoutes(app: FastifyInstance) {
   // Trigger inspection for a store
@@ -108,10 +109,19 @@ export async function inspectionRoutes(app: FastifyInstance) {
         query = query.where(and(...conditions)) as typeof query;
       }
 
-      return query
+      const inspections = query
         .orderBy(desc(schema.inspectionRecords.createdAt))
         .limit(req.query.limit ? parseInt(req.query.limit) : 50)
         .all();
+
+      const inspectionIds = new Set(inspections.map((inspection) => inspection.id));
+      const metrics = db
+        .select()
+        .from(schema.storeMetrics)
+        .all()
+        .filter((metric) => metric.inspectionId != null && inspectionIds.has(metric.inspectionId));
+
+      return mergeInspectionMetrics(inspections, metrics);
     },
   );
 

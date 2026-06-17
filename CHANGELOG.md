@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 修复
+- `/api/inspections` 列表接口返回巡店记录时同步附带指标快照和异常等级，Dashboard/单店详情可直接展示最新指标和预警状态。
 - Scheduler 改用独立调度队列承载 repeatable job，巡店队列只接收真实店铺任务，避免 Worker 消费 `storeId=0` 的占位任务。
 - 巡店队列任务携带 `inspectionId`，Worker 按巡店记录精确更新状态与写入明细，并在指标入库前持久化异常等级和 flags，避免同店多次巡店串单或 Dashboard 读不到异常。
 - 恢复 monorepo 全量构建：补齐 Node/sql.js 类型、统一 Drizzle 版本、为 server/worker/scheduler 显式声明 Drizzle 依赖，并避免 BullMQ 直接接收 ioredis 实例导致的类型冲突。
