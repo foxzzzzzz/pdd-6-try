@@ -11,8 +11,32 @@ export default function MetricsChart({ inspections }: Props) {
   useEffect(() => {
     if (!chartRef.current || inspections.length === 0) return;
 
-    // Lazy-load echarts
-    import('echarts').then((echarts) => {
+    let disposed = false;
+    let removeResize: (() => void) | null = null;
+
+    async function renderChart() {
+      const [
+        echarts,
+        charts,
+        components,
+        renderers,
+      ] = await Promise.all([
+        import('echarts/core'),
+        import('echarts/charts'),
+        import('echarts/components'),
+        import('echarts/renderers'),
+      ]);
+
+      if (disposed || !chartRef.current) return;
+
+      echarts.use([
+        charts.LineChart,
+        components.GridComponent,
+        components.LegendComponent,
+        components.TooltipComponent,
+        renderers.CanvasRenderer,
+      ]);
+
       if (!chartRef.current) return;
       if (instanceRef.current) instanceRef.current.dispose();
 
@@ -52,8 +76,17 @@ export default function MetricsChart({ inspections }: Props) {
 
       const handleResize = () => chart.resize();
       window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
-    });
+      removeResize = () => window.removeEventListener('resize', handleResize);
+    }
+
+    renderChart();
+
+    return () => {
+      disposed = true;
+      removeResize?.();
+      instanceRef.current?.dispose();
+      instanceRef.current = null;
+    };
   }, [inspections]);
 
   return <div ref={chartRef} style={{ height: 280 }} />;

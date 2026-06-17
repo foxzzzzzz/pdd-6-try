@@ -6,6 +6,9 @@
 - 巡店队列任务携带 `inspectionId`，Worker 按巡店记录精确更新状态与写入明细，并在指标入库前持久化异常等级和 flags，避免同店多次巡店串单或 Dashboard 读不到异常。
 - 恢复 monorepo 全量构建：补齐 Node/sql.js 类型、统一 Drizzle 版本、为 server/worker/scheduler 显式声明 Drizzle 依赖，并避免 BullMQ 直接接收 ioredis 实例导致的类型冲突。
 
+### 优化
+- Web 趋势图改用 ECharts core 按需加载折线图组件，移除生产构建中的 1MB+ 图表 chunk 警告并降低图表懒加载体积。
+
 ## v1.0.0 (2026-06-17) — 🎉 全功能交付
 
 ### Phase 5: 规模化 + 工厂协作
