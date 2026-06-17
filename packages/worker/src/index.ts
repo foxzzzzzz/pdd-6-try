@@ -22,13 +22,14 @@ console.log(`  Headless: ${HEADLESS}`);
 const worker = new Worker<InspectionJobData>(
   INSPECTION_QUEUE,
   async (job) => {
-    const { storeId, storeName, date } = job.data;
+    const { storeId, storeName, date, inspectionId } = job.data;
     console.log(`\n=== Processing: ${storeName} (ID: ${storeId}) ===`);
 
     // Update progress
     await job.updateProgress(10);
 
     const result = await inspectStore(storeId, storeName, date, {
+      inspectionId,
       headless: HEADLESS,
       screenshotOnError: true,
     });

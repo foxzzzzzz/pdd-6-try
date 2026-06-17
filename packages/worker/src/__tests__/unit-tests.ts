@@ -7,6 +7,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { createInspectionJobData } from '@pdd-inspector/core';
+import { buildMetricInsertValues } from '../inspection-results';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
 
@@ -25,6 +27,40 @@ function assert(description: string, condition: boolean, detail = '') {
     console.log(`  ❌ ${description}: ${detail}`);
   }
 }
+
+// ========== Test 0: Inspection persistence helpers ==========
+console.log('\n📋 测试: 巡店记录关联与异常落库');
+
+const jobData = createInspectionJobData(12, '测试店铺', '2026-06-17', 99);
+assert('队列任务携带 inspectionId', jobData.inspectionId === 99);
+
+const metricValues = buildMetricInsertValues(
+  {
+    storeId: 12,
+    date: '2026-06-17',
+    rating: 4.1,
+    ratingChange: null,
+    defectRate: 0.06,
+    defectRateChange: null,
+    dsrDesc: null,
+    dsrService: null,
+    dsrLogistics: null,
+    dsrRankChange: null,
+    expBasic: null,
+    expShipping: null,
+    expProduct: null,
+    expLogistics: null,
+    refundDuration: null,
+    refundRate: null,
+    disputeRate: null,
+    appealCount: null,
+    appealSuccessRate: null,
+  },
+  99,
+  { isAnomaly: true, severity: 'warning', flags: ['defectRate'], description: 'defect rate high' },
+);
+assert('异常指标写入 warning 等级', metricValues.severity === 'warning');
+assert('异常 flags 序列化写入', metricValues.anomalyFlags === '["defectRate"]');
 
 // ========== Test 1: 负面关键词判断 ==========
 console.log('\n📋 测试: 互动动态负面判断');

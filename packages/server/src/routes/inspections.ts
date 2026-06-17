@@ -35,7 +35,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
       .get();
 
     // Add to queue
-    const job = await addInspectionJob(store.id, store.name, date);
+    const job = await addInspectionJob(store.id, store.name, date, record.id);
 
     return {
       inspectionId: record.id,
@@ -73,7 +73,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
         .returning()
         .get();
 
-      const job = await addInspectionJob(store.id, store.name, date);
+      const job = await addInspectionJob(store.id, store.name, date, record.id);
 
       results.push({
         storeId: store.id,

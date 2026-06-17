@@ -10,8 +10,10 @@ import { handleInteractions, InteractionActionResult } from './actions/interacti
 import { getLightProvider, getHeavyProvider } from './ai/provider-factory';
 import { detectAnomaliesByRules } from './ai/anomaly-detector';
 import { generateDailyReport, generateSummaryByTemplate, StoreReportData } from './ai/report-generator';
+import { buildMetricInsertValues } from './inspection-results';
 
 export interface InspectionConfig {
+  inspectionId?: number;
   headless: boolean;
   screenshotOnError: boolean;
   enableReply: boolean;
@@ -66,11 +68,20 @@ export async function inspectStore(
   let completedSteps = 0;
   let completionRate = 0;
 
+  function updateInspectionRecord(values: Record<string, unknown>) {
+    const query = db.update(schema.inspectionRecords).set(values);
+    if (resolvedConfig.inspectionId != null) {
+      query.where(eq(schema.inspectionRecords.id, resolvedConfig.inspectionId)).run();
+      return;
+    }
+    query.where(and(
+      eq(schema.inspectionRecords.storeId, storeId),
+      eq(schema.inspectionRecords.date, date),
+    )!).run();
+  }
+
   // Update inspection record: running
-  db.update(schema.inspectionRecords)
-    .set({ status: 'running', startTime: new Date().toISOString() })
-    .where(eq(schema.inspectionRecords.storeId, storeId))
-    .run();
+  updateInspectionRecord({ status: 'running', startTime: new Date().toISOString() });
 
   const browser = new BrowserManager();
   const startTime = Date.now();
@@ -219,57 +230,26 @@ export async function inspectStore(
     };
 
     // Get inspection record ID
-    const record = db
-      .select()
-      .from(schema.inspectionRecords)
-      .where(eq(schema.inspectionRecords.storeId, storeId))
-      .orderBy(eq(schema.inspectionRecords.date, date))
-      .get();
-
-    // Save metrics
-    db.insert(schema.storeMetrics)
-      .values({
-        ...mergedMetrics,
-        inspectionId: record?.id || null,
-        severity: 'normal',
-      })
-      .run();
-
-    // Save review actions
-    for (const detail of reviewResult.details) {
-      db.insert(schema.reviewActions)
-        .values({
-          storeId,
-          inspectionId: record?.id || null,
-          reviewId: detail.reviewId,
-          reviewContent: detail.reviewContent,
-          reviewStars: detail.reviewStars,
-          actionType: detail.actionType,
-          actionContent: detail.actionContent,
-          status: detail.status,
-        })
-        .run();
-    }
-
-    // Save interaction actions
-    for (const detail of interactionResult.details) {
-      db.insert(schema.interactionActions)
-        .values({
-          storeId,
-          inspectionId: record?.id || null,
-          interactionId: detail.interactionId,
-          contentSummary: detail.contentSummary,
-          aiJudgment: detail.aiJudgment,
-          action: detail.action,
-          status: detail.status,
-        })
-        .run();
-    }
+    const record = resolvedConfig.inspectionId != null
+      ? db
+        .select()
+        .from(schema.inspectionRecords)
+        .where(eq(schema.inspectionRecords.id, resolvedConfig.inspectionId))
+        .get()
+      : db
+        .select()
+        .from(schema.inspectionRecords)
+        .where(and(
+          eq(schema.inspectionRecords.storeId, storeId),
+          eq(schema.inspectionRecords.date, date),
+        ))
+        .orderBy(desc(schema.inspectionRecords.createdAt))
+        .get();
 
     // ======== PHASE 4: AI ANALYSIS (介入点 4 & 5) ========
     // Anomaly detection (介入点4)
     let anomalyResult = null;
-    if (config.useAI || true) { // Always run rule-based detection
+    if (resolvedConfig.useAI || true) { // Always run rule-based detection
       try {
         const historicalMetrics = db
           .select()
@@ -304,19 +284,52 @@ export async function inspectStore(
       }
     }
 
+    // Save metrics
+    db.insert(schema.storeMetrics)
+      .values(buildMetricInsertValues(mergedMetrics, record?.id || null, anomalyResult))
+      .run();
+
+    // Save review actions
+    for (const detail of reviewResult.details) {
+      db.insert(schema.reviewActions)
+        .values({
+          storeId,
+          inspectionId: record?.id || null,
+          reviewId: detail.reviewId,
+          reviewContent: detail.reviewContent,
+          reviewStars: detail.reviewStars,
+          actionType: detail.actionType,
+          actionContent: detail.actionContent,
+          status: detail.status,
+        })
+        .run();
+    }
+
+    // Save interaction actions
+    for (const detail of interactionResult.details) {
+      db.insert(schema.interactionActions)
+        .values({
+          storeId,
+          inspectionId: record?.id || null,
+          interactionId: detail.interactionId,
+          contentSummary: detail.contentSummary,
+          aiJudgment: detail.aiJudgment,
+          action: detail.action,
+          status: detail.status,
+        })
+        .run();
+    }
+
     // ======== COMPLETE ========
     const duration = Math.floor((Date.now() - startTime) / 1000);
     completionRate = completedSteps / totalSteps;
 
-    db.update(schema.inspectionRecords)
-      .set({
-        status: completionRate === 1 ? 'completed' : 'partial',
-        endTime: new Date().toISOString(),
-        duration,
-        completionRate,
-      })
-      .where(eq(schema.inspectionRecords.storeId, storeId))
-      .run();
+    updateInspectionRecord({
+      status: completionRate === 1 ? 'completed' : 'partial',
+      endTime: new Date().toISOString(),
+      duration,
+      completionRate,
+    });
 
     saveDb();
     console.log(`[${storeName}] Inspection complete: ${completionRate * 100}% in ${duration}s`);
@@ -332,15 +345,12 @@ export async function inspectStore(
     }
 
     // Mark as failed
-    db.update(schema.inspectionRecords)
-      .set({
-        status: 'failed',
-        endTime: new Date().toISOString(),
-        duration: Math.floor((Date.now() - startTime) / 1000),
-        completionRate: completedSteps / totalSteps,
-      })
-      .where(eq(schema.inspectionRecords.storeId, storeId))
-      .run();
+    updateInspectionRecord({
+      status: 'failed',
+      endTime: new Date().toISOString(),
+      duration: Math.floor((Date.now() - startTime) / 1000),
+      completionRate: completedSteps / totalSteps,
+    });
     saveDb();
   } finally {
     await browser.close();

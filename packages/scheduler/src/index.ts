@@ -1,6 +1,13 @@
 import 'dotenv/config';
 import { Queue } from 'bullmq';
-import { INSPECTION_QUEUE, InspectionJobData, getDb, schema } from '@pdd-inspector/core';
+import {
+  INSPECTION_QUEUE,
+  InspectionJobData,
+  createInspectionJobData,
+  getDb,
+  saveDb,
+  schema,
+} from '@pdd-inspector/core';
 import { eq } from 'drizzle-orm';
 
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
@@ -63,14 +70,20 @@ async function triggerAllStores(queue: Queue<InspectionJobData>) {
   const date = new Date().toISOString().split('T')[0];
 
   for (const store of activeStores) {
-    await queue.add(`inspect-${store.id}-${date}`, {
+    const record = db.insert(schema.inspectionRecords).values({
       storeId: store.id,
-      storeName: store.name,
       date,
-    });
+      status: 'pending',
+    }).returning().get();
+
+    await queue.add(
+      `inspect-${store.id}-${date}`,
+      createInspectionJobData(store.id, store.name, date, record.id),
+    );
     console.log(`  Queued: ${store.name}`);
   }
 
+  saveDb();
   console.log(`Total queued: ${activeStores.length} stores`);
 }
 

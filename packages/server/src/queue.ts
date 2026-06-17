@@ -1,6 +1,6 @@
 import { Queue, Job } from 'bullmq';
 import { getRedisOptions } from './redis';
-import { INSPECTION_QUEUE, InspectionJobData } from '@pdd-inspector/core';
+import { INSPECTION_QUEUE, InspectionJobData, createInspectionJobData } from '@pdd-inspector/core';
 
 let inspectionQueue: Queue<InspectionJobData> | null = null;
 
@@ -26,13 +26,10 @@ export async function addInspectionJob(
   storeId: number,
   storeName: string,
   date: string,
+  inspectionId?: number,
 ): Promise<Job<InspectionJobData>> {
   const queue = getInspectionQueue();
-  return queue.add(`inspect-${storeId}-${date}`, {
-    storeId,
-    storeName,
-    date,
-  });
+  return queue.add(`inspect-${storeId}-${date}`, createInspectionJobData(storeId, storeName, date, inspectionId));
 }
 
 export async function closeQueue(): Promise<void> {
