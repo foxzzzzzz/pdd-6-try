@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 修复
+- 消费者体验指标正式巡店采集补齐 HTML 箭头方向解析，`expBasicChange`、`expServiceBasicChange`、`expAttitudeChange`、`expProductChange`、`expShippingChange`、`expLogisticsChange` 不再因 `innerText` 丢失方向而写入 `null`；metrics dry-run 同步复用正式解析函数。
 - Worker 在非 headless 模式遇到拼多多登录页时支持等待人工扫码/登录后继续巡店；登录仍未完成时同步将巡店记录标记为失败，避免记录长期停留在 running。Web 总览页和店铺配置页新增店铺状态定时刷新，避免后端已恢复 active 但页面仍显示“待登录”。
 - 售后数据页补齐“整体情况”重点指标采集与展示：新增纠纷退款数/率、介入订单数、平台介入率、品质退款率、平均退款时长、成功退款订单数/金额/率、退货退款自主完结时长、退款自主完结时长；保留 `refundDuration/refundRate/disputeRate` 作为兼容映射。
 - 根据真实拼多多商家后台 dry-run 回归确认指标口径：综合体验星级页的“评价得分排名 / 3 分钟回复率 / 成团-签收时效”不再写入传统 DSR；消费者体验页已采集总分、基础服务、服务态度、商品、发货、物流 6 项及 HTML 箭头方向变化；售后数据页已采集平均退款时长、成功退款率和纠纷退款率。

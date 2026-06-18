@@ -1,6 +1,6 @@
 # Metrics-only Dry-Run 报告
 
-**时间**: 2026-06-17T16:32:25.026Z
+**时间**: 2026-06-18T03:25:13.700Z
 **模式**: 已有真实采集文件重建
 **JSON**: D:\try\pdd-6\packages\worker\data\metrics-dryrun\metrics-only-report.json
 

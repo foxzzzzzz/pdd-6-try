@@ -19,7 +19,9 @@ export async function collectExperienceMetrics(
 
     // 只取纯文本，解析逻辑放 Node.js 侧
     const pageText: string = await page.evaluate('document.body.innerText || ""');
+    const pageHtml = await page.content();
     Object.assign(metrics, parseExperienceMetricsText(pageText));
+    mergeDefined(metrics, parseExperienceMetricsHtml(pageHtml));
 
     await browser.takeScreenshot(storeId, 'experience');
   } catch (err) {
@@ -44,6 +46,25 @@ export function parseExperienceMetricsText(text: string): Partial<MetricsSnapsho
     expShippingChange: extractChange(text, '发货服务体验分'),
     expLogisticsChange: extractChange(text, '物流服务体验分'),
   };
+}
+
+export function parseExperienceMetricsHtml(html: string): Partial<MetricsSnapshot> {
+  return {
+    expBasicChange: extractSignedChangeFromHtml(html, '消费者服务体验分'),
+    expServiceBasicChange: extractSignedChangeFromHtml(html, '基础服务体验分'),
+    expAttitudeChange: extractSignedChangeFromHtml(html, '服务态度体验分'),
+    expProductChange: extractSignedChangeFromHtml(html, '商品服务体验分'),
+    expShippingChange: extractSignedChangeFromHtml(html, '发货服务体验分'),
+    expLogisticsChange: extractSignedChangeFromHtml(html, '物流服务体验分'),
+  };
+}
+
+function mergeDefined(target: Partial<MetricsSnapshot>, source: Partial<MetricsSnapshot>): void {
+  for (const [key, value] of Object.entries(source)) {
+    if (value != null) {
+      (target as Record<string, unknown>)[key] = value;
+    }
+  }
 }
 
 /** 从页面文本中提取"标签 → /5"格式的分数 */
@@ -85,6 +106,20 @@ function extractChange(text: string, label: string): number | null {
   const value = parseFloat(m[2]) / 100;
   if (signToken === '↓' || signToken === '-' || signToken === '下降') return -value;
   return value;
+}
+
+function extractSignedChangeFromHtml(html: string, label: string): number | null {
+  let idx = html.indexOf(label);
+  while (idx !== -1) {
+    const sub = html.substring(idx, idx + 4000);
+    const m = sub.match(/arrow-(up|down)_filled[\s\S]*?>(\d+\.?\d*)\s*%/);
+    if (m) {
+      const value = parseFloat(m[2]) / 100;
+      return m[1] === 'down' ? -value : value;
+    }
+    idx = html.indexOf(label, idx + label.length);
+  }
+  return null;
 }
 
 function extractIndustryRankRange(text: string): string | null {

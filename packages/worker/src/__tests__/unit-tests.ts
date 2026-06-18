@@ -17,7 +17,7 @@ import { shouldRunRuleBasedAnomalyDetection } from '../inspection-config';
 import { buildMetricInsertValues } from '../inspection-results';
 import { parseStoreMetricsText } from '../collectors/metrics';
 import { parseRefundMetricsText } from '../collectors/refunds';
-import { parseExperienceMetricsText } from '../collectors/experience';
+import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
 
@@ -210,6 +210,23 @@ assert('提取物流服务体验分变化', nearlyEqual(experienceMetrics.expLog
 
 const unsignedExperienceMetrics = parseExperienceMetricsText('消费者服务体验分 1.8 / 5.0 较前7日17.10%');
 assert('无箭头变化率不猜方向', unsignedExperienceMetrics.expBasicChange == null);
+
+const experienceHtmlMetrics = parseExperienceMetricsHtml(`
+  <section>
+    <div>消费者服务体验分</div><span class="arrow-down_filled"></span><span>17.10%</span>
+    <div>服务态度体验分</div><span class="arrow-up_filled"></span><span>3.83%</span>
+    <div>基础服务体验分</div><span class="arrow-down_filled"></span><span>43.23%</span>
+    <div>商品服务体验分</div><span class="arrow-down_filled"></span><span>0.60%</span>
+    <div>发货服务体验分</div><span class="arrow-up_filled"></span><span>12.82%</span>
+    <div>物流服务体验分</div><span class="arrow-up_filled"></span><span>3.64%</span>
+  </section>
+`);
+assert('从 HTML 箭头提取消费者体验总分变化', nearlyEqual(experienceHtmlMetrics.expBasicChange, -0.171));
+assert('从 HTML 箭头提取服务态度变化', nearlyEqual(experienceHtmlMetrics.expAttitudeChange, 0.0383));
+assert('从 HTML 箭头提取基础服务变化', nearlyEqual(experienceHtmlMetrics.expServiceBasicChange, -0.4323));
+assert('从 HTML 箭头提取商品服务变化', nearlyEqual(experienceHtmlMetrics.expProductChange, -0.006));
+assert('从 HTML 箭头提取发货服务变化', nearlyEqual(experienceHtmlMetrics.expShippingChange, 0.1282));
+assert('从 HTML 箭头提取物流服务变化', nearlyEqual(experienceHtmlMetrics.expLogisticsChange, 0.0364));
 
 const attitudeExperienceText = parseStoreMetricsText('服务态度体验分 0.1 分 物流服务体验分 3.4 分');
 assert('不把服务态度体验分误写为 DSR 服务分', attitudeExperienceText.dsrService == null);

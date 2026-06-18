@@ -16,7 +16,7 @@ import { chromium, Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseStoreMetricsText } from '../collectors/metrics';
-import { parseExperienceMetricsText } from '../collectors/experience';
+import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
 import { parseRefundMetricsText } from '../collectors/refunds';
 
 const COOKIE_FILE = path.resolve('./data/discovery-cookie.json');
@@ -259,7 +259,7 @@ function writePageResult(target: Target, url: string, text: string, html = ''): 
 
   const metrics = target.parse ? target.parse(text) : {};
   if (target.key === 'experience') {
-    Object.assign(metrics, parseExperienceChangeFromHtml(html));
+    Object.assign(metrics, parseExperienceMetricsHtml(html));
   }
 
   return {
@@ -295,31 +295,6 @@ function parseCustomerMetricsText(text: string): Record<string, MetricValue> {
     customerAvgResponseMinutes: extractNumber(text, '平均人工响应时长'),
     customerSalesAmount: extractNumber(text, '客服销售额'),
   };
-}
-
-function parseExperienceChangeFromHtml(html: string): Record<string, MetricValue> {
-  return {
-    expBasicChange: extractSignedChangeFromHtml(html, '消费者服务体验分'),
-    expAttitudeChange: extractSignedChangeFromHtml(html, '服务态度体验分'),
-    expServiceBasicChange: extractSignedChangeFromHtml(html, '基础服务体验分'),
-    expProductChange: extractSignedChangeFromHtml(html, '商品服务体验分'),
-    expShippingChange: extractSignedChangeFromHtml(html, '发货服务体验分'),
-    expLogisticsChange: extractSignedChangeFromHtml(html, '物流服务体验分'),
-  };
-}
-
-function extractSignedChangeFromHtml(html: string, label: string): number | null {
-  let idx = html.indexOf(label);
-  while (idx !== -1) {
-    const sub = html.substring(idx, idx + 4000);
-    const m = sub.match(/arrow-(up|down)_filled[\s\S]*?>(\d+\.?\d*)%/);
-    if (m) {
-      const value = parseFloat(m[2]) / 100;
-      return m[1] === 'down' ? -value : value;
-    }
-    idx = html.indexOf(label, idx + label.length);
-  }
-  return null;
 }
 
 function extractNumber(text: string, label: string): number | null {
