@@ -51,6 +51,13 @@ export default function StoreDetail() {
         </div>
       </div>
 
+      {latest?.summary ? (
+        <div className="bg-white rounded-lg border p-5 mb-6">
+          <h3 className="font-semibold text-gray-800 mb-2">巡店摘要</h3>
+          <p className="text-sm text-gray-700 leading-6">{latest.summary}</p>
+        </div>
+      ) : null}
+
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricBox label="店铺星级" value={metrics.rating || '-'} unit="星" />

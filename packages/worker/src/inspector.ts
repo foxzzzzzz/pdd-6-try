@@ -11,7 +11,7 @@ import { replyToGoodReviews, reportBadReviews, ReviewActionResult } from './acti
 import { handleInteractions, InteractionActionResult } from './actions/interactions';
 import { getLightProvider, getHeavyProvider } from './ai/provider-factory';
 import { detectAnomaliesByRules } from './ai/anomaly-detector';
-import { generateDailyReport, generateSummaryByTemplate, StoreReportData } from './ai/report-generator';
+import { formatDailySummaryForInspection, generateDailyReport, StoreReportData } from './ai/report-generator';
 import { buildMetricInsertValues } from './inspection-results';
 import { shouldRunRuleBasedAnomalyDetection } from './inspection-config';
 import { ActionMode, resolveActionSafety } from './action-safety';
@@ -398,6 +398,25 @@ export async function inspectStore(
         .run();
     }
 
+    let summary: string | undefined;
+    try {
+      const reportData: StoreReportData = {
+        storeName,
+        metrics: Object.fromEntries(
+          Object.entries(mergedMetrics).map(([key, value]) => [key, value == null ? null : String(value)]),
+        ),
+        reviewCount: reviewResult.replied,
+        reportCount: reviewResult.reported,
+        hideCount: interactionResult.hidden,
+        anomaly: anomalyResult,
+        severity: anomalyResult?.severity || 'normal',
+      };
+      const dailySummary = await generateDailyReport([reportData], store.aiConfig, resolvedConfig.useAI);
+      summary = formatDailySummaryForInspection(dailySummary);
+    } catch (err) {
+      log('[ERROR]', `[${storeName}] Summary generation failed:`, err);
+    }
+
     // ======== COMPLETE ========
     const duration = Math.floor((Date.now() - startTime) / 1000);
     completionRate = completedSteps / totalSteps;
@@ -407,6 +426,7 @@ export async function inspectStore(
       endTime: new Date().toISOString(),
       duration,
       completionRate,
+      ...(summary ? { summary } : {}),
     });
 
     saveDb(db);

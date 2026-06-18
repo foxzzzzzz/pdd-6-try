@@ -37,6 +37,11 @@ export const api = {
   triggerInspectAll: () => request<any>('/inspect-all', { method: 'POST' }),
   getQueueStatus: () => request<any>('/queue/status'),
 
+  // Reports
+  getDailyReport: () => request<any>('/reports/daily'),
+  getWeeklyReport: () => request<any>('/reports/weekly'),
+  getMonthlyReport: () => request<any>('/reports/monthly'),
+
   // Templates
   getReplyTemplates: (params?: { storeId?: number; global?: boolean }) => {
     const qs = new URLSearchParams();

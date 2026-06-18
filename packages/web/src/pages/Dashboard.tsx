@@ -9,6 +9,7 @@ interface StoreStatus {
 
 export default function Dashboard() {
   const [stores, setStores] = useState<StoreStatus[]>([]);
+  const [reports, setReports] = useState<{ daily?: any; weekly?: any; monthly?: any }>({});
   const [loading, setLoading] = useState(true);
   const [inspecting, setInspecting] = useState(false);
 
@@ -20,9 +21,12 @@ export default function Dashboard() {
 
   async function loadData() {
     try {
-      const [storeList, inspections] = await Promise.all([
+      const [storeList, inspections, dailyReport, weeklyReport, monthlyReport] = await Promise.all([
         api.getStores(),
         api.getInspections({ limit: 50 }),
+        api.getDailyReport().catch(() => null),
+        api.getWeeklyReport().catch(() => null),
+        api.getMonthlyReport().catch(() => null),
       ]);
 
       // Merge latest inspection data with stores
@@ -36,6 +40,7 @@ export default function Dashboard() {
         };
       });
       setStores(merged);
+      setReports({ daily: dailyReport, weekly: weeklyReport, monthly: monthlyReport });
     } catch (err) {
       console.error('Failed to load dashboard:', err);
     } finally {
@@ -93,6 +98,12 @@ export default function Dashboard() {
         <SummaryCard color="red" label="异常" count={critical.length} />
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <ReportSummaryCard title="日报摘要" report={reports.daily?.summary?.generated} href="/api/reports/daily" />
+        <ReportSummaryCard title="周报摘要" report={reports.weekly?.summary?.generated} href="/api/reports/weekly" />
+        <ReportSummaryCard title="月报摘要" report={reports.monthly?.summary} href="/api/reports/monthly" />
+      </div>
+
       {/* Store Cards */}
       <div className="space-y-3">
         {stores.map((store) => (
@@ -133,6 +144,25 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ReportSummaryCard({ title, report, href }: { title: string; report: any; href: string }) {
+  return (
+    <div className="bg-white rounded-lg border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-semibold text-gray-800">{title}</h3>
+        <a href={href} className="text-xs text-blue-600 hover:text-blue-700">查看JSON</a>
+      </div>
+      <p className="text-sm text-gray-700 leading-6">{report?.overview || '暂无摘要，完成巡店后自动生成。'}</p>
+      {report?.recommendations?.length ? (
+        <div className="mt-3 space-y-1">
+          {report.recommendations.slice(0, 2).map((item: string, index: number) => (
+            <p key={index} className="text-xs text-gray-500">{item}</p>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

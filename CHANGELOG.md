@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 修复
+- AI/日报闭环落地最小可用路径：Worker 巡店完成后基于本店指标、写操作统计和规则异常结果生成 `inspection.summary`，AI 可用时增强摘要、不可用时自动回退模板且不阻塞主流程；新增 `/api/reports/daily` 并让周报/月报返回可读聚合摘要，Dashboard 展示日/周/月报摘要，单店详情展示最新巡店摘要；补充摘要格式化与报表聚合测试。
 - 写操作生产安全闭环：Worker 默认进入 `dry-run` 且回复/举报/隐藏默认关闭，只有显式 `WORKER_ACTION_MODE=real-run` 并开启对应 `WORKER_ENABLE_*` 时才会真实提交；回复/举报/隐藏审计记录补充 `actionMode`、截图路径、失败原因和真实提交时间。
 - 评价回复真实写入链路适配拼多多“快捷回复”弹窗：按评价行绑定 `回复/互动`，进入弹窗后填充 textarea 并点击弹窗内“回复”；已用 `WORKER_ACTION_MODE=real-run`、`WORKER_ENABLE_REPLY=true`、`WORKER_ACTION_LIMIT=1` 验证真实好评回复成功提交 1 条，其余候选按上限跳过。
 - 消费者体验指标正式巡店采集补齐 HTML 箭头方向解析，`expBasicChange`、`expServiceBasicChange`、`expAttitudeChange`、`expProductChange`、`expShippingChange`、`expLogisticsChange` 不再因 `innerText` 丢失方向而写入 `null`；metrics dry-run 同步复用正式解析函数。

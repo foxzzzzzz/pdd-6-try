@@ -10,7 +10,7 @@ import * as path from 'path';
 
 import { buildAIConfig } from '@pdd-inspector/core';
 import { detectAnomaliesByRules } from '../ai/anomaly-detector';
-import { generateSummaryByTemplate } from '../ai/report-generator';
+import { formatDailySummaryForInspection, generateSummaryByTemplate } from '../ai/report-generator';
 import { clearProviderCache } from '../ai/provider-factory';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-3-unit-test.md');
@@ -94,6 +94,10 @@ const allNorm = generateSummaryByTemplate([
   { storeName: 'B', metrics: {}, reviewCount: 5, reportCount: 1, hideCount: 0, severity: 'normal' },
 ]);
 assert('全部正常无关注', allNorm.attentionStores.length === 0);
+
+const inspectionSummary = formatDailySummaryForInspection(report);
+assert('巡店摘要包含总览', inspectionSummary.includes(report.overview));
+assert('巡店摘要包含建议', inspectionSummary.includes(report.recommendations[0]));
 
 // ========== Test 4: Provider Factory (without API key) ==========
 console.log('\n📋 Provider 工厂');
