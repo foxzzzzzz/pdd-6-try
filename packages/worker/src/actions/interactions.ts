@@ -8,8 +8,9 @@ import { ActionSafety, buildActionAudit, canSubmitAction, resolveActionSafety } 
 const INTERACTION_URL = 'https://mms.pinduoduo.com/mall-feed/home?msfrom=mms_sidenav';
 
 export interface InteractionActionResult { details: InteractionActionDetail[]; hidden: number; ignored: number; skipped: number; }
+type InteractionJudge = (content: string) => { shouldHide: boolean; reason: string } | Promise<{ shouldHide: boolean; reason: string }>;
 
-export async function handleInteractions(browser: BrowserManager, storeId: number, judgeFunc: (c: string) => { shouldHide: boolean; reason: string }, safetyInput: Partial<ActionSafety> = {}): Promise<InteractionActionResult> {
+export async function handleInteractions(browser: BrowserManager, storeId: number, judgeFunc: InteractionJudge, safetyInput: Partial<ActionSafety> = {}): Promise<InteractionActionResult> {
   const page = browser.getPage();
   const safety = resolveActionSafety(safetyInput);
   let submittedCount = 0;
@@ -23,7 +24,7 @@ export async function handleInteractions(browser: BrowserManager, storeId: numbe
     for (var _i = 0; _i < posts.length; _i++) {
       var post = posts[_i];
       try {
-        var judgment = judgeFunc(post.content);
+        var judgment = await judgeFunc(post.content);
         result.details.push({
           interactionId: post.id,
           contentSummary: post.content.substring(0, 100),

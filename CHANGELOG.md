@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### 修复
+- Worker AI Provider 新增 DeepSeek OpenAI-compatible 适配，并按 `AI_PROVIDER` 选择对应 API key，避免配置 `deepseek` 时误用旧 `ANTHROPIC_API_KEY`；已用根目录 `.env` 的 `deepseek-v4-pro` 做真实 `classifyReview` smoke test 通过。
+- Worker 运行时自动向上查找 workspace 根目录并加载根 `.env`，避免 `pnpm --filter @pdd-inspector/worker ...` 误读 `packages/worker/.env` 的旧配置；provider factory 直接调用和 worker 启动均复用同一加载逻辑。
+- AI 分类正式接入写操作主链路：差评举报话术选择改为调用 `classifyReview()`，互动隐藏判断改为调用 `judgeInteraction()`，AI 低置信或不可用时自动回退规则引擎；动作函数支持异步 AI 决策，同时保留 dry-run/real-run 安全开关、审计日志和截图记录。
 - 报表聚合接口整理为 `report-service`：日报/周报/月报统一以巡店记录和指标快照聚合，日报保留失败/部分完成巡店，日期统计改为明确区间避免历史报表串入未来问题；消除 `reports.ts` 中循环全表查询、空 `where(and())` 和临时每 7 条切分周趋势的写法，周/月报改为一次预取数据后按店铺、日期和自然周聚合。
 - AI/日报闭环落地最小可用路径：Worker 巡店完成后基于本店指标、写操作统计和规则异常结果生成 `inspection.summary`，AI 可用时增强摘要、不可用时自动回退模板且不阻塞主流程；新增 `/api/reports/daily` 并让周报/月报返回可读聚合摘要，Dashboard 展示日/周/月报摘要，单店详情展示最新巡店摘要；补充摘要格式化与报表聚合测试。
 - 写操作生产安全闭环：Worker 默认进入 `dry-run` 且回复/举报/隐藏默认关闭，只有显式 `WORKER_ACTION_MODE=real-run` 并开启对应 `WORKER_ENABLE_*` 时才会真实提交；回复/举报/隐藏审计记录补充 `actionMode`、截图路径、失败原因和真实提交时间。

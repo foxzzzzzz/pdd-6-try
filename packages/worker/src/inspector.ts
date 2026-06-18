@@ -11,6 +11,7 @@ import { replyToGoodReviews, reportBadReviews, ReviewActionResult } from './acti
 import { handleInteractions, InteractionActionResult } from './actions/interactions';
 import { getLightProvider, getHeavyProvider } from './ai/provider-factory';
 import { detectAnomaliesByRules } from './ai/anomaly-detector';
+import { createInteractionJudge, createReportTemplateResolver } from './ai/action-decisions';
 import { formatDailySummaryForInspection, generateDailyReport, StoreReportData } from './ai/report-generator';
 import { buildMetricInsertValues } from './inspection-results';
 import { shouldRunRuleBasedAnomalyDetection } from './inspection-config';
@@ -177,15 +178,11 @@ export async function inspectStore(
     if (resolvedConfig.enableReport) {
       try {
         // AI 介入点 1&2: 尝试用 AI 匹配话术
-        var reportTemplateFn = ruleBasedReportTemplate;
+        var reportTemplateFn: (review: { content: string; stars: number }) => string | Promise<string> = ruleBasedReportTemplate;
         if (resolvedConfig.useAI) {
           try {
             var aiProvider = getLightProvider(store.aiConfig);
-            reportTemplateFn = function (review: { content: string; stars: number }) {
-              // 同步调用不支持 async，这里使用规则引擎 + AI 标记
-              // AI 分类在后续批处理中执行
-              return ruleBasedReportTemplate(review);
-            };
+            reportTemplateFn = createReportTemplateResolver(aiProvider, ruleBasedReportTemplate);
           } catch { /* AI not available, use rules */ }
         }
         const reportResult = await reportBadReviews(browser, storeId, reportTemplateFn, actionSafety);
@@ -201,15 +198,11 @@ export async function inspectStore(
     completedSteps++;
 
     // Step 7: Handle bad interactions (介入点 3)
-    var interactionJudgeFn = ruleBasedInteractionJudge;
+    var interactionJudgeFn: (content: string) => { shouldHide: boolean; reason: string } | Promise<{ shouldHide: boolean; reason: string }> = ruleBasedInteractionJudge;
     if (resolvedConfig.useAI) {
       try {
         var aiHeavy = getHeavyProvider(store.aiConfig);
-        interactionJudgeFn = function (content: string) {
-          // Async not supported in sync callback — use rules as fallback
-          // AI judgment happens via batch processing if needed
-          return ruleBasedInteractionJudge(content);
-        };
+        interactionJudgeFn = createInteractionJudge(aiHeavy, ruleBasedInteractionJudge);
       } catch { /* AI not available, use rules */ }
     }
     if (resolvedConfig.enableHideInteractions) {

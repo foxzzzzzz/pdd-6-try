@@ -10,6 +10,7 @@ import * as path from 'path';
 
 import { buildAIConfig } from '@pdd-inspector/core';
 import { detectAnomaliesByRules } from '../ai/anomaly-detector';
+import { createInteractionJudge, createReportTemplateResolver } from '../ai/action-decisions';
 import { formatDailySummaryForInspection, generateSummaryByTemplate } from '../ai/report-generator';
 import { clearProviderCache } from '../ai/provider-factory';
 
@@ -99,39 +100,106 @@ const inspectionSummary = formatDailySummaryForInspection(report);
 assert('巡店摘要包含总览', inspectionSummary.includes(report.overview));
 assert('巡店摘要包含建议', inspectionSummary.includes(report.recommendations[0]));
 
-// ========== Test 4: Provider Factory (without API key) ==========
+// ========== Test 4: AI Action Decisions ==========
+console.log('\n📋 AI 决策接入');
+
+const actionDecisionTests = runActionDecisionTests();
+
+async function runActionDecisionTests() {
+  const aiReportResolver = createReportTemplateResolver({
+    classifyReview: async () => ({
+      category: '广告引流',
+      recommendedTemplate: '广告引流',
+      suggestedContent: 'ai report content',
+      confidence: 0.92,
+      shouldAct: true,
+    }),
+  }, () => 'rule fallback report');
+  assert('AI 举报分类写入主链路', await aiReportResolver({ content: 'bad review', stars: 1 }) === 'ai report content');
+
+  const lowConfidenceReportResolver = createReportTemplateResolver({
+    classifyReview: async () => ({
+      category: '其他',
+      recommendedTemplate: '其他',
+      suggestedContent: 'low confidence content',
+      confidence: 0.4,
+      shouldAct: false,
+    }),
+  }, () => 'rule fallback report');
+  assert('AI 举报低置信回退规则', await lowConfidenceReportResolver({ content: 'bad review', stars: 1 }) === 'rule fallback report');
+
+  const aiJudge = createInteractionJudge({
+    judgeInteraction: async () => ({
+      sentiment: 'negative',
+      confidence: 0.9,
+      shouldHide: true,
+      reason: 'ai says hide',
+    }),
+  }, () => ({ shouldHide: false, reason: 'rule fallback interaction' }));
+  const aiJudgment = await aiJudge('negative interaction');
+  assert('AI 互动判断写入主链路', aiJudgment.shouldHide && aiJudgment.reason === 'ai says hide');
+
+  const lowConfidenceJudge = createInteractionJudge({
+    judgeInteraction: async () => ({
+      sentiment: 'negative',
+      confidence: 0.2,
+      shouldHide: true,
+      reason: 'uncertain',
+    }),
+  }, () => ({ shouldHide: false, reason: 'rule fallback interaction' }));
+  assert('AI 互动低置信回退规则', !(await lowConfidenceJudge('uncertain interaction')).shouldHide);
+}
+
+// ========== Test 5: Provider Factory (without API key) ==========
 console.log('\n📋 Provider 工厂');
 
 try {
   // This should throw without API key
   const { getLightProvider } = require('../ai/provider-factory');
+  const originalProvider = process.env.AI_PROVIDER;
   const originalKey = process.env.ANTHROPIC_API_KEY;
+  const originalOpenAIKey = process.env.OPENAI_API_KEY;
+  const originalDeepSeekKey = process.env.DEEPSEEK_API_KEY;
+  process.env.AI_PROVIDER = 'claude';
   delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.DEEPSEEK_API_KEY;
   try {
     getLightProvider();
     assert('无 API Key 应抛异常', false);
   } catch (e: any) {
     assert('无 API Key 正确抛异常', true, e.message?.substring(0, 50));
   }
+  if (originalProvider) process.env.AI_PROVIDER = originalProvider;
+  else delete process.env.AI_PROVIDER;
   if (originalKey) process.env.ANTHROPIC_API_KEY = originalKey;
+  if (originalOpenAIKey) process.env.OPENAI_API_KEY = originalOpenAIKey;
+  if (originalDeepSeekKey) process.env.DEEPSEEK_API_KEY = originalDeepSeekKey;
 } catch { /* module load error expected */ }
 
 // ========== Generate Report ==========
-const totalTests = passed + failed;
-const report_md = [
-  '# Phase 3 AI 单元测试报告',
-  '',
-  `**日期**: ${new Date().toISOString().split('T')[0]}`,
-  `**版本**: v0.3.0`,
-  `**结果**: ${passed}/${totalTests} (${Math.round(passed / totalTests * 100)}%)`,
-  '',
-  '| 测试项 | 结果 | 详情 |',
-  '|--------|------|------|',
-  ...results,
-  '',
-  `## 汇总\n- ✅ 通过: ${passed}\n- ❌ 失败: ${failed}`,
-].join('\n');
+actionDecisionTests
+  .catch((err) => {
+    failed++;
+    results.push(`| AI 决策异步测试 | ❌ | ${err instanceof Error ? err.message : String(err)} |`);
+  })
+  .finally(() => {
+    const totalTests = passed + failed;
+    const report_md = [
+      '# Phase 3 AI 单元测试报告',
+      '',
+      `**日期**: ${new Date().toISOString().split('T')[0]}`,
+      `**版本**: v0.3.0`,
+      `**结果**: ${passed}/${totalTests} (${Math.round(passed / totalTests * 100)}%)`,
+      '',
+      '| 测试项 | 结果 | 详情 |',
+      '|--------|------|------|',
+      ...results,
+      '',
+      `## 汇总\n- ✅ 通过: ${passed}\n- ❌ 失败: ${failed}`,
+    ].join('\n');
 
-fs.writeFileSync(REPORT_FILE, report_md);
-console.log(`\n📄 报告: ${REPORT_FILE}\n${passed}/${totalTests} 通过`);
-if (failed > 0) process.exit(1);
+    fs.writeFileSync(REPORT_FILE, report_md);
+    console.log(`\n📄 报告: ${REPORT_FILE}\n${passed}/${totalTests} 通过`);
+    if (failed > 0) process.exit(1);
+  });

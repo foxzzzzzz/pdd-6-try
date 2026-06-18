@@ -6,6 +6,10 @@
 import type { AIProvider, AIProviderConfig } from '@pdd-inspector/core';
 import { buildAIConfig } from '@pdd-inspector/core';
 import { ClaudeProvider } from './claude-provider';
+import { DeepSeekProvider } from './deepseek-provider';
+import { loadWorkspaceEnv } from '../env-loader';
+
+loadWorkspaceEnv();
 
 // 缓存已创建的 Provider 实例
 const providerCache = new Map<string, AIProvider>();
@@ -29,7 +33,7 @@ export function getAIProvider(
   const config = buildAIConfig(
     process.env.AI_PROVIDER,
     taskModel ? undefined : process.env.AI_LIGHT_MODEL || process.env.AI_HEAVY_MODEL,
-    process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY,
+    resolveApiKey(process.env.AI_PROVIDER, storeAiConfig),
     storeAiConfig,
     taskModel,
   );
@@ -45,8 +49,11 @@ export function getAIProvider(
     case 'claude':
       provider = new ClaudeProvider(config);
       break;
+    case 'deepseek':
+      provider = new DeepSeekProvider(config);
+      break;
     default:
-      throw new Error(`Unsupported AI provider: ${config.provider}. Supported: claude`);
+      throw new Error(`Unsupported AI provider: ${config.provider}. Supported: claude, deepseek`);
   }
 
   providerCache.set(cacheKey, provider);
@@ -66,4 +73,23 @@ export function getHeavyProvider(storeAiConfig?: string | null): AIProvider {
 /** 清除缓存 (用于测试) */
 export function clearProviderCache(): void {
   providerCache.clear();
+}
+
+function resolveApiKey(envProvider?: string, storeAiConfig?: string | null): string | undefined {
+  const storeProvider = parseStoreProvider(storeAiConfig);
+  const provider = storeProvider || envProvider || 'claude';
+  if (provider === 'deepseek') return process.env.DEEPSEEK_API_KEY;
+  if (provider === 'openai') return process.env.OPENAI_API_KEY;
+  if (provider === 'claude') return process.env.ANTHROPIC_API_KEY;
+  return process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY;
+}
+
+function parseStoreProvider(storeAiConfig?: string | null): string | undefined {
+  if (!storeAiConfig) return undefined;
+  try {
+    const parsed = JSON.parse(storeAiConfig);
+    return parsed.provider;
+  } catch {
+    return undefined;
+  }
 }

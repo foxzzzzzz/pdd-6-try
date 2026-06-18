@@ -1,7 +1,9 @@
-import 'dotenv/config';
+import { loadWorkspaceEnv } from './env-loader';
 import { Worker } from 'bullmq';
 import { inspectStore } from './inspector';
 import { INSPECTION_QUEUE, InspectionJobData } from '@pdd-inspector/core';
+
+loadWorkspaceEnv();
 
 // Force stdout flush on Windows — prevents buffering when running via pnpm
 const log = (...args: any[]) => { try { process.stdout.write(args.join(' ') + '\n'); } catch { /* ignore */ } };

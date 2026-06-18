@@ -9,6 +9,7 @@ const REVIEW_URL = 'https://mms.pinduoduo.com/goods/evaluation/index?msfrom=mms_
 
 export interface ReviewActionResult { details: ReviewActionDetail[]; replied: number; reported: number; skipped: number; failed: number; }
 interface ReviewRow { id: string; content: string; stars: number; row?: any; }
+type ReportTemplateResolver = (r: { content: string; stars: number }) => string | Promise<string>;
 
 export async function replyToGoodReviews(browser: BrowserManager, storeId: number, replyTemplate: string, safetyInput: Partial<ActionSafety> = {}): Promise<ReviewActionResult> {
   const page = browser.getPage();
@@ -56,7 +57,7 @@ export async function replyToGoodReviews(browser: BrowserManager, storeId: numbe
   return result;
 }
 
-export async function reportBadReviews(browser: BrowserManager, storeId: number, getReportTemplate: (r: { content: string; stars: number }) => string, safetyInput: Partial<ActionSafety> = {}): Promise<ReviewActionResult> {
+export async function reportBadReviews(browser: BrowserManager, storeId: number, getReportTemplate: ReportTemplateResolver, safetyInput: Partial<ActionSafety> = {}): Promise<ReviewActionResult> {
   const page = browser.getPage();
   const safety = resolveActionSafety(safetyInput);
   let submittedCount = 0;
@@ -70,8 +71,9 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
 
     for (var _i = 0; _i < reviews.length; _i++) {
       var review = reviews[_i];
+      var template = '';
       try {
-        var template = getReportTemplate(review);
+        template = await getReportTemplate(review);
         if (!canSubmitAction(safety, 'report') || (safety.maxActions != null && submittedCount >= safety.maxActions)) {
           result.skipped++;
           result.details.push({
@@ -95,7 +97,7 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
         else { result.failed++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, errorMessage: 'Submit button not found' }) }); }
       } catch (err) {
         result.failed++;
-        result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: getReportTemplate(review), ...buildActionAudit(safety, '', { screenshotPath: pageScreenshot, errorMessage: err instanceof Error ? err.message : String(err) }) });
+        result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, errorMessage: err instanceof Error ? err.message : String(err) }) });
       }
       await page.waitForTimeout(3000 + Math.random() * 5000);
     }
