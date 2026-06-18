@@ -18,6 +18,8 @@ import { buildMetricInsertValues } from '../inspection-results';
 import { parseStoreMetricsText } from '../collectors/metrics';
 import { parseRefundMetricsText } from '../collectors/refunds';
 import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
+import { buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
+import { parseReviewBodyRowText, parseReviewRowText } from '../actions/reviews';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
 
@@ -111,6 +113,78 @@ const metricValues = buildMetricInsertValues(
 );
 assert('异常指标写入 warning 等级', metricValues.severity === 'warning');
 assert('异常 flags 序列化写入', metricValues.anomalyFlags === '["defectRate"]');
+
+const defaultSafety = resolveActionSafety({});
+assert('写操作默认 dry-run', defaultSafety.mode === 'dry-run');
+assert('写操作默认不提交回复', !canSubmitAction(defaultSafety, 'reply'));
+assert('写操作默认不提交举报', !canSubmitAction(defaultSafety, 'report'));
+assert('写操作默认不提交隐藏', !canSubmitAction(defaultSafety, 'hide'));
+
+const enabledButDryRun = resolveActionSafety({ enableReply: true, enableReport: true, enableHideInteractions: true });
+assert('开关开启但 dry-run 仍不提交回复', !canSubmitAction(enabledButDryRun, 'reply'));
+assert('开关开启但 dry-run 仍不提交举报', !canSubmitAction(enabledButDryRun, 'report'));
+assert('开关开启但 dry-run 仍不提交隐藏', !canSubmitAction(enabledButDryRun, 'hide'));
+
+const realRunSafety = resolveActionSafety({
+  mode: 'real-run',
+  enableReply: true,
+  enableReport: true,
+  enableHideInteractions: true,
+  maxActions: 1,
+});
+assert('real-run 且开关开启才提交回复', canSubmitAction(realRunSafety, 'reply'));
+assert('real-run 且开关开启才提交举报', canSubmitAction(realRunSafety, 'report'));
+assert('real-run 且开关开启才提交隐藏', canSubmitAction(realRunSafety, 'hide'));
+assert('real-run 支持限制最大写操作数', realRunSafety.maxActions === 1);
+
+const realRunFromInspectionConfig = resolveActionSafety({
+  actionMode: 'real-run',
+  enableReply: true,
+} as Parameters<typeof resolveActionSafety>[0]);
+assert('inspection config actionMode=real-run enables reply', canSubmitAction(realRunFromInspectionConfig, 'reply'));
+
+const dryRunAudit = buildActionAudit(defaultSafety, 'would reply', { screenshotPath: 'a.png' });
+assert('dry-run 审计状态为 skipped', dryRunAudit.status === 'skipped');
+assert('dry-run 审计记录 actionMode', dryRunAudit.actionMode === 'dry-run');
+assert('dry-run 审计记录截图路径', dryRunAudit.screenshotPath === 'a.png');
+
+const realRunAudit = buildActionAudit(realRunSafety, 'submitted', { submitted: true, screenshotPath: 'b.png' });
+assert('real-run 提交审计状态为 success', realRunAudit.status === 'success');
+assert('real-run 提交审计记录 submittedAt', typeof realRunAudit.submittedAt === 'string' && realRunAudit.submittedAt.length > 0);
+
+const reviewRow = parseReviewRowText(`用户评价分： ★★★★★    被点赞数：0    互动数：0
+该用户觉得商品很好，给出了5星好评
+2026-06-17 16:59:53
+订单编号：260606-674035218750803
+查看订单
+举报
+回复/互动`);
+assert('评价回复只从评价行提取星级', reviewRow?.stars === 5);
+assert('评价回复只从评价行提取内容', reviewRow?.content === '该用户觉得商品很好，给出了5星好评');
+assert('评价回复只从评价行提取订单标识', reviewRow?.id === '260606674035218750803');
+
+const nonReviewPanel = parseReviewRowText(`近90日评价数 608
+今日评价数 0
+回复/互动`);
+assert('非评价行不进入回复候选', nonReviewPanel === null);
+
+const reviewBodyRow = parseReviewBodyRowText(`该用户觉得商品较好
+2026-06-17 16:59:53
+订单编号：260606-674035218750803
+买家昵称：麟***
+盐焗翅中五香卤味鸭翅中
+ID: 962105416031
+查看订单
+举报
+回复/互动`);
+assert('评价内容行提取4星较好评价', reviewBodyRow?.stars === 4);
+assert('评价内容行绑定订单标识', reviewBodyRow?.id === '260606674035218750803');
+
+const fiveStarBodyRow = parseReviewBodyRowText(`该用户觉得商品很好，给出了5星好评
+2026-06-17 16:21:09
+订单编号：260614-284289943142096
+回复/互动`);
+assert('评价内容行提取5星好评', fiveStarBodyRow?.stars === 5);
 
 // ========== Test 1: 负面关键词判断 ==========
 console.log('\n📋 测试: 互动动态负面判断');

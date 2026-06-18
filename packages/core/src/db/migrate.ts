@@ -179,11 +179,24 @@ async function migrate() {
       template_id INTEGER,
       ai_confidence REAL,
       status TEXT NOT NULL DEFAULT 'pending',
+      action_mode TEXT,
       screenshot_path TEXT,
       error_message TEXT,
+      submitted_at TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  for (const [column, type] of [
+    ['action_mode', 'TEXT'],
+    ['submitted_at', 'TEXT'],
+  ] as const) {
+    try {
+      db.run(sql.raw(`ALTER TABLE review_actions ADD COLUMN ${column} ${type}`));
+    } catch {
+      // Existing databases may already have this column.
+    }
+  }
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS interaction_actions (
@@ -196,10 +209,25 @@ async function migrate() {
       ai_confidence REAL,
       action TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
+      action_mode TEXT,
+      screenshot_path TEXT,
       error_message TEXT,
+      submitted_at TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  for (const [column, type] of [
+    ['action_mode', 'TEXT'],
+    ['screenshot_path', 'TEXT'],
+    ['submitted_at', 'TEXT'],
+  ] as const) {
+    try {
+      db.run(sql.raw(`ALTER TABLE interaction_actions ADD COLUMN ${column} ${type}`));
+    } catch {
+      // Existing databases may already have this column.
+    }
+  }
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS reply_templates (

@@ -124,10 +124,12 @@ export const reviewActions = sqliteTable('review_actions', {
   actionType: text('action_type').notNull(),              // reply | report
   actionContent: text('action_content'),                  // 操作内容 (回复/举报话术)
   templateId: integer('template_id'),                     // 使用的话术模板ID
-  aiConfidence: real('ai_confidence'),                    // AI 置信度
   status: text('status').notNull().default('pending'),    // pending | success | failed | skipped
+  actionMode: text('action_mode'),                        // dry-run | real-run
+  aiConfidence: real('ai_confidence'),                    // AI 置信度
   screenshotPath: text('screenshot_path'),                // 截图路径
   errorMessage: text('error_message'),                    // 失败原因
+  submittedAt: text('submitted_at'),
   createdAt: text('created_at').default(sql`(datetime('now'))`),
 });
 
@@ -141,10 +143,13 @@ export const interactionActions = sqliteTable('interaction_actions', {
   interactionId: text('interaction_id'),                  // PDD 动态ID
   contentSummary: text('content_summary'),                // 内容摘要
   aiJudgment: text('ai_judgment'),                        // AI 判定: negative | neutral | positive
-  aiConfidence: real('ai_confidence'),                    // AI 置信度
   action: text('action').notNull(),                       // hide | ignore
+  aiConfidence: real('ai_confidence'),                    // AI 置信度
   status: text('status').notNull().default('pending'),    // pending | success | failed | skipped
+  actionMode: text('action_mode'),                        // dry-run | real-run
+  screenshotPath: text('screenshot_path'),
   errorMessage: text('error_message'),
+  submittedAt: text('submitted_at'),
   createdAt: text('created_at').default(sql`(datetime('now'))`),
 });
 

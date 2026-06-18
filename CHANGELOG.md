@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### 修复
+- 写操作生产安全闭环：Worker 默认进入 `dry-run` 且回复/举报/隐藏默认关闭，只有显式 `WORKER_ACTION_MODE=real-run` 并开启对应 `WORKER_ENABLE_*` 时才会真实提交；回复/举报/隐藏审计记录补充 `actionMode`、截图路径、失败原因和真实提交时间。
+- 评价回复真实写入链路适配拼多多“快捷回复”弹窗：按评价行绑定 `回复/互动`，进入弹窗后填充 textarea 并点击弹窗内“回复”；已用 `WORKER_ACTION_MODE=real-run`、`WORKER_ENABLE_REPLY=true`、`WORKER_ACTION_LIMIT=1` 验证真实好评回复成功提交 1 条，其余候选按上限跳过。
 - 消费者体验指标正式巡店采集补齐 HTML 箭头方向解析，`expBasicChange`、`expServiceBasicChange`、`expAttitudeChange`、`expProductChange`、`expShippingChange`、`expLogisticsChange` 不再因 `innerText` 丢失方向而写入 `null`；metrics dry-run 同步复用正式解析函数。
 - Worker 在非 headless 模式遇到拼多多登录页时支持等待人工扫码/登录后继续巡店；登录仍未完成时同步将巡店记录标记为失败，避免记录长期停留在 running。Web 总览页和店铺配置页新增店铺状态定时刷新，避免后端已恢复 active 但页面仍显示“待登录”。
 - 售后数据页补齐“整体情况”重点指标采集与展示：新增纠纷退款数/率、介入订单数、平台介入率、品质退款率、平均退款时长、成功退款订单数/金额/率、退货退款自主完结时长、退款自主完结时长；保留 `refundDuration/refundRate/disputeRate` 作为兼容映射。

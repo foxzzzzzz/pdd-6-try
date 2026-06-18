@@ -11,6 +11,7 @@ export type UserRole = 'admin' | 'operator' | 'factory';
 export type ActionStatus = 'pending' | 'success' | 'failed' | 'skipped';
 export type ReviewActionType = 'reply' | 'report';
 export type InteractionAction = 'hide' | 'ignore';
+export type ActionMode = 'dry-run' | 'real-run';
 
 // ============================================================
 // Store Metrics Snapshot
@@ -119,6 +120,10 @@ export interface ReviewActionDetail {
   actionType: ReviewActionType;
   actionContent: string;
   status: ActionStatus;
+  actionMode?: ActionMode;
+  screenshotPath?: string;
+  errorMessage?: string;
+  submittedAt?: string;
 }
 
 export interface InteractionActionDetail {
@@ -127,6 +132,10 @@ export interface InteractionActionDetail {
   aiJudgment: string;
   action: InteractionAction;
   status: ActionStatus;
+  actionMode?: ActionMode;
+  screenshotPath?: string;
+  errorMessage?: string;
+  submittedAt?: string;
 }
 
 export interface IssueDetail {

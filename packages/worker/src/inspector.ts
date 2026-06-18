@@ -14,6 +14,7 @@ import { detectAnomaliesByRules } from './ai/anomaly-detector';
 import { generateDailyReport, generateSummaryByTemplate, StoreReportData } from './ai/report-generator';
 import { buildMetricInsertValues } from './inspection-results';
 import { shouldRunRuleBasedAnomalyDetection } from './inspection-config';
+import { ActionMode, resolveActionSafety } from './action-safety';
 
 export interface InspectionConfig {
   inspectionId?: number;
@@ -23,15 +24,19 @@ export interface InspectionConfig {
   enableReport: boolean;
   enableHideInteractions: boolean;
   useAI: boolean;
+  actionMode: ActionMode;
+  actionLimit: number | null;
 }
 
 const DEFAULT_CONFIG: InspectionConfig = {
   headless: true,
   screenshotOnError: true,
-  enableReply: true,
-  enableReport: true,
-  enableHideInteractions: true,
+  enableReply: false,
+  enableReport: false,
+  enableHideInteractions: false,
   useAI: true,
+  actionMode: 'dry-run',
+  actionLimit: null,
 };
 
 /** 默认好评回复模板 (Phase 2 fallback) */
@@ -65,6 +70,11 @@ export async function inspectStore(
   config: Partial<InspectionConfig> = {},
 ): Promise<{ success: boolean; completionRate: number; errors: string[] }> {
   const resolvedConfig: InspectionConfig = { ...DEFAULT_CONFIG, ...config };
+  const actionSafety = resolveActionSafety({
+    ...resolvedConfig,
+    maxActions: resolvedConfig.actionLimit,
+  });
+  log(`[${storeName}] Action safety: mode=${actionSafety.mode} limit=${actionSafety.maxActions ?? 'none'} reply=${actionSafety.enableReply} report=${actionSafety.enableReport} hide=${actionSafety.enableHideInteractions}`);
   const db = await getDb();
   const errors: string[] = [];
   const totalSteps = 7; // 4 data + 3 actions (reply, report, hide)
@@ -155,7 +165,7 @@ export async function inspectStore(
     // Step 5: Reply to good reviews
     if (resolvedConfig.enableReply) {
       try {
-        reviewResult = await replyToGoodReviews(browser, storeId, DEFAULT_REPLY_TEMPLATE);
+        reviewResult = await replyToGoodReviews(browser, storeId, DEFAULT_REPLY_TEMPLATE, actionSafety);
         log(`[${storeName}] Reviews: ${reviewResult.replied} replied, ${reviewResult.skipped} skipped`);
       } catch (err) {
         errors.push(`Reply failed: ${err}`);
@@ -178,7 +188,7 @@ export async function inspectStore(
             };
           } catch { /* AI not available, use rules */ }
         }
-        const reportResult = await reportBadReviews(browser, storeId, reportTemplateFn);
+        const reportResult = await reportBadReviews(browser, storeId, reportTemplateFn, actionSafety);
         reviewResult.reported = reportResult.reported;
         reviewResult.skipped += reportResult.skipped;
         reviewResult.failed += reportResult.failed;
@@ -204,7 +214,7 @@ export async function inspectStore(
     }
     if (resolvedConfig.enableHideInteractions) {
       try {
-        interactionResult = await handleInteractions(browser, storeId, interactionJudgeFn);
+        interactionResult = await handleInteractions(browser, storeId, interactionJudgeFn, actionSafety);
         log(`[${storeName}] Interactions: ${interactionResult.hidden} hidden, ${interactionResult.ignored} ignored`);
       } catch (err) {
         errors.push(`Interactions failed: ${err}`);
@@ -361,6 +371,10 @@ export async function inspectStore(
           actionType: detail.actionType,
           actionContent: detail.actionContent,
           status: detail.status,
+          actionMode: detail.actionMode || actionSafety.mode,
+          screenshotPath: detail.screenshotPath || null,
+          errorMessage: detail.errorMessage || null,
+          submittedAt: detail.submittedAt || null,
         })
         .run();
     }
@@ -376,6 +390,10 @@ export async function inspectStore(
           aiJudgment: detail.aiJudgment,
           action: detail.action,
           status: detail.status,
+          actionMode: detail.actionMode || actionSafety.mode,
+          screenshotPath: detail.screenshotPath || null,
+          errorMessage: detail.errorMessage || null,
+          submittedAt: detail.submittedAt || null,
         })
         .run();
     }
