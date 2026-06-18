@@ -1,8 +1,10 @@
 import { buildReportSummary } from './report-summary';
+import { createHash } from 'crypto';
 
 type StoreRow = {
   id: number;
   name: string;
+  status?: string | null;
 };
 
 type InspectionRow = {
@@ -73,6 +75,15 @@ type StoreReportRow = {
 
 type ReportResult = {
   period?: string;
+  materialized?: {
+    id?: number;
+    status: string;
+    source: 'database' | 'generated';
+    sourceHash?: string | null;
+    generatedAt?: string | null;
+    reviewedAt?: string | null;
+    publishedAt?: string | null;
+  };
   summary: {
     period?: string;
     totalStores?: number;
@@ -93,6 +104,29 @@ type ReportResult = {
   stores: StoreReportRow[];
 };
 
+type DailyReportRow = {
+  id?: number;
+  date: string;
+  status: string;
+  summary: string;
+  stores: string;
+  sourceHash?: string | null;
+  generatedAt?: string | null;
+  reviewedAt?: string | null;
+  publishedAt?: string | null;
+};
+
+export type SerializedDailyReport = {
+  date: string;
+  status: string;
+  summary: string;
+  stores: string;
+  sourceHash?: string;
+  generatedAt: string;
+  reviewedAt?: string;
+  publishedAt?: string;
+};
+
 export function buildDailyReport(input: DailyReportInput): ReportResult {
   const start = input.date;
   const end = addDays(input.date, 1);
@@ -104,6 +138,12 @@ export function buildDailyReport(input: DailyReportInput): ReportResult {
     .filter((store): store is StoreReportRow => store != null);
 
   return {
+    materialized: {
+      status: 'generated',
+      source: 'generated',
+      sourceHash: buildDailyReportSourceHash(input),
+      generatedAt: new Date().toISOString(),
+    },
     summary: {
       period: start,
       totalStores: stores.length,
@@ -112,6 +152,65 @@ export function buildDailyReport(input: DailyReportInput): ReportResult {
       generated: buildReportSummary(start, stores),
     },
     stores,
+  };
+}
+
+export function canMaterializeDailyReport(input: DailyReportInput): boolean {
+  const stores = input.stores.filter((store) => store.status == null || store.status === 'active');
+  if (stores.length === 0) return false;
+  const end = addDays(input.date, 1);
+  const inspections = input.inspections.filter((inspection) => inDateRange(inspection.date, input.date, end));
+  return stores.every((store) => {
+    const latest = sortedInspections(inspections.filter((inspection) => inspection.storeId === store.id))[0];
+    return latest && ['completed', 'failed', 'partial'].includes(latest.status);
+  });
+}
+
+export function buildDailyReportSourceHash(input: DailyReportInput): string {
+  const end = addDays(input.date, 1);
+  const payload = {
+    date: input.date,
+    stores: input.stores.map((store) => [store.id, store.name, store.status ?? null]).sort(),
+    inspections: input.inspections
+      .filter((inspection) => inDateRange(inspection.date, input.date, end))
+      .map((inspection) => [inspection.id, inspection.storeId, inspection.status, inspection.createdAt ?? null])
+      .sort(),
+    metrics: input.metrics
+      .filter((metric) => inDateRange(metric.date, input.date, end))
+      .map((metric) => [metric.id, metric.storeId, metric.inspectionId ?? null, metric.createdAt ?? null])
+      .sort(),
+    issues: input.issues
+      .filter((issue) => inDateTimeRange(issue.createdAt, input.date, end))
+      .map((issue) => [issue.id, issue.storeId, issue.rectificationStatus ?? null, issue.createdAt ?? null])
+      .sort(),
+  };
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+export function serializeDailyReport(date: string, report: ReportResult): SerializedDailyReport {
+  return {
+    date,
+    status: report.materialized?.status || 'generated',
+    summary: JSON.stringify(report.summary),
+    stores: JSON.stringify(report.stores),
+    sourceHash: report.materialized?.sourceHash || undefined,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+export function parseMaterializedDailyReport(row: DailyReportRow): ReportResult {
+  return {
+    materialized: {
+      id: row.id,
+      status: row.status,
+      source: 'database',
+      sourceHash: row.sourceHash ?? null,
+      generatedAt: row.generatedAt ?? null,
+      reviewedAt: row.reviewedAt ?? null,
+      publishedAt: row.publishedAt ?? null,
+    },
+    summary: JSON.parse(row.summary),
+    stores: JSON.parse(row.stores),
   };
 }
 

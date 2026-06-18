@@ -217,3 +217,20 @@ export const users = sqliteTable('users', {
   enabled: integer('enabled').notNull().default(1),
   createdAt: text('created_at').default(sql`(datetime('now'))`),
 });
+
+// ============================================================
+// 10. daily_reports - daily report snapshots for archive/review
+// ============================================================
+export const dailyReports = sqliteTable('daily_reports', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  date: text('date').notNull().unique(),
+  status: text('status').notNull().default('generated'),  // generated | reviewed | published
+  summary: text('summary').notNull(),                     // JSON: report summary
+  stores: text('stores').notNull(),                       // JSON: store rows
+  sourceHash: text('source_hash'),
+  generatedAt: text('generated_at').notNull(),
+  reviewedAt: text('reviewed_at'),
+  publishedAt: text('published_at'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+});

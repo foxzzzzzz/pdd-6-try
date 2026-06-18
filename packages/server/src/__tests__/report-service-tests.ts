@@ -1,4 +1,11 @@
-import { buildDailyReport, buildMonthlyReport, buildWeeklyReport } from '../report-service';
+import {
+  buildDailyReport,
+  buildMonthlyReport,
+  buildWeeklyReport,
+  canMaterializeDailyReport,
+  parseMaterializedDailyReport,
+  serializeDailyReport,
+} from '../report-service';
 
 let passed = 0;
 let failed = 0;
@@ -71,6 +78,21 @@ const daily = buildDailyReport({ date: '2026-06-18', stores, inspections, metric
 assert('daily includes failed inspection without metrics', daily.stores.some((store) => store.storeId === 2 && store.status === 'failed'));
 assert('daily chooses latest same-day inspection summary', daily.stores.find((store) => store.storeId === 1)?.latestInspectionSummary === 'latest summary');
 assert('daily excludes future issues', daily.stores.find((store) => store.storeId === 1)?.issueCount === 1);
+assert('daily generated report exposes source hash', Boolean(daily.materialized?.sourceHash));
+assert('daily can materialize when every store has terminal inspection', canMaterializeDailyReport({ date: '2026-06-18', stores, inspections, metrics, issues }));
+
+const incompleteInspections = inspections.filter((inspection) => inspection.storeId !== 2);
+assert('daily does not materialize before all stores finish', !canMaterializeDailyReport({ date: '2026-06-18', stores, inspections: incompleteInspections, metrics, issues }));
+
+const serialized = serializeDailyReport('2026-06-18', daily);
+const materialized = parseMaterializedDailyReport({
+  id: 9,
+  ...serialized,
+  status: 'generated',
+  generatedAt: '2026-06-18T10:00:00.000Z',
+});
+assert('materialized daily report source is database', materialized.materialized?.source === 'database');
+assert('materialized daily report keeps summary JSON', materialized.summary.totalStores === daily.summary.totalStores);
 
 const weekly = buildWeeklyReport({ today: '2026-06-18', stores, inspections, metrics, issues });
 assert('weekly uses stable numeric latest defect rate', typeof weekly.stores.find((store) => store.storeId === 1)?.latestDefectRate === 'number');

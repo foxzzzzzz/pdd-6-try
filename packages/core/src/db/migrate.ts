@@ -290,8 +290,24 @@ async function migrate() {
     )
   `);
 
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS daily_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'generated',
+      summary TEXT NOT NULL,
+      stores TEXT NOT NULL,
+      source_hash TEXT,
+      generated_at TEXT NOT NULL,
+      reviewed_at TEXT,
+      published_at TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   saveDb(db);
-  console.log('Migration complete: all 9 tables created.');
+  console.log('Migration complete: all tables created.');
 
   await closeDb();
 }
