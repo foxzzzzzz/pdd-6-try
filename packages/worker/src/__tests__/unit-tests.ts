@@ -20,6 +20,7 @@ import { parseRefundMetricsText } from '../collectors/refunds';
 import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
 import { buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
 import { parseReviewBodyRowText, parseReviewRowText } from '../actions/reviews';
+import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
 
@@ -203,6 +204,33 @@ assert('识别"垃圾"为负面', judgeInteraction('垃圾产品，千万别买'
 assert('识别"好评"为正常', !judgeInteraction('很好用的产品，好评').shouldHide, 'shouldHide=false');
 assert('识别"还不错"为正常', !judgeInteraction('还不错，可以购买').shouldHide, 'shouldHide=false');
 assert('识别"质量差"为负面', judgeInteraction('质量差，不建议').shouldHide, '应该检测到"差"');
+
+const interactionNow = new Date('2026-06-18T22:30:00+08:00');
+const recentInteraction = parseInteractionRowText(`小黑哥
+这么多添加剂吓死宝宝了
+2026-06-17 23:41
+回复
+隐藏评论
+查看详情`, 'interaction-test', interactionNow);
+assert('互动隐藏候选提取评论内容', recentInteraction?.content === '这么多添加剂吓死宝宝了');
+assert('互动隐藏候选识别近7日', recentInteraction?.withinLast7Days === true);
+assert('近7日边界判断为 true', isWithinLast7Days('2026-06-12 22:30', interactionNow));
+
+const oldInteraction = parseInteractionRowText(`周文明
+[大爱]味道超好
+2026-06-01 20:46
+回复
+隐藏评论
+查看详情`, 'interaction-old', interactionNow);
+assert('超过7日互动候选会被跳过', oldInteraction?.withinLast7Days === false);
+
+const alreadyHiddenInteraction = parseInteractionRowText(`小黑哥
+这么多添加剂吓死宝宝了
+2026-06-17 23:41
+回复
+公开评论
+查看详情`, 'interaction-hidden', interactionNow);
+assert('已隐藏评论不进入隐藏候选', alreadyHiddenInteraction === null);
 
 // ========== Test 2: 举报话术匹配 ==========
 console.log('\n📋 测试: 举报话术匹配');

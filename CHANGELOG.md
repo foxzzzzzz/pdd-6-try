@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### 修复
+- 互动隐藏链路改为真实拼多多【评价管理 / 查看全部互动】页面：页面筛选使用平台支持的“近30天内”，代码层仅处理近7日内且行内存在“隐藏评论”的公开互动；新增只读 `test:interactions` dry-run 报告，记录页面入口、时间窗口、行级按钮绑定和 AI/规则判断，避免继续误用“种草动态/删除动态”页面。
+
+### 修复
 - Worker AI Provider 新增 DeepSeek OpenAI-compatible 适配，并按 `AI_PROVIDER` 选择对应 API key，避免配置 `deepseek` 时误用旧 `ANTHROPIC_API_KEY`；已用根目录 `.env` 的 `deepseek-v4-pro` 做真实 `classifyReview` smoke test 通过。
 - Worker 运行时自动向上查找 workspace 根目录并加载根 `.env`，避免 `pnpm --filter @pdd-inspector/worker ...` 误读 `packages/worker/.env` 的旧配置；provider factory 直接调用和 worker 启动均复用同一加载逻辑。
 - AI 分类正式接入写操作主链路：差评举报话术选择改为调用 `classifyReview()`，互动隐藏判断改为调用 `judgeInteraction()`，AI 低置信或不可用时自动回退规则引擎；动作函数支持异步 AI 决策，同时保留 dry-run/real-run 安全开关、审计日志和截图记录。
