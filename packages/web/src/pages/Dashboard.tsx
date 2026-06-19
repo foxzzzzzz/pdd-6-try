@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Link } from 'react-router-dom';
+import { Play, TrendingUp, FileSpreadsheet, Download, CheckCircle2, AlertTriangle, AlertCircle, Star, Package, ChevronRight } from 'lucide-react';
 
 interface StoreStatus {
   id: number; name: string; status: string; severity: string;
@@ -28,8 +29,6 @@ export default function Dashboard() {
         api.getWeeklyReport().catch(() => null),
         api.getMonthlyReport().catch(() => null),
       ]);
-
-      // Merge latest inspection data with stores
       const merged: StoreStatus[] = storeList.map((s: any) => {
         const latest = (inspections as any[]).find((i: any) => i.storeId === s.id);
         return {
@@ -53,7 +52,7 @@ export default function Dashboard() {
     try {
       const result = await api.triggerInspectAll();
       alert(`已触发 ${result.totalStores} 家店铺巡店`);
-      setTimeout(loadData, 5000); // Refresh after 5s
+      setTimeout(loadData, 5000);
     } catch (err: any) {
       alert('触发失败: ' + err.message);
     } finally {
@@ -65,82 +64,112 @@ export default function Dashboard() {
   const warning = stores.filter((s) => s.severity === 'warning');
   const critical = stores.filter((s) => s.severity === 'critical');
 
-  if (loading) return <div className="text-center py-20 text-gray-400">加载中...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+    </div>
+  );
 
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">📊 巡店总览</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            {stores.length} 家店铺 · 最后更新: {new Date().toLocaleDateString()}
+          <h2 className="text-2xl font-bold text-slate-900">巡店总览</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            {stores.length} 家店铺 · {new Date().toLocaleDateString('zh-CN')}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <a href="/api/reports/weekly" className="px-3 py-2 bg-white border rounded-lg text-sm text-gray-600 hover:bg-gray-50">📊 周报</a>
-          <a href="/api/reports/monthly" className="px-3 py-2 bg-white border rounded-lg text-sm text-gray-600 hover:bg-gray-50">📈 月报</a>
-          <a href="/api/issues/export" className="px-3 py-2 bg-white border rounded-lg text-sm text-gray-600 hover:bg-gray-50">📥 导出问题</a>
+          <a href="/api/reports/weekly" className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <TrendingUp size={16} /> 周报
+          </a>
+          <a href="/api/reports/monthly" className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <FileSpreadsheet size={16} /> 月报
+          </a>
+          <a href="/api/issues/export" className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <Download size={16} /> 导出
+          </a>
           <button
             onClick={handleInspectAll}
             disabled={inspecting}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm"
           >
-            {inspecting ? '⏳ 触发中...' : '🚀 一键巡店'}
+            <Play size={16} />
+            {inspecting ? '触发中...' : '一键巡店'}
           </button>
         </div>
       </div>
 
       {/* Status Summary */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <SummaryCard color="green" label="正常" count={normal.length} />
-        <SummaryCard color="orange" label="预警" count={warning.length} />
-        <SummaryCard color="red" label="异常" count={critical.length} />
+        <SummaryCard color="green" label="正常" count={normal.length} Icon={CheckCircle2} />
+        <SummaryCard color="amber" label="预警" count={warning.length} Icon={AlertTriangle} />
+        <SummaryCard color="red" label="异常" count={critical.length} Icon={AlertCircle} />
       </div>
 
+      {/* Report Summaries */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <ReportSummaryCard title="日报摘要" report={reports.daily?.summary?.generated} href="/reports/daily" linkLabel="查看日报" />
-        <ReportSummaryCard title="周报摘要" report={reports.weekly?.summary?.generated} href="/api/reports/weekly" />
-        <ReportSummaryCard title="月报摘要" report={reports.monthly?.summary} href="/api/reports/monthly" />
+        <ReportSummaryCard title="日报" report={reports.daily?.summary} href="/reports/daily" />
+        <ReportSummaryCard title="周报" report={reports.weekly?.summary} href="/api/reports/weekly" />
+        <ReportSummaryCard title="月报" report={reports.monthly?.summary} href="/api/reports/monthly" />
       </div>
 
       {/* Store Cards */}
       <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">店铺列表</h3>
         {stores.map((store) => (
           <Link
             key={store.id}
             to={`/stores/${store.id}`}
-            className="block bg-white rounded-lg border hover:shadow-md transition-shadow"
+            className="group block bg-white rounded-lg border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <div className={`p-4 border-l-4 ${
+            <div className={`p-4 border-l-4 rounded-l-lg ${
               store.severity === 'critical' ? 'border-l-red-500' :
-              store.severity === 'warning' ? 'border-l-orange-400' :
-              'border-l-green-500'
+              store.severity === 'warning' ? 'border-l-amber-500' :
+              'border-l-emerald-500'
             }`}>
               <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-gray-800">{store.name}</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {store.status === 'active' ? '🟢 运行中' :
-                     store.status === 'pending_login' ? '🟡 待登录' : '⚫ 已暂停'}
-                  </p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-slate-900 truncate">{store.name}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`inline-flex items-center gap-1 text-xs ${
+                      store.status === 'active' ? 'text-emerald-600' :
+                      store.status === 'pending_login' ? 'text-amber-600' : 'text-slate-400'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        store.status === 'active' ? 'bg-emerald-500' :
+                        store.status === 'pending_login' ? 'bg-amber-500' : 'bg-slate-300'
+                      }`} />
+                      {store.status === 'active' ? '运行中' :
+                       store.status === 'pending_login' ? '待登录' : '已暂停'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-6 text-sm">
                   {store.metrics?.rating && (
-                    <span className="text-gray-600">⭐ {store.metrics.rating}</span>
+                    <span className="inline-flex items-center gap-1 text-slate-600">
+                      <Star size={14} className="text-amber-400" />
+                      {store.metrics.rating}
+                    </span>
                   )}
                   {store.metrics?.defectRate != null && (
-                    <span className="text-gray-600">📦 劣质率 {(store.metrics.defectRate * 100).toFixed(1)}%</span>
+                    <span className="inline-flex items-center gap-1 text-slate-600">
+                      <Package size={14} className="text-slate-400" />
+                      {(store.metrics.defectRate * 100).toFixed(1)}%
+                    </span>
                   )}
                   <SeverityBadge severity={store.severity} />
+                  <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500 transition-colors" />
                 </div>
               </div>
             </div>
           </Link>
         ))}
         {stores.length === 0 && (
-          <div className="text-center py-10 text-gray-400">
-            暂无店铺，请先<a href="/stores" className="text-blue-500">添加店铺</a>
+          <div className="text-center py-12 text-slate-400 bg-white rounded-lg border border-dashed border-slate-200">
+            <Package size={32} className="mx-auto mb-2 text-slate-300" />
+            <p>暂无店铺，请先<a href="/stores" className="text-blue-500 hover:underline">添加店铺</a></p>
           </div>
         )}
       </div>
@@ -148,65 +177,64 @@ export default function Dashboard() {
   );
 }
 
-function ReportSummaryCard({ title, report, href, linkLabel = '查看JSON' }: { title: string; report: any; href: string; linkLabel?: string }) {
+function ReportSummaryCard({ title, report, href }: { title: string; report: any; href: string }) {
   const isPageLink = href.startsWith('/') && !href.startsWith('/api/');
   const content = (
-    <>
+    <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold text-gray-800">{title}</h3>
-        <span className="text-xs text-blue-600 group-hover:text-blue-700">{linkLabel}</span>
+        <h3 className="font-semibold text-slate-800 text-sm">{title}</h3>
+        <ChevronRight size={14} className="text-slate-400 group-hover:text-slate-600 transition-colors" />
       </div>
-      <p className="text-sm text-gray-700 leading-6">{report?.overview || '暂无摘要，完成巡店后自动生成。'}</p>
+      <p className="text-sm text-slate-600 leading-relaxed flex-1 line-clamp-3">
+        {report?.overview || '暂无摘要，完成巡店后自动生成。'}
+      </p>
       {report?.recommendations?.length ? (
-        <div className="mt-3 space-y-1">
-          {report.recommendations.slice(0, 2).map((item: string, index: number) => (
-            <p key={index} className="text-xs text-gray-500">{item}</p>
+        <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
+          {report.recommendations.slice(0, 2).map((item: string, i: number) => (
+            <p key={i} className="text-xs text-slate-400 truncate">{item}</p>
           ))}
         </div>
       ) : null}
-    </>
+    </div>
   );
 
-  if (isPageLink) {
-    return (
-      <Link to={href} className="group block bg-white rounded-lg border p-4 hover:shadow-md transition-shadow">
-        {content}
-      </Link>
-    );
-  }
+  const className = "group block bg-white rounded-lg border border-slate-200 p-4 hover:border-slate-300 hover:shadow-md transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500";
 
-  return (
-    <a href={href} className="group block bg-white rounded-lg border p-4 hover:shadow-md transition-shadow">
-      {content}
-    </a>
-  );
+  if (isPageLink) return <Link to={href} className={className}>{content}</Link>;
+  return <a href={href} className={className}>{content}</a>;
 }
 
-function SummaryCard({ color, label, count }: { color: string; label: string; count: number }) {
-  const bgMap: Record<string, string> = {
-    green: 'bg-green-50 border-green-200',
-    orange: 'bg-orange-50 border-orange-200',
-    red: 'bg-red-50 border-red-200',
+function SummaryCard({ color, label, count, Icon }: { color: string; label: string; count: number; Icon: React.ComponentType<{size?:number; className?:string}> }) {
+  const styles: Record<string, { bg: string; border: string; text: string; icon: string }> = {
+    green: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', icon: 'text-emerald-500' },
+    amber: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', icon: 'text-amber-500' },
+    red: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: 'text-red-500' },
   };
-  const textMap: Record<string, string> = {
-    green: 'text-green-700',
-    orange: 'text-orange-700',
-    red: 'text-red-700',
-  };
+  const s = styles[color];
   return (
-    <div className={`rounded-lg border p-4 ${bgMap[color]}`}>
-      <div className={`text-2xl font-bold ${textMap[color]}`}>{count}</div>
-      <div className="text-sm text-gray-600">{label}</div>
+    <div className={`rounded-lg border ${s.bg} ${s.border} p-4`}>
+      <div className="flex items-center gap-2 mb-1">
+        <Icon size={18} className={s.icon} />
+        <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</span>
+      </div>
+      <div className={`text-2xl font-bold ${s.text}`}>{count}</div>
     </div>
   );
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
   const map: Record<string, { bg: string; text: string; label: string }> = {
-    normal: { bg: 'bg-green-100', text: 'text-green-700', label: '✅ 正常' },
-    warning: { bg: 'bg-orange-100', text: 'text-orange-700', label: '⚠️ 预警' },
-    critical: { bg: 'bg-red-100', text: 'text-red-700', label: '🔴 异常' },
+    normal: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: '正常' },
+    warning: { bg: 'bg-amber-50', text: 'text-amber-700', label: '预警' },
+    critical: { bg: 'bg-red-50', text: 'text-red-700', label: '异常' },
   };
   const s = map[severity] || map.normal;
-  return <span className={`px-2 py-1 rounded text-xs font-medium ${s.bg} ${s.text}`}>{s.label}</span>;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${s.bg} ${s.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${
+        severity === 'critical' ? 'bg-red-500' : severity === 'warning' ? 'bg-amber-500' : 'bg-emerald-500'
+      }`} />
+      {s.label}
+    </span>
+  );
 }
