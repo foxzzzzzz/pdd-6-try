@@ -6,6 +6,7 @@ import {
   parseMaterializedDailyReport,
   serializeDailyReport,
 } from '../report-service';
+import { buildMetricTrendSummary } from '../inspection-summary';
 
 let passed = 0;
 let failed = 0;
@@ -101,6 +102,18 @@ assert('weekly excludes metrics older than 7 days', weekly.stores.find((store) =
 const monthly = buildMonthlyReport({ today: '2026-06-18', stores, inspections, metrics, issues });
 assert('monthly groups trend by calendar week', monthly.stores.find((store) => store.storeId === 1)?.weeklyTrend?.length === 3);
 assert('monthly exposes generated summary in summary.generated', Boolean(monthly.summary.generated?.overview));
+
+const trendSummary = buildMetricTrendSummary([
+  { inspectionId: null, date: '2026-06-16', disputeRefundRate: 0.01, platformInterventionRate: 0.02, qualityRefundRate: 0.03, averageRefundDuration: 6, commentScoreRank: 0.2, commentCount: 100 },
+  { inspectionId: null, date: '2026-06-17', disputeRefundRate: 0.02, platformInterventionRate: 0.02, qualityRefundRate: 0.02, averageRefundDuration: 6.1, commentScoreRank: 0.15, commentCount: 110 },
+  { inspectionId: null, date: '2026-06-18', disputeRefundRate: 0.03, platformInterventionRate: 0.02, qualityRefundRate: 0.01, averageRefundDuration: 6.05, commentScoreRank: 0.1, commentCount: 120 },
+]);
+assert('refund dispute trend rises', trendSummary.disputeRefundRate === '上升');
+assert('platform intervention trend is stable', trendSummary.platformInterventionRate === '平稳');
+assert('quality refund trend falls', trendSummary.qualityRefundRate === '下降');
+assert('average refund duration trend is stable', trendSummary.averageRefundDuration === '平稳');
+assert('comment score rank trend falls', trendSummary.commentScoreRank === '下降');
+assert('comment count trend rises', trendSummary.commentCount === '上升');
 
 const totalTests = passed + failed;
 console.log(`Result: ${passed}/${totalTests} passed`);

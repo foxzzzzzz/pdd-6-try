@@ -39,6 +39,7 @@ export default function StoreDetail() {
 
   const latest = inspections[0];
   const metrics = latest?.metrics || {};
+  const metricTrends = metrics.metricTrends || {};
   const pilotUnmetItems = parsePilotUnmetItems(metrics.pilotUnmetItems);
 
   return (
@@ -81,6 +82,18 @@ export default function StoreDetail() {
         <MetricBox label="退款时长" value={metrics.refundDuration || '-'} unit="h" />
       </div>
 
+      <div className="mb-6">
+        <h3 className="font-semibold text-gray-700 mb-4">消费者体验指标</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <ExperienceMetricBox label="消费者服务体验分" value={metrics.expBasic} change={metrics.expBasicChange} />
+          <ExperienceMetricBox label="基础服务体验分" value={metrics.expServiceBasic} change={metrics.expServiceBasicChange} />
+          <ExperienceMetricBox label="服务态度体验分" value={metrics.expAttitude} change={metrics.expAttitudeChange} />
+          <ExperienceMetricBox label="商品服务体验分" value={metrics.expProduct} change={metrics.expProductChange} />
+          <ExperienceMetricBox label="发货服务体验分" value={metrics.expShipping} change={metrics.expShippingChange} />
+          <ExperienceMetricBox label="物流服务体验分" value={metrics.expLogistics} change={metrics.expLogisticsChange} />
+        </div>
+      </div>
+
       {pilotUnmetItems.length > 0 ? (
         <div className="bg-white rounded-lg border p-6 mb-6">
           <h3 className="font-semibold text-gray-700 mb-4">领航员未达标项</h3>
@@ -121,6 +134,12 @@ export default function StoreDetail() {
           <CoreMetricBox label="品质退款率" value={formatPercent(metrics.qualityRefundRate)} />
           <CoreMetricBox label="平均退款时长" value={formatNumber(metrics.averageRefundDuration ?? metrics.refundDuration)} unit="h" />
         </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <MetricBox label="纠纷退款率趋势" value={formatTrend(metricTrends.disputeRefundRate)} />
+          <MetricBox label="平台介入率趋势" value={formatTrend(metricTrends.platformInterventionRate)} />
+          <MetricBox label="品质退款率趋势" value={formatTrend(metricTrends.qualityRefundRate)} />
+          <MetricBox label="平均退款时长趋势" value={formatTrend(metricTrends.averageRefundDuration)} />
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricBox label="纠纷退款数" value={formatNumber(metrics.disputeRefundCount)} />
           <MetricBox label="介入订单数" value={formatNumber(metrics.interventionOrderCount)} />
@@ -139,6 +158,8 @@ export default function StoreDetail() {
           <MetricBox label="评价分排名变化" value={formatSignedPercent(metrics.commentScoreRankChange)} />
           <CoreMetricBox label="近30天评价数" value={formatNumber(metrics.commentCount)} />
           <MetricBox label="评价数变化" value={formatSignedPercent(metrics.commentCountChange)} />
+          <MetricBox label="评价分排名趋势" value={formatTrend(metricTrends.commentScoreRank)} />
+          <MetricBox label="评价数趋势" value={formatTrend(metricTrends.commentCount)} />
         </div>
       </div>
 
@@ -200,6 +221,10 @@ function formatSignedPercent(value: number | null | undefined): string {
   return `${sign}${(value * 100).toFixed(2)}%`;
 }
 
+function formatTrend(value: string | null | undefined): string {
+  return value || '-';
+}
+
 function formatMoney(value: number | null | undefined): string {
   return value == null ? '-' : `${value.toFixed(2)}元`;
 }
@@ -210,6 +235,20 @@ function CoreMetricBox({ label, value, unit }: { label: string; value: React.Rea
       <div className="text-xs font-medium text-blue-600 mb-2">{label}</div>
       <div className="text-2xl font-bold text-gray-900">
         {value}{unit ? <span className="text-sm text-gray-400 ml-1">{unit}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function ExperienceMetricBox({ label, value, change }: { label: string; value: number | null | undefined; change: number | null | undefined }) {
+  return (
+    <div className="bg-white rounded-lg border p-4">
+      <div className="text-xs text-gray-500 mb-1">{label}</div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-xl font-bold text-gray-800">{formatNumber(value)}</span>
+        <span className={change != null && change < 0 ? 'text-sm text-red-600' : 'text-sm text-green-600'}>
+          {formatSignedPercent(change)}
+        </span>
       </div>
     </div>
   );
