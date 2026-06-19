@@ -38,7 +38,7 @@ export const api = {
   getQueueStatus: () => request<any>('/queue/status'),
 
   // Reports
-  getDailyReport: () => request<any>('/reports/daily'),
+  getDailyReport: (date?: string) => request<any>(`/reports/daily${date ? `?date=${encodeURIComponent(date)}` : ''}`),
   getWeeklyReport: () => request<any>('/reports/weekly'),
   getMonthlyReport: () => request<any>('/reports/monthly'),
 

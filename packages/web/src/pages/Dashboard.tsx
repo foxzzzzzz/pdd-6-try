@@ -99,7 +99,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <ReportSummaryCard title="日报摘要" report={reports.daily?.summary?.generated} href="/api/reports/daily" />
+        <ReportSummaryCard title="日报摘要" report={reports.daily?.summary?.generated} href="/reports/daily" linkLabel="查看日报" />
         <ReportSummaryCard title="周报摘要" report={reports.weekly?.summary?.generated} href="/api/reports/weekly" />
         <ReportSummaryCard title="月报摘要" report={reports.monthly?.summary} href="/api/reports/monthly" />
       </div>
@@ -148,12 +148,13 @@ export default function Dashboard() {
   );
 }
 
-function ReportSummaryCard({ title, report, href }: { title: string; report: any; href: string }) {
-  return (
-    <div className="bg-white rounded-lg border p-4">
+function ReportSummaryCard({ title, report, href, linkLabel = '查看JSON' }: { title: string; report: any; href: string; linkLabel?: string }) {
+  const isPageLink = href.startsWith('/') && !href.startsWith('/api/');
+  const content = (
+    <>
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-semibold text-gray-800">{title}</h3>
-        <a href={href} className="text-xs text-blue-600 hover:text-blue-700">查看JSON</a>
+        <span className="text-xs text-blue-600 group-hover:text-blue-700">{linkLabel}</span>
       </div>
       <p className="text-sm text-gray-700 leading-6">{report?.overview || '暂无摘要，完成巡店后自动生成。'}</p>
       {report?.recommendations?.length ? (
@@ -163,7 +164,21 @@ function ReportSummaryCard({ title, report, href }: { title: string; report: any
           ))}
         </div>
       ) : null}
-    </div>
+    </>
+  );
+
+  if (isPageLink) {
+    return (
+      <Link to={href} className="group block bg-white rounded-lg border p-4 hover:shadow-md transition-shadow">
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <a href={href} className="group block bg-white rounded-lg border p-4 hover:shadow-md transition-shadow">
+      {content}
+    </a>
   );
 }
 

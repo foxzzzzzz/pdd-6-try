@@ -3,6 +3,7 @@ import { Link, useLocation, Outlet } from 'react-router-dom';
 
 const navItems = [
   { path: '/', label: '📊 巡店总览', icon: '📊' },
+  { path: '/reports/daily', label: '日报总览', icon: 'report' },
   { path: '/templates', label: '📝 模板管理', icon: '📝' },
   { path: '/stores', label: '🏪 店铺配置', icon: '🏪' },
 ];
@@ -24,7 +25,7 @@ export default function Layout() {
               key={item.path}
               to={item.path}
               className={`block px-3 py-2 rounded text-sm ${
-                loc.pathname === item.path
+                (item.path === '/' ? loc.pathname === item.path : loc.pathname.startsWith(item.path))
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-300 hover:bg-gray-800'
               }`}
