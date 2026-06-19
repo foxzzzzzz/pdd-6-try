@@ -46,6 +46,12 @@ export interface MetricsSnapshot {
   storeActivityRate: number | null;
   experiencePlanStatus: string | null;
 
+  // Comment metrics page
+  commentScoreRank: number | null;
+  commentScoreRankChange: number | null;
+  commentCount: number | null;
+  commentCountChange: number | null;
+
   // Consumer experience
   expBasic: number | null;
   expServiceBasic: number | null;

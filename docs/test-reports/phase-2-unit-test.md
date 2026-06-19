@@ -1,13 +1,23 @@
 # Phase 2 单元测试报告
 
-**日期**: 2026-06-18
+**日期**: 2026-06-19
 **版本**: v0.2.0
-**结果**: 104/104 通过 (100%)
+**结果**: 114/114 通过 (100%)
 
 ## 测试结果
 
 | 测试项 | 结果 | 详情 |
 |--------|------|------|
+| review row extracts createdAt | ✅ |  |
+| review body row extracts createdAt | ✅ |  |
+| review timestamp parses as CST | ✅ |  |
+| review exactly inside 72 hour window is actionable | ✅ |  |
+| review older than 72 hours is skipped | ✅ |  |
+| review without parseable time is skipped | ✅ |  |
+| comment page extracts score rank | ✅ |  |
+| comment page extracts signed score rank change | ✅ |  |
+| comment page extracts comment count | ✅ |  |
+| comment page extracts signed comment count change | ✅ |  |
 | 队列任务携带 inspectionId | ✅ |  |
 | 调度任务使用独立队列 | ✅ |  |
 | 调度任务不伪造店铺 ID | ✅ |  |
@@ -114,6 +124,6 @@
 | 多变量填充 | ✅ |  |
 
 ## 汇总
-- ✅ 通过: 104
+- ✅ 通过: 114
 - ❌ 失败: 0
 - 📊 通过率: 100%

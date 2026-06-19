@@ -375,7 +375,7 @@ function buildMarkdown(results: PageResult[], fromSnapshots: boolean, fromOutput
   lines.push('- `refundRate` 当前映射售后数据页的 `成功退款率`，如后续页面出现更贴近“整体退款率”的标签，需要再调整。');
   lines.push('- `disputeRate` 来自售后数据页的 `纠纷退款率`。');
   lines.push('- 售后数据页红框内重点指标已单独提取：纠纷退款数/率、介入订单数、平台介入率、品质退款率、平均退款时长、成功退款订单数/金额/率、退货退款自主完结时长、退款自主完结时长。');
-  lines.push('- 评价数据页结构化提取 `commentScoreRank`；客服数据页结构化提取 `customerThreeMinuteReplyRate` 和 `customerAvgResponseMinutes`，暂不写正式指标表。');
+  lines.push('- 评价数据页已接入正式指标表；客服数据页结构化提取 `customerThreeMinuteReplyRate` 和 `customerAvgResponseMinutes`，暂不写正式指标表。');
 
   return lines.join('\n');
 }

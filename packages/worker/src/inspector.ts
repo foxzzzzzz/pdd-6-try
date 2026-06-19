@@ -7,6 +7,7 @@ import { collectStoreMetrics } from './collectors/metrics';
 import { collectExperienceMetrics } from './collectors/experience';
 import { collectRefundMetrics } from './collectors/refunds';
 import { collectAppealMetrics } from './collectors/appeals';
+import { collectCommentMetrics } from './collectors/comments';
 import { replyToGoodReviews, reportBadReviews, ReviewActionResult } from './actions/reviews';
 import { handleInteractions, InteractionActionResult } from './actions/interactions';
 import { getLightProvider, getHeavyProvider } from './ai/provider-factory';
@@ -78,7 +79,7 @@ export async function inspectStore(
   log(`[${storeName}] Action safety: mode=${actionSafety.mode} limit=${actionSafety.maxActions ?? 'none'} reply=${actionSafety.enableReply} report=${actionSafety.enableReport} hide=${actionSafety.enableHideInteractions}`);
   const db = await getDb();
   const errors: string[] = [];
-  const totalSteps = 7; // 4 data + 3 actions (reply, report, hide)
+  const totalSteps = 8; // 5 data + 3 actions (reply, report, hide)
   let completedSteps = 0;
   let completionRate = 0;
 
@@ -159,6 +160,11 @@ export async function inspectStore(
     completedSteps++;
     log(`[${storeName}] Appeal data collected`);
 
+    // Step 5: Comment data
+    const commentMetrics = await collectCommentMetrics(browser, storeId);
+    completedSteps++;
+    log(`[${storeName}] Comment data collected`);
+
     // ======== PHASE 2.5: REVIEW ACTIONS ========
     let reviewResult: ReviewActionResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
     let interactionResult: InteractionActionResult = { details: [], hidden: 0, ignored: 0, skipped: 0 };
@@ -238,6 +244,10 @@ export async function inspectStore(
       logisticsViolationRate: null,
       storeActivityRate: null,
       experiencePlanStatus: null,
+      commentScoreRank: null,
+      commentScoreRankChange: null,
+      commentCount: null,
+      commentCountChange: null,
       expBasic: null,
       expServiceBasic: null,
       expAttitude: null,
@@ -271,6 +281,7 @@ export async function inspectStore(
       ...expMetrics,
       ...refundMetrics,
       ...appealMetrics,
+      ...commentMetrics,
     };
 
     // Calculate change rates from previous inspection

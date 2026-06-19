@@ -107,6 +107,10 @@ export const storeMetrics = sqliteTable('store_metrics', {
   // 异常标记
   anomalyFlags: text('anomaly_flags'),                    // AI 异常标记 (JSON)
   severity: text('severity'),                             // normal | warning | critical
+  commentScoreRank: real('comment_score_rank'),
+  commentScoreRankChange: real('comment_score_rank_change'),
+  commentCount: integer('comment_count'),
+  commentCountChange: real('comment_count_change'),
 
   createdAt: text('created_at').default(sql`(datetime('now'))`),
 });

@@ -89,6 +89,16 @@ export default function StoreDetail() {
         </div>
       </div>
 
+      <div className="mb-6">
+        <h3 className="font-semibold text-gray-700 mb-4">评价数据</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <CoreMetricBox label="店铺评价分排名" value={formatPercent(metrics.commentScoreRank)} />
+          <MetricBox label="评价分排名变化" value={formatSignedPercent(metrics.commentScoreRankChange)} />
+          <CoreMetricBox label="近30天评价数" value={formatNumber(metrics.commentCount)} />
+          <MetricBox label="评价数变化" value={formatSignedPercent(metrics.commentCountChange)} />
+        </div>
+      </div>
+
       {/* Trend Chart */}
       <div className="bg-white rounded-lg border p-6 mb-6">
         <h3 className="font-semibold text-gray-700 mb-4">📈 指标趋势 (近30天)</h3>
@@ -139,6 +149,12 @@ function formatNumber(value: number | string | null | undefined): string {
 
 function formatPercent(value: number | null | undefined): string {
   return value == null ? '-' : `${(value * 100).toFixed(2)}%`;
+}
+
+function formatSignedPercent(value: number | null | undefined): string {
+  if (value == null) return '-';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${(value * 100).toFixed(2)}%`;
 }
 
 function formatMoney(value: number | null | undefined): string {

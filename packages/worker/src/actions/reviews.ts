@@ -6,9 +6,10 @@ import { ReviewActionDetail } from '@pdd-inspector/core';
 import { ActionSafety, buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
 
 const REVIEW_URL = 'https://mms.pinduoduo.com/goods/evaluation/index?msfrom=mms_sidenav';
+const REVIEW_ACTION_WINDOW_HOURS = 72;
 
 export interface ReviewActionResult { details: ReviewActionDetail[]; replied: number; reported: number; skipped: number; failed: number; }
-interface ReviewRow { id: string; content: string; stars: number; row?: any; }
+interface ReviewRow { id: string; content: string; stars: number; createdAt: string | null; row?: any; }
 type ReportTemplateResolver = (r: { content: string; stars: number }) => string | Promise<string>;
 
 export async function replyToGoodReviews(browser: BrowserManager, storeId: number, replyTemplate: string, safetyInput: Partial<ActionSafety> = {}): Promise<ReviewActionResult> {
@@ -27,6 +28,18 @@ export async function replyToGoodReviews(browser: BrowserManager, storeId: numbe
     for (var _i = 0; _i < reviews.length; _i++) {
       var review = reviews[_i];
       try {
+        if (!isReviewWithinLastHours(review.createdAt, new Date(), REVIEW_ACTION_WINDOW_HOURS)) {
+          result.skipped++;
+          result.details.push({
+            reviewId: review.id,
+            reviewContent: review.content,
+            reviewStars: review.stars,
+            actionType: 'reply',
+            actionContent: replyTemplate,
+            ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot, errorMessage: 'Review is outside the last 72 hours or missing review time' }),
+          });
+          continue;
+        }
         if (!canSubmitAction(safety, 'reply') || (safety.maxActions != null && submittedCount >= safety.maxActions)) {
           result.skipped++;
           result.details.push({
@@ -73,6 +86,18 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
       var review = reviews[_i];
       var template = '';
       try {
+        if (!isReviewWithinLastHours(review.createdAt, new Date(), REVIEW_ACTION_WINDOW_HOURS)) {
+          result.skipped++;
+          result.details.push({
+            reviewId: review.id,
+            reviewContent: review.content,
+            reviewStars: review.stars,
+            actionType: 'report',
+            actionContent: '',
+            ...buildActionAudit(safety, '', { screenshotPath: pageScreenshot, errorMessage: 'Review is outside the last 72 hours or missing review time' }),
+          });
+          continue;
+        }
         template = await getReportTemplate(review);
         if (!canSubmitAction(safety, 'report') || (safety.maxActions != null && submittedCount >= safety.maxActions)) {
           result.skipped++;
@@ -224,7 +249,7 @@ export function parseReviewRowText(text: string, fallbackId = 'r-0'): ReviewRow 
 
   const orderIdMatch = text.match(/订单编号[:：]\s*([0-9-]+)/);
   const idMatch = orderIdMatch?.[1].replace(/\D/g, '') || text.match(/\d{15,}/)?.[0];
-  return { id: idMatch || fallbackId, content, stars };
+  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text) };
 }
 
 export function parseReviewBodyRowText(text: string, fallbackId = 'r-0'): ReviewRow | null {
@@ -241,7 +266,34 @@ export function parseReviewBodyRowText(text: string, fallbackId = 'r-0'): Review
   if (stars == null) return null;
   const orderIdMatch = text.match(/订单编号[:：]\s*([0-9-]+)/);
   const idMatch = orderIdMatch?.[1].replace(/\D/g, '') || text.match(/\d{15,}/)?.[0];
-  return { id: idMatch || fallbackId, content, stars };
+  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text) };
+}
+
+function extractReviewTimestampText(text: string): string | null {
+  return text.match(/\b(20\d{2}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?)\b/)?.[1] || null;
+}
+
+export function parseReviewTimestamp(value: string | null): Date | null {
+  if (!value) return null;
+  const match = value.match(/^(20\d{2})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second = '00'] = match;
+  const timestamp = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour) - 8,
+    Number(minute),
+    Number(second),
+  );
+  return new Date(timestamp);
+}
+
+export function isReviewWithinLastHours(value: string | null, now: Date, hours: number): boolean {
+  const reviewTime = parseReviewTimestamp(value);
+  if (!reviewTime) return false;
+  const ageMs = now.getTime() - reviewTime.getTime();
+  return ageMs >= 0 && ageMs <= hours * 60 * 60 * 1000;
 }
 
 function inferReviewStars(content: string): number | null {

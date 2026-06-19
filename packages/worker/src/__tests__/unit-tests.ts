@@ -18,8 +18,9 @@ import { buildMetricInsertValues } from '../inspection-results';
 import { parseStoreMetricsText } from '../collectors/metrics';
 import { parseRefundMetricsText } from '../collectors/refunds';
 import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
+import { parseCommentMetricsText } from '../collectors/comments';
 import { buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
-import { parseReviewBodyRowText, parseReviewRowText } from '../actions/reviews';
+import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
@@ -43,6 +44,41 @@ function assert(description: string, condition: boolean, detail = '') {
 function nearlyEqual(actual: number | null | undefined, expected: number): boolean {
   return actual != null && Math.abs(actual - expected) < 0.000001;
 }
+
+// ========== Test 0a: Review action time window ==========
+console.log('\nReview action time window');
+
+const timedReviewRow = parseReviewRowText(`\u7528\u6237\u8bc4\u4ef7\u5206\uff1a \u2605\u2605\u2605\u2605\u2605    \u88ab\u70b9\u8d5e\u6570\uff1a0    \u4e92\u52a8\u6570\uff1a0
+\u8be5\u7528\u6237\u89c9\u5f97\u5546\u54c1\u5f88\u597d\uff0c\u7ed9\u51fa\u4e865\u661f\u597d\u8bc4
+2026-06-17 16:59:53
+\u8ba2\u5355\u7f16\u53f7\uff1a260606-674035218750803
+\u67e5\u770b\u8ba2\u5355
+\u4e3e\u62a5
+\u56de\u590d/\u4e92\u52a8`);
+const timedReviewBodyRow = parseReviewBodyRowText(`\u8be5\u7528\u6237\u89c9\u5f97\u5546\u54c1\u8f83\u597d
+2026-06-17 16:59:53
+\u8ba2\u5355\u7f16\u53f7\uff1a260606-674035218750803
+\u67e5\u770b\u8ba2\u5355
+\u4e3e\u62a5
+\u56de\u590d/\u4e92\u52a8`);
+assert('review row extracts createdAt', timedReviewRow?.createdAt === '2026-06-17 16:59:53');
+assert('review body row extracts createdAt', timedReviewBodyRow?.createdAt === '2026-06-17 16:59:53');
+assert('review timestamp parses as CST', parseReviewTimestamp('2026-06-17 16:59:53')?.toISOString() === '2026-06-17T08:59:53.000Z');
+const reviewWindowNow = new Date('2026-06-20T16:59:53+08:00');
+assert('review exactly inside 72 hour window is actionable', isReviewWithinLastHours('2026-06-17 16:59:53', reviewWindowNow, 72));
+assert('review older than 72 hours is skipped', !isReviewWithinLastHours('2026-06-17 16:59:52', reviewWindowNow, 72));
+assert('review without parseable time is skipped', !isReviewWithinLastHours(null, reviewWindowNow, 72));
+
+// ========== Test 0b: Comment metrics page ==========
+console.log('\nComment metrics page');
+
+const commentMetrics = parseCommentMetricsText(
+  '\u5e97\u94fa\u8bc4\u4ef7\u5206\u6392\u540d 12.60% \u8f83\u524d\u4e00\u5929 \u2193 1.20% \u8fd130\u5929\u8bc4\u4ef7\u6570 608 \u8f83\u524d\u4e00\u5929 \u2191 3.50%',
+);
+assert('comment page extracts score rank', nearlyEqual(commentMetrics.commentScoreRank, 0.126));
+assert('comment page extracts signed score rank change', nearlyEqual(commentMetrics.commentScoreRankChange, -0.012));
+assert('comment page extracts comment count', commentMetrics.commentCount === 608);
+assert('comment page extracts signed comment count change', nearlyEqual(commentMetrics.commentCountChange, 0.035));
 
 // ========== Test 0: Inspection persistence helpers ==========
 console.log('\n📋 测试: 巡店记录关联与异常落库');
@@ -79,6 +115,10 @@ const metricValues = buildMetricInsertValues(
     logisticsViolationRate: null,
     storeActivityRate: null,
     experiencePlanStatus: null,
+    commentScoreRank: null,
+    commentScoreRankChange: null,
+    commentCount: null,
+    commentCountChange: null,
     expBasic: null,
     expServiceBasic: null,
     expAttitude: null,

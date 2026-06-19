@@ -92,6 +92,10 @@ async function migrate() {
       refund_auto_duration REAL,
       appeal_count INTEGER,
       appeal_success_rate REAL,
+      comment_score_rank REAL,
+      comment_score_rank_change REAL,
+      comment_count INTEGER,
+      comment_count_change REAL,
       anomaly_flags TEXT,
       severity TEXT,
       created_at TEXT DEFAULT (datetime('now'))
@@ -158,6 +162,19 @@ async function migrate() {
     ['successful_refund_rate', 'REAL'],
     ['return_refund_auto_duration', 'REAL'],
     ['refund_auto_duration', 'REAL'],
+  ] as const) {
+    try {
+      db.run(sql.raw(`ALTER TABLE store_metrics ADD COLUMN ${column} ${type}`));
+    } catch {
+      // Existing databases may already have this column.
+    }
+  }
+
+  for (const [column, type] of [
+    ['comment_score_rank', 'REAL'],
+    ['comment_score_rank_change', 'REAL'],
+    ['comment_count', 'INTEGER'],
+    ['comment_count_change', 'REAL'],
   ] as const) {
     try {
       db.run(sql.raw(`ALTER TABLE store_metrics ADD COLUMN ${column} ${type}`));
