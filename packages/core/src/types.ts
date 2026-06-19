@@ -13,6 +13,14 @@ export type ReviewActionType = 'reply' | 'report';
 export type InteractionAction = 'hide' | 'ignore';
 export type ActionMode = 'dry-run' | 'real-run';
 
+export interface PilotUnmetItem {
+  dimension: string;
+  metric: string;
+  currentValue: string;
+  isMet: boolean;
+  nextLevelStandard: string | null;
+}
+
 // ============================================================
 // Store Metrics Snapshot
 // ============================================================
@@ -45,6 +53,7 @@ export interface MetricsSnapshot {
   logisticsViolationRate: number | null;
   storeActivityRate: number | null;
   experiencePlanStatus: string | null;
+  pilotUnmetItems: string | null;
 
   // Comment metrics page
   commentScoreRank: number | null;

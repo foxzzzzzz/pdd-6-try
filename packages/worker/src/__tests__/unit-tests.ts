@@ -14,8 +14,9 @@ import {
   SCHEDULER_QUEUE,
 } from '@pdd-inspector/core';
 import { shouldRunRuleBasedAnomalyDetection } from '../inspection-config';
+import { detectAnomaliesByRules } from '../ai/anomaly-detector';
 import { buildMetricInsertValues } from '../inspection-results';
-import { parseStoreMetricsText } from '../collectors/metrics';
+import { parsePilotUnmetItems, parseStoreMetricsText } from '../collectors/metrics';
 import { parseRefundMetricsText } from '../collectors/refunds';
 import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
 import { parseCommentMetricsText } from '../collectors/comments';
@@ -80,6 +81,21 @@ assert('comment page extracts signed score rank change', nearlyEqual(commentMetr
 assert('comment page extracts comment count', commentMetrics.commentCount === 608);
 assert('comment page extracts signed comment count change', nearlyEqual(commentMetrics.commentCountChange, 0.035));
 
+// ========== Test 0c: Pilot unmet assessment rows ==========
+console.log('\nPilot unmet assessment rows');
+
+const pilotUnmetItems = parsePilotUnmetItems(
+  '\u552e\u540e\u670d\u52a1 \u8fd130\u59293\u5206\u949f\u4eba\u5de5\u56de\u590d\u7387 52.17% \u672a\u8fbe\u6807(\u9700\u63d0\u5347\u523075.00%\u4ee5\u4e0a) \u5546\u54c1\u54c1\u8d28 \u8fd190\u5929\u7528\u6237\u8bc4\u4ef7\u5f97\u5206\u6392\u540d 12.60% \u672a\u8fbe\u6807(\u9700\u63d0\u5347\u523040.00%\u4ee5\u4e0a) \u8fd130\u5929\u79ef\u6781\u8bc4\u8bba\u7387 94.12% \u672a\u8fbe\u6807(\u9700\u63d0\u5347\u523094.23%\u4ee5\u4e0a) \u8fd130\u5929\u4e25\u91cd\u52a3\u8d28\u7387 0.08% \u5df2\u8fbe\u6807 \u7269\u6d41\u670d\u52a1 \u8fd130\u5929\u6210\u56e2-\u7b7e\u6536\u65f6\u6548 2.45\u5929 \u5df2\u8fbe\u6807',
+);
+assert('pilot unmet parser keeps only unmet rows', pilotUnmetItems.length === 3);
+assert('pilot unmet parser extracts dimension', pilotUnmetItems[0]?.dimension === '\u552e\u540e\u670d\u52a1');
+assert('pilot unmet parser extracts metric', pilotUnmetItems[0]?.metric === '\u8fd130\u59293\u5206\u949f\u4eba\u5de5\u56de\u590d\u7387');
+assert('pilot unmet parser extracts current value', pilotUnmetItems[0]?.currentValue === '52.17%');
+assert('pilot unmet parser extracts target', pilotUnmetItems[0]?.nextLevelStandard === '\u9700\u63d0\u5347\u523075.00%\u4ee5\u4e0a');
+const pilotUnmetAnomaly = detectAnomaliesByRules({ pilotUnmetItems: JSON.stringify(pilotUnmetItems) }, []);
+assert('pilot unmet items produce anomaly warning', pilotUnmetAnomaly.isAnomaly && pilotUnmetAnomaly.severity === 'critical');
+assert('pilot unmet anomaly flag includes target', pilotUnmetAnomaly.flags.some((flag) => flag.includes('\u9700\u63d0\u5347\u523075.00%\u4ee5\u4e0a')));
+
 // ========== Test 0: Inspection persistence helpers ==========
 console.log('\n📋 测试: 巡店记录关联与异常落库');
 
@@ -115,6 +131,7 @@ const metricValues = buildMetricInsertValues(
     logisticsViolationRate: null,
     storeActivityRate: null,
     experiencePlanStatus: null,
+    pilotUnmetItems: null,
     commentScoreRank: null,
     commentScoreRankChange: null,
     commentCount: null,

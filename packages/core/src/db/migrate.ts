@@ -92,6 +92,7 @@ async function migrate() {
       refund_auto_duration REAL,
       appeal_count INTEGER,
       appeal_success_rate REAL,
+      pilot_unmet_items TEXT,
       comment_score_rank REAL,
       comment_score_rank_change REAL,
       comment_count INTEGER,
@@ -171,6 +172,7 @@ async function migrate() {
   }
 
   for (const [column, type] of [
+    ['pilot_unmet_items', 'TEXT'],
     ['comment_score_rank', 'REAL'],
     ['comment_score_rank_change', 'REAL'],
     ['comment_count', 'INTEGER'],

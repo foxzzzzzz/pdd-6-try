@@ -107,6 +107,7 @@ export const storeMetrics = sqliteTable('store_metrics', {
   // 异常标记
   anomalyFlags: text('anomaly_flags'),                    // AI 异常标记 (JSON)
   severity: text('severity'),                             // normal | warning | critical
+  pilotUnmetItems: text('pilot_unmet_items'),
   commentScoreRank: real('comment_score_rank'),
   commentScoreRankChange: real('comment_score_rank_change'),
   commentCount: integer('comment_count'),

@@ -4,7 +4,7 @@
  * 策略: 浏览器取文本，Node.js 解析
  */
 import { BrowserManager } from '../browser';
-import { MetricsSnapshot } from '@pdd-inspector/core';
+import { MetricsSnapshot, PilotUnmetItem } from '@pdd-inspector/core';
 
 export async function collectStoreMetrics(
   browser: BrowserManager,
@@ -43,10 +43,76 @@ export function parseStoreMetricsText(text: string): Partial<MetricsSnapshot> {
     logisticsViolationRate: extractPercentAsDecimal(text, '近30天物流综合违规处理率'),
     storeActivityRate: extractPercentAsDecimal(text, '近30天店铺活跃度'),
     experiencePlanStatus: extractExperiencePlanStatus(text),
+    pilotUnmetItems: serializePilotUnmetItems(parsePilotUnmetItems(text)),
     dsrDesc: extractDsrScore(text, '描述相符'),
     dsrService: extractDsrScore(text, '服务态度'),
     dsrLogistics: extractDsrScore(text, '物流服务'),
   };
+}
+
+export function parsePilotUnmetItems(text: string): PilotUnmetItem[] {
+  const dimensions = ['售后服务', '商品品质', '物流服务'];
+  const metricLabelsByDimension: Record<string, string[]> = {
+    售后服务: [
+      '近30天平台求助率',
+      '近30天3分钟人工回复率',
+      '近30天在途订单退款时长',
+      '近30天商家签收消费者退货订单后的平均退款时长',
+    ],
+    商品品质: [
+      '近90天用户评价得分排名',
+      '近30天积极评论率',
+      '近30天严重劣质率',
+    ],
+    物流服务: [
+      '近30天成团-签收时效',
+      '近30天物流综合违规处理率',
+    ],
+  };
+
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const rows: PilotUnmetItem[] = [];
+
+  for (let i = 0; i < dimensions.length; i++) {
+    const dimension = dimensions[i];
+    const start = normalized.indexOf(dimension);
+    if (start === -1) continue;
+    const nextStarts = dimensions
+      .slice(i + 1)
+      .map((nextDimension) => normalized.indexOf(nextDimension, start + dimension.length))
+      .filter((idx) => idx !== -1);
+    const end = nextStarts.length > 0 ? Math.min(...nextStarts) : normalized.length;
+    const segment = normalized.slice(start + dimension.length, end);
+    const labels = metricLabelsByDimension[dimension] || [];
+
+    for (let labelIndex = 0; labelIndex < labels.length; labelIndex++) {
+      const metric = labels[labelIndex];
+      const metricStart = segment.indexOf(metric);
+      if (metricStart === -1) continue;
+      const nextMetricStarts = labels
+        .slice(labelIndex + 1)
+        .map((nextMetric) => segment.indexOf(nextMetric, metricStart + metric.length))
+        .filter((idx) => idx !== -1);
+      const metricEnd = nextMetricStarts.length > 0 ? Math.min(...nextMetricStarts) : segment.length;
+      const metricSegment = segment.slice(metricStart + metric.length, metricEnd).trim();
+      const statusMatch = metricSegment.match(/(已达标|未达标)(?:\(([^)]*)\)|（([^）]*)）)?/);
+      if (!statusMatch || statusMatch[1] !== '未达标') continue;
+      const currentValue = metricSegment.slice(0, statusMatch.index).trim().split(/\s+/)[0] || '';
+      rows.push({
+        dimension,
+        metric,
+        currentValue,
+        isMet: false,
+        nextLevelStandard: statusMatch[2] || statusMatch[3] || null,
+      });
+    }
+  }
+
+  return rows;
+}
+
+function serializePilotUnmetItems(items: PilotUnmetItem[]): string | null {
+  return items.length > 0 ? JSON.stringify(items) : null;
 }
 
 function extractNumber(text: string, label: string): number | null {

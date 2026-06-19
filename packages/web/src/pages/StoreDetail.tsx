@@ -8,6 +8,16 @@ function formatCST(utcStr: string): string {
   return new Date(utcStr + 'Z').toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
 }
 
+function parsePilotUnmetItems(value: unknown): any[] {
+  if (typeof value !== 'string' || value.trim() === '') return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const [store, setStore] = useState<any>(null);
@@ -29,6 +39,7 @@ export default function StoreDetail() {
 
   const latest = inspections[0];
   const metrics = latest?.metrics || {};
+  const pilotUnmetItems = parsePilotUnmetItems(metrics.pilotUnmetItems);
 
   return (
     <div>
@@ -69,6 +80,38 @@ export default function StoreDetail() {
         <MetricBox label="物流服务" value={metrics.dsrLogistics || '-'} />
         <MetricBox label="退款时长" value={metrics.refundDuration || '-'} unit="h" />
       </div>
+
+      {pilotUnmetItems.length > 0 ? (
+        <div className="bg-white rounded-lg border p-6 mb-6">
+          <h3 className="font-semibold text-gray-700 mb-4">领航员未达标项</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b">
+                  <th className="pb-2">维度</th>
+                  <th className="pb-2">考核指标</th>
+                  <th className="pb-2">店铺表现</th>
+                  <th className="pb-2">状态</th>
+                  <th className="pb-2">下一星级标准</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pilotUnmetItems.map((item: any, index: number) => (
+                  <tr key={`${item.dimension}-${item.metric}-${index}`} className="border-b last:border-0">
+                    <td className="py-2 font-medium text-gray-700">{item.dimension}</td>
+                    <td className="py-2 text-gray-700">{item.metric}</td>
+                    <td className="py-2">{item.currentValue || '-'}</td>
+                    <td className="py-2">
+                      <span className="px-2 py-0.5 rounded text-xs bg-red-100 text-red-700">未达标</span>
+                    </td>
+                    <td className="py-2 text-gray-600">{item.nextLevelStandard || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mb-6">
         <h3 className="font-semibold text-gray-700 mb-4">售后重点指标</h3>

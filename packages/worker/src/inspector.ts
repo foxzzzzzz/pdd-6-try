@@ -244,6 +244,7 @@ export async function inspectStore(
       logisticsViolationRate: null,
       storeActivityRate: null,
       experiencePlanStatus: null,
+      pilotUnmetItems: null,
       commentScoreRank: null,
       commentScoreRankChange: null,
       commentCount: null,
@@ -333,11 +334,12 @@ export async function inspectStore(
           .limit(7)
           .all();
 
-        const currentNums: Record<string, number | null> = {
+        const currentNums: Record<string, unknown> = {
           rating: mergedMetrics.rating,
           defectRate: mergedMetrics.defectRate,
           expBasic: mergedMetrics.expBasic,
           refundRate: mergedMetrics.refundRate,
+          pilotUnmetItems: mergedMetrics.pilotUnmetItems,
         };
 
         const historyNums = historicalMetrics.map((m) => ({
@@ -345,6 +347,7 @@ export async function inspectStore(
           defectRate: m.defectRate,
           expBasic: m.expBasic,
           refundRate: m.refundRate,
+          pilotUnmetItems: m.pilotUnmetItems,
         }));
 
         anomalyResult = detectAnomaliesByRules(currentNums, historyNums);

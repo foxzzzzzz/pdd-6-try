@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-19
 **版本**: v0.2.0
-**结果**: 114/114 通过 (100%)
+**结果**: 121/121 通过 (100%)
 
 ## 测试结果
 
@@ -18,6 +18,13 @@
 | comment page extracts signed score rank change | ✅ |  |
 | comment page extracts comment count | ✅ |  |
 | comment page extracts signed comment count change | ✅ |  |
+| pilot unmet parser keeps only unmet rows | ✅ |  |
+| pilot unmet parser extracts dimension | ✅ |  |
+| pilot unmet parser extracts metric | ✅ |  |
+| pilot unmet parser extracts current value | ✅ |  |
+| pilot unmet parser extracts target | ✅ |  |
+| pilot unmet items produce anomaly warning | ✅ |  |
+| pilot unmet anomaly flag includes target | ✅ |  |
 | 队列任务携带 inspectionId | ✅ |  |
 | 调度任务使用独立队列 | ✅ |  |
 | 调度任务不伪造店铺 ID | ✅ |  |
@@ -124,6 +131,6 @@
 | 多变量填充 | ✅ |  |
 
 ## 汇总
-- ✅ 通过: 114
+- ✅ 通过: 121
 - ❌ 失败: 0
 - 📊 通过率: 100%
