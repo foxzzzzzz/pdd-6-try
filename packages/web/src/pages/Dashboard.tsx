@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [reports, setReports] = useState<{ daily?: any; weekly?: any; monthly?: any }>({});
   const [riskStatus, setRiskStatus] = useState<any>(null);
   const [selectorHealth, setSelectorHealth] = useState<any>(null);
+  const [ruleReviewStatus, setRuleReviewStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [inspecting, setInspecting] = useState(false);
 
@@ -24,7 +25,7 @@ export default function Dashboard() {
 
   async function loadData() {
     try {
-      const [storeList, inspections, dailyReport, weeklyReport, monthlyReport, risk, selectorHealthStatus] = await Promise.all([
+      const [storeList, inspections, dailyReport, weeklyReport, monthlyReport, risk, selectorHealthStatus, ruleReviews] = await Promise.all([
         api.getStores(),
         api.getInspections({ limit: 50 }),
         api.getDailyReport().catch(() => null),
@@ -32,6 +33,7 @@ export default function Dashboard() {
         api.getMonthlyReport().catch(() => null),
         api.getRiskStatus().catch(() => null),
         api.getSelectorHealthStatus().catch(() => null),
+        api.getRuleReviewStatus().catch(() => null),
       ]);
       const merged: StoreStatus[] = storeList.map((s: any) => {
         const latest = (inspections as any[]).find((i: any) => i.storeId === s.id);
@@ -46,6 +48,7 @@ export default function Dashboard() {
       setReports({ daily: dailyReport, weekly: weeklyReport, monthly: monthlyReport });
       setRiskStatus(risk);
       setSelectorHealth(selectorHealthStatus);
+      setRuleReviewStatus(ruleReviews);
     } catch (err) {
       console.error('Failed to load dashboard:', err);
     } finally {
@@ -161,6 +164,31 @@ export default function Dashboard() {
               <div key={item.moduleKey} className="rounded border border-white/60 bg-white/70 px-3 py-2 text-xs text-slate-600">
                 <div className="font-medium text-slate-800">{item.moduleName} · {Math.round((item.failureRate || 0) * 100)}% failed</div>
                 <div className="mt-1">失败 {item.failedChecks}/{item.totalChecks} · {formatDateTime(item.createdAt)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {ruleReviewStatus?.overdueCount ? (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex gap-3">
+              <ShieldAlert size={20} className="text-red-600" />
+              <div>
+                <h3 className="font-semibold text-red-800">规则复核已过期</h3>
+                <p className="mt-1 text-sm text-red-700">
+                  {ruleReviewStatus.overdueCount} 个规则复核项需要人工确认；举报/隐藏 real-run 将保持暂停。
+                </p>
+              </div>
+            </div>
+            <div className="text-xs text-red-700">请完成月度复核并更新复核结论。</div>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {ruleReviewStatus.reviews?.filter((item: any) => item.status !== 'approved' || !item.nextReviewAt || new Date(item.nextReviewAt).getTime() < Date.now()).slice(0, 4).map((item: any) => (
+              <div key={item.category} className="rounded border border-white/60 bg-white/70 px-3 py-2 text-xs text-slate-600">
+                <div className="font-medium text-slate-800">{item.title}</div>
+                <div className="mt-1">状态 {item.status} · 下次复核 {formatDateTime(item.nextReviewAt)}</div>
               </div>
             ))}
           </div>

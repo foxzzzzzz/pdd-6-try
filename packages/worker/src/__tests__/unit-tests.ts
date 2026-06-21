@@ -27,6 +27,7 @@ import { clampActionConcurrency, clampInspectionConcurrency, decideStoreStatusFo
 import { summarizeRiskEvents } from '../risk-sentinel';
 import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator-session';
 import { evaluateSelectorHealth, isModuleDegradedFromEvents, shouldBlockWriteActionForSelectorHealth } from '../selector-health';
+import { isRuleReviewExpired, shouldBlockActionForRuleReview } from '../rule-review';
 import { parseStoredStorageState } from '../browser';
 import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
@@ -134,6 +135,10 @@ const selectorEvents = [
 assert('模块降级判断使用最近 selector 健康事件', isModuleDegradedFromEvents(selectorEvents, 'reviews'));
 assert('健康模块不触发降级', !isModuleDegradedFromEvents(selectorEvents, 'refunds'));
 assert('写操作 selector 降级时阻止 real-run', shouldBlockWriteActionForSelectorHealth('reviews', selectorEvents));
+assert('规则复核未过期不阻止高风险写操作', !isRuleReviewExpired({ nextReviewAt: '2026-06-22T00:00:00.000Z', status: 'approved' }, new Date('2026-06-21T00:00:00.000Z')));
+assert('规则复核过期会阻止高风险写操作', isRuleReviewExpired({ nextReviewAt: '2026-06-20T00:00:00.000Z', status: 'approved' }, new Date('2026-06-21T00:00:00.000Z')));
+assert('缺少规则复核记录会阻止举报和隐藏 real-run', shouldBlockActionForRuleReview('report', [], new Date('2026-06-21T00:00:00.000Z')) && shouldBlockActionForRuleReview('hide', [], new Date('2026-06-21T00:00:00.000Z')));
+assert('好评回复不依赖举报隐藏规则复核', !shouldBlockActionForRuleReview('reply', [], new Date('2026-06-21T00:00:00.000Z')));
 
 const schedulerJobData = createSchedulerJobData();
 const actionJobData = createActionJobData('review', 7, 12, 'report', 'operator-a');

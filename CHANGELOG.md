@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 新增
+- P6 规则复核机制落地：新增 `rule_reviews` 表、`/api/rule-reviews/status` 查询和更新接口、Dashboard 规则复核过期提醒；默认内置评价管理、举报/隐藏、账号安全、自动化工具限制和相关协议 5 类月度复核项，规则未通过或过期时举报/隐藏 real-run 会被 Worker 暂停，巡店阶段只保留候选生成和人工审批。
 - P5 选择器和页面变更监控落地：新增 `selector_health_events` 表、只读 `pnpm test:selector-health` smoke test、`/api/selector-health/status` 查询接口和 Dashboard 页面采集健康提醒；Worker 会按最近 selector 健康事件对综合星级、消费者体验、售后、评价数据、评价管理和互动模块做模块级降级，写操作 real-run 在 `reviews/interactions` selector degraded 时强制暂停。
 - P4 账号和权限治理落地：新增 `operators`、`operator_store_sessions` 和 `risk_events.operator_id`，巡店与真实写操作支持按 `operatorId + storeId` 隔离 Playwright `storageState/profileKey`；审批台确认/跳过必须填写运营 ID，action worker 使用对应绑定登录态执行并回写审计；运营绑定风险事件优先暂停对应 session，不直接牵连整个店铺；新增 `/api/operator-sessions` 只读查询接口，详细边界见 `docs/action-approval-risk-control.md`。
 - P1 写操作风控闭环落地候选/审批/单条执行能力：`ActionSafety` 支持审批要求、每日限额和执行审计字段；举报/互动隐藏默认生成 `pending_approval` 候选；新增 `/api/action-candidates` 查询、确认执行和跳过接口，确认后创建 `pdd-action` 单条执行任务，由 Worker 只执行该候选动作并回写结果；Web 新增 `/actions/review` 审批台；详细边界见 `docs/action-approval-risk-control.md`。

@@ -274,7 +274,24 @@ export const dailyReports = sqliteTable('daily_reports', {
 });
 
 // ============================================================
-// 13. selector_health_events - page selector smoke-test events
+// 13. rule_reviews - manual platform rule review checklist
+// ============================================================
+export const ruleReviews = sqliteTable('rule_reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  category: text('category').notNull().unique(),
+  title: text('title').notNull(),
+  status: text('status').notNull().default('pending'),    // pending | approved | expired | paused
+  lastReviewedAt: text('last_reviewed_at'),
+  nextReviewAt: text('next_review_at'),
+  conclusion: text('conclusion'),
+  evidencePath: text('evidence_path'),
+  owner: text('owner'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+});
+
+// ============================================================
+// 14. selector_health_events - page selector smoke-test events
 // ============================================================
 export const selectorHealthEvents = sqliteTable('selector_health_events', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -291,7 +308,7 @@ export const selectorHealthEvents = sqliteTable('selector_health_events', {
 });
 
 // ============================================================
-// 14. risk_events - risk-control sentinel events
+// 15. risk_events - risk-control sentinel events
 // ============================================================
 export const riskEvents = sqliteTable('risk_events', {
   id: integer('id').primaryKey({ autoIncrement: true }),

@@ -393,6 +393,36 @@ async function migrate() {
     )
   `);
 
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS rule_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      last_reviewed_at TEXT,
+      next_review_at TEXT,
+      conclusion TEXT,
+      evidence_path TEXT,
+      owner TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  for (const [category, title] of [
+    ['review_management', '评价管理规则'],
+    ['report_hide', '举报/隐藏规则'],
+    ['account_security', '商家后台账号安全规则'],
+    ['automation_tools', '自动化工具/第三方工具限制'],
+    ['service_agreements', '店铺推广/客服/评价相关协议'],
+  ] as const) {
+    db.run(sql.raw(`
+      INSERT INTO rule_reviews (category, title, status)
+      VALUES ('${category}', '${title}', 'pending')
+      ON CONFLICT(category) DO NOTHING
+    `));
+  }
+
   try {
     db.run(sql`ALTER TABLE risk_events ADD COLUMN operator_id TEXT`);
   } catch {

@@ -8,6 +8,7 @@ import { executeInteractionActionCandidate, InteractionActionCandidate } from '.
 import { executeReviewActionCandidate, ReviewActionCandidate } from './actions/reviews';
 import { normalizeOperatorId, resolveOperatorStorageState, saveOperatorStoreSession } from './operator-session';
 import { isModuleDegraded } from './selector-health';
+import { getRuleReviewBlockReason } from './rule-review';
 
 export interface ActionExecutorConfig {
   headless: boolean;
@@ -46,6 +47,13 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
   const selectorModule = job.actionType === 'hide' ? 'interactions' : 'reviews';
   if (isModuleDegraded(db, selectorModule)) {
     const errorMessage = `Selector health degraded for ${selectorModule}; real-run action paused`;
+    setCandidateStatus(db, job.candidateKind, job.candidateId, 'failed', { errorMessage, operatorId });
+    saveDb(db);
+    return { status: 'failed', error: errorMessage };
+  }
+  const ruleReviewBlockReason = getRuleReviewBlockReason(db, job.actionType);
+  if (ruleReviewBlockReason) {
+    const errorMessage = `${ruleReviewBlockReason}; real-run action paused`;
     setCandidateStatus(db, job.candidateKind, job.candidateId, 'failed', { errorMessage, operatorId });
     saveDb(db);
     return { status: 'failed', error: errorMessage };

@@ -20,6 +20,7 @@ import { ActionMode, resolveActionSafety } from './action-safety';
 import { recordRiskEvent } from './risk-sentinel';
 import { normalizeOperatorId, resolveOperatorStorageState, saveOperatorStoreSession } from './operator-session';
 import { isModuleDegraded, SelectorModuleKey } from './selector-health';
+import { getRuleReviewBlockReason } from './rule-review';
 
 export interface InspectionConfig {
   inspectionId?: number;
@@ -90,12 +91,16 @@ export async function inspectStore(
   const resolvedConfig: InspectionConfig = { ...DEFAULT_CONFIG, ...config };
   const operatorId = normalizeOperatorId(resolvedConfig.operatorId);
   const db = await getDb();
+  const reportRuleReviewBlock = getRuleReviewBlockReason(db, 'report');
+  const hideRuleReviewBlock = getRuleReviewBlockReason(db, 'hide');
   const actionSafety = resolveActionSafety({
     ...resolvedConfig,
     maxActions: resolvedConfig.actionLimit,
     replyApprovalRequired: resolvedConfig.replyApprovalRequired,
-    reportApprovalRequired: resolvedConfig.reportApprovalRequired,
-    hideApprovalRequired: resolvedConfig.hideApprovalRequired,
+    reportApprovalRequired: resolvedConfig.reportApprovalRequired || Boolean(reportRuleReviewBlock),
+    hideApprovalRequired: resolvedConfig.hideApprovalRequired || Boolean(hideRuleReviewBlock),
+    enableReport: reportRuleReviewBlock ? false : resolvedConfig.enableReport,
+    enableHideInteractions: hideRuleReviewBlock ? false : resolvedConfig.enableHideInteractions,
     dailyLimits: {
       reply: resolvedConfig.replyDailyLimit ?? null,
       report: resolvedConfig.reportDailyLimit ?? null,
