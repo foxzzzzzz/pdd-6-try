@@ -55,6 +55,7 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
       saveDb(db);
       return { status: 'failed', error: errorMessage };
     }
+    refreshStoreSession(db, browser, store.id).catch(() => undefined);
 
     const safety = buildSingleActionSafety(job.actionType, config);
     await delayBeforeAction(job.actionType, config);
@@ -85,6 +86,18 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
   } finally {
     await browser.close().catch(() => undefined);
   }
+}
+
+async function refreshStoreSession(db: any, browser: BrowserManager, storeId: number): Promise<void> {
+  const storageState = await browser.saveStorageState();
+  db.run(sql.raw(`
+    UPDATE stores
+    SET storage_state = ${quote(storageState)},
+        status = 'active',
+        updated_at = ${quote(new Date().toISOString())}
+    WHERE id = ${storeId}
+  `));
+  saveDb(db);
 }
 
 async function delayBeforeAction(actionType: ActionJobData['actionType'], config: ActionExecutorConfig): Promise<void> {

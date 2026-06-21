@@ -12,15 +12,21 @@ import {
 let inspectionQueue: Queue<InspectionJobData> | null = null;
 let actionQueue: Queue<ActionJobData> | null = null;
 
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 export function getInspectionQueue(): Queue<InspectionJobData> {
   if (!inspectionQueue) {
     inspectionQueue = new Queue<InspectionJobData>(INSPECTION_QUEUE, {
       connection: getRedisOptions(),
       defaultJobOptions: {
-        attempts: 3,
+        attempts: parsePositiveInt(process.env.INSPECTION_JOB_ATTEMPTS, 1),
         backoff: {
           type: 'exponential',
-          delay: 5000,
+          delay: parsePositiveInt(process.env.INSPECTION_JOB_BACKOFF_MS, 30000),
         },
         removeOnComplete: 100,
         removeOnFail: 50,

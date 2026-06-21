@@ -24,6 +24,10 @@ export function clampActionConcurrency(value: number): number {
   return Number.isFinite(value) && value > 0 ? Math.min(1, Math.floor(value)) : 1;
 }
 
+export function clampInspectionConcurrency(value: number): number {
+  return Number.isFinite(value) && value > 0 ? Math.min(1, Math.floor(value)) : 1;
+}
+
 export function resolveActionDelayMs(
   actionType: ActionJobData['actionType'],
   overrideRange?: string,

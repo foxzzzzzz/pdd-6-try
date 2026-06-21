@@ -3,7 +3,7 @@ import { Worker } from 'bullmq';
 import { inspectStore } from './inspector';
 import { ACTION_QUEUE, ActionJobData, INSPECTION_QUEUE, InspectionJobData } from '@pdd-inspector/core';
 import { executeApprovedAction } from './action-executor';
-import { clampActionConcurrency } from './action-risk-control';
+import { clampActionConcurrency, clampInspectionConcurrency } from './action-risk-control';
 
 loadWorkspaceEnv();
 
@@ -12,7 +12,7 @@ const log = (...args: any[]) => { try { process.stdout.write(args.join(' ') + '\
 
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
-const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '3', 10);
+const CONCURRENCY = clampInspectionConcurrency(parseInt(process.env.WORKER_CONCURRENCY || '1', 10));
 const ACTION_CONCURRENCY = clampActionConcurrency(parseInt(process.env.WORKER_ACTION_CONCURRENCY || '1', 10));
 const HEADLESS = process.env.WORKER_HEADLESS !== 'false';
 const ACTION_MODE = process.env.WORKER_ACTION_MODE === 'real-run' ? 'real-run' : 'dry-run';

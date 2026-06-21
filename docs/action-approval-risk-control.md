@@ -353,6 +353,23 @@ failed
 
 操作间隔和一定随机性是需要的，但它的目标不是“绕过平台检测”，而是让系统行为贴近你们真实的低频人工巡店节奏，避免连续秒级提交、异常重试和多店并发写操作这类明显不合理特征。
 
+## P2 全局节流与真实工作节奏
+
+当前实现状态（2026-06-21）：
+
+- 读巡店 worker 并发默认和上限均为 `1`；即使配置 `WORKER_CONCURRENCY=3`，代码也会夹到 `1`。
+- 写操作 action worker 并发默认和上限均为 `1`。
+- 同一进程内最多形成 1 个读巡店浏览器会话 + 1 个写操作浏览器会话，符合“最多 1-2 个活跃浏览器会话”的保守策略。
+- 读操作和写操作已拆分为 `pdd-inspection` 与 `pdd-action` 两条队列；审批后的写操作只进入 `pdd-action`，不会和巡店采集混跑。
+- 写操作 job 默认 `attempts=1`，失败后不连续重试。
+- 巡店 job 默认 `attempts=1`，可通过 `INSPECTION_JOB_ATTEMPTS` 和 `INSPECTION_JOB_BACKOFF_MS` 小心调整。
+- Playwright 登录态改为原生 `storageState` 恢复，包含 cookies 和 localStorage/origins；巡店和 action 执行后都会刷新店铺 `storageState`，减少频繁重新登录。
+
+仍需后续实测/观察：
+
+- 如果未来部署多个 worker 进程，需要增加跨进程的 Redis 全局浏览器会话 semaphore，避免多个进程各自启动 1-2 个浏览器后叠加超限。
+- 如果需要更强的“固定浏览器 profile”，可以在现有 `storageState` 方案基础上评估按店铺绑定 persistent context；但这会增加 profile 锁、磁盘清理和多进程互斥复杂度，当前先不默认启用。
+
 建议默认策略：
 
 - 同一时间最多 1 个 action worker 执行真实写操作；代码会将 `WORKER_ACTION_CONCURRENCY` 强制夹到最大 `1`。

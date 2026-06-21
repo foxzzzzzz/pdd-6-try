@@ -23,7 +23,8 @@ import { parseRefundMetricsText } from '../collectors/refunds';
 import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
 import { parseCommentMetricsText } from '../collectors/comments';
 import { buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
-import { clampActionConcurrency, decideStoreStatusForRiskSignal, detectRiskControlSignal, resolveActionDelayMs } from '../action-risk-control';
+import { clampActionConcurrency, clampInspectionConcurrency, decideStoreStatusForRiskSignal, detectRiskControlSignal, resolveActionDelayMs } from '../action-risk-control';
+import { parseStoredStorageState } from '../browser';
 import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 
@@ -226,6 +227,8 @@ const limitedReplySafety = resolveActionSafety({
 assert('好评回复达到每日上限后不提交', !canSubmitAction(limitedReplySafety, 'reply'));
 assert('真实写操作 worker 并发强制不超过 1', clampActionConcurrency(3) === 1);
 assert('真实写操作 worker 并发最小为 1', clampActionConcurrency(0) === 1);
+assert('巡店读操作 worker 并发默认强制不超过 1', clampInspectionConcurrency(3) === 1);
+assert('巡店读操作 worker 并发最小为 1', clampInspectionConcurrency(0) === 1);
 assert('好评回复默认间隔为 8-20 秒', resolveActionDelayMs('reply', undefined, 0) === 8000 && resolveActionDelayMs('reply', undefined, 1) === 20000);
 assert('举报默认间隔为 20-60 秒', resolveActionDelayMs('report', undefined, 0) === 20000 && resolveActionDelayMs('report', undefined, 1) === 60000);
 assert('互动隐藏默认间隔为 20-60 秒', resolveActionDelayMs('hide', undefined, 0) === 20000 && resolveActionDelayMs('hide', undefined, 1) === 60000);
@@ -234,6 +237,9 @@ assert('识别登录验证类风控信号', detectRiskControlSignal('Store login
 assert('识别操作频繁类风控信号', detectRiskControlSignal('页面提示操作频繁，请稍后再试')?.kind === 'rate_limit');
 assert('登录类风控将店铺标记为 pending_login', decideStoreStatusForRiskSignal('login') === 'pending_login');
 assert('安全/频繁类风控将店铺标记为 paused', decideStoreStatusForRiskSignal('security') === 'paused' && decideStoreStatusForRiskSignal('rate_limit') === 'paused');
+const storedState = parseStoredStorageState(JSON.stringify({ cookies: [{ name: 'sid', value: '1' }], origins: [{ origin: 'https://mms.pinduoduo.com', localStorage: [{ name: 'k', value: 'v' }] }] }));
+assert('浏览器登录态恢复包含 localStorage origins', storedState?.origins?.[0]?.localStorage?.[0]?.value === 'v');
+assert('非法浏览器登录态返回 undefined', parseStoredStorageState('{bad json') === undefined);
 
 const realRunFromInspectionConfig = resolveActionSafety({
   actionMode: 'real-run',

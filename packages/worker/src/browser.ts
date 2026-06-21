@@ -4,6 +4,17 @@ import * as path from 'path';
 
 const SCREENSHOTS_DIR = path.resolve(process.env.SCREENSHOTS_DIR || './data/screenshots');
 
+export function parseStoredStorageState(storageState?: string | null): Record<string, unknown> | undefined {
+  if (!storageState) return undefined;
+  try {
+    const parsed = JSON.parse(storageState);
+    if (!parsed || typeof parsed !== 'object') return undefined;
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
 export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
@@ -30,21 +41,8 @@ export class BrowserManager {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       viewport: { width: 1920, height: 1080 },
       locale: 'zh-CN',
+      storageState: parseStoredStorageState(storageState) as any,
     });
-
-    // Restore storage state if available
-    if (storageState) {
-      try {
-        const state = JSON.parse(storageState);
-        await this.context.addCookies(state.cookies || []);
-        // Also restore localStorage if available
-        if (state.origins && state.origins.length > 0) {
-          // origins-based storage state
-        }
-      } catch {
-        // Invalid storage state, will need fresh login
-      }
-    }
 
     this.page = await this.context.newPage();
 
