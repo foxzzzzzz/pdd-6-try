@@ -200,7 +200,7 @@ function ExpDetail({ label, value, change }: { label: string; value: number | nu
       <div className="text-xs text-slate-500 mb-1">{label}</div>
       <div className="text-lg font-bold text-slate-900">{Number(value).toFixed(2)}</div>
       {change != null && (
-        <div className={`text-xs mt-0.5 font-medium ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
+        <div className={`text-xs mt-0.5 font-medium ${isUp ? 'text-red-500' : isDown ? 'text-emerald-600' : 'text-slate-400'}`}>
           {isUp ? '+' : ''}{Number(change).toFixed(2)}%
         </div>
       )}
