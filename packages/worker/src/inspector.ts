@@ -17,6 +17,7 @@ import { formatDailySummaryForInspection, generateDailyReport, StoreReportData }
 import { buildMetricInsertValues } from './inspection-results';
 import { shouldRunRuleBasedAnomalyDetection } from './inspection-config';
 import { ActionMode, resolveActionSafety } from './action-safety';
+import { recordRiskEvent } from './risk-sentinel';
 
 export interface InspectionConfig {
   inspectionId?: number;
@@ -133,14 +134,15 @@ export async function inspectStore(
     const loggedIn = await browser.login(storeId, store.storageState);
 
     if (!loggedIn) {
-      // Update store status to pending_login
-      db.update(schema.stores)
-        .set({ status: 'pending_login', updatedAt: new Date().toISOString() })
-        .where(eq(schema.stores.id, storeId))
-        .run();
-      saveDb(db);
+      const loginMessage = 'Login required - manual intervention needed';
+      await recordRiskEvent(db, {
+        storeId,
+        eventType: 'login',
+        message: loginMessage,
+        browser,
+      });
 
-      errors.push('Login required — manual intervention needed');
+      errors.push(loginMessage);
       updateInspectionRecord({
         status: 'failed',
         endTime: new Date().toISOString(),

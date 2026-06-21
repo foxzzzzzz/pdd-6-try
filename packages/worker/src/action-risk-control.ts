@@ -15,7 +15,7 @@ const DEFAULT_ACTION_DELAY_MS: Record<ActionJobData['actionType'], [number, numb
 
 const RISK_KEYWORDS: Array<{ kind: RiskControlKind; keywords: string[] }> = [
   { kind: 'login', keywords: ['login required', '登录', '扫码', '二维码', '重新登录'] },
-  { kind: 'security', keywords: ['安全验证', '验证码', '滑块', '短信验证', '账号安全', 'captcha', 'verify'] },
+  { kind: 'security', keywords: ['安全验证', '验证码', '滑块', '短信验证', '账号安全', '处罚', '违规', 'captcha', 'verify'] },
   { kind: 'rate_limit', keywords: ['操作频繁', '频繁', '稍后再试', 'too frequent', 'rate limit'] },
   { kind: 'permission', keywords: ['权限不足', '无权限', 'permission denied', 'forbidden'] },
 ];

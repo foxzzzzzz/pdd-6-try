@@ -107,6 +107,20 @@ export class BrowserManager {
     return filepath;
   }
 
+  async savePageHtml(storeId: number, name: string): Promise<string> {
+    if (!this.page) throw new Error('Page not initialized');
+
+    const dir = path.join(SCREENSHOTS_DIR, String(storeId));
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    const filename = `${name}-${Date.now()}.html`;
+    const filepath = path.join(dir, filename);
+    fs.writeFileSync(filepath, await this.page.content(), 'utf8');
+    return filepath;
+  }
+
   async navigateWithRetry(url: string, retries = 3): Promise<void> {
     if (!this.page) throw new Error('Page not initialized');
 

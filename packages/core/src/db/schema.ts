@@ -245,3 +245,23 @@ export const dailyReports = sqliteTable('daily_reports', {
   createdAt: text('created_at').default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`),
 });
+
+// ============================================================
+// 11. risk_events - risk-control sentinel events
+// ============================================================
+export const riskEvents = sqliteTable('risk_events', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  storeId: integer('store_id').references(() => stores.id),
+  scope: text('scope').notNull().default('store'),        // store | global
+  eventType: text('event_type').notNull(),                // login | security | rate_limit | permission | action_failure
+  severity: text('severity').notNull().default('warning'), // warning | critical
+  message: text('message').notNull(),
+  actionType: text('action_type'),
+  sourceType: text('source_type'),
+  sourceId: text('source_id'),
+  screenshotPath: text('screenshot_path'),
+  htmlPath: text('html_path'),
+  status: text('status').notNull().default('active'),     // active | resolved
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  resolvedAt: text('resolved_at'),
+});

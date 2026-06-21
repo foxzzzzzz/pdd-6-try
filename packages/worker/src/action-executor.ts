@@ -2,7 +2,8 @@ import { ActionJobData, getDb, saveDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 import { BrowserManager } from './browser';
 import { ActionSafety } from './action-safety';
-import { decideStoreStatusForRiskSignal, detectRiskControlSignal, resolveActionDelayMs } from './action-risk-control';
+import { resolveActionDelayMs } from './action-risk-control';
+import { isGlobalWritePaused, recordRiskEvent, resolveRiskEventType } from './risk-sentinel';
 import { executeInteractionActionCandidate, InteractionActionCandidate } from './actions/interactions';
 import { executeReviewActionCandidate, ReviewActionCandidate } from './actions/reviews';
 
@@ -38,6 +39,12 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
 
   const store = getStore(db, job.storeId);
   if (!store) throw new Error(`Store not found: ${job.storeId}`);
+  if (isGlobalWritePaused(db)) {
+    const errorMessage = 'Global write risk control active';
+    setCandidateStatus(db, job.candidateKind, job.candidateId, 'failed', { errorMessage });
+    saveDb(db);
+    return { status: 'failed', error: errorMessage };
+  }
 
   setCandidateStatus(db, job.candidateKind, job.candidateId, 'running', {
     operatorId: job.operatorId,
@@ -51,7 +58,7 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
     if (!loggedIn) {
       const errorMessage = 'Store login required before executing approved action';
       setCandidateStatus(db, job.candidateKind, job.candidateId, 'failed', { errorMessage });
-      markStoreForRiskControl(db, store.id, errorMessage);
+      await recordActionRisk(db, browser, job, errorMessage, 'login');
       saveDb(db);
       return { status: 'failed', error: errorMessage };
     }
@@ -66,7 +73,7 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
 
     const finalStatus = detail.status === 'success' ? 'success' : 'failed';
     if (detail.errorMessage) {
-      markStoreForRiskControl(db, store.id, detail.errorMessage);
+      await recordActionRisk(db, browser, job, detail.errorMessage, resolveRiskEventType(detail.errorMessage) || 'action_failure');
     }
     setCandidateStatus(db, job.candidateKind, job.candidateId, finalStatus, {
       errorMessage: detail.errorMessage || null,
@@ -79,13 +86,31 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
     return { status: finalStatus, error: detail.errorMessage };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    markStoreForRiskControl(db, job.storeId, errorMessage);
+    await recordActionRisk(db, browser, job, errorMessage, resolveRiskEventType(errorMessage) || 'action_failure');
     setCandidateStatus(db, job.candidateKind, job.candidateId, 'failed', { errorMessage });
     saveDb(db);
     return { status: 'failed', error: errorMessage };
   } finally {
     await browser.close().catch(() => undefined);
   }
+}
+
+async function recordActionRisk(
+  db: any,
+  browser: BrowserManager,
+  job: ActionJobData,
+  message: string,
+  eventType: 'login' | 'security' | 'rate_limit' | 'permission' | 'action_failure',
+): Promise<void> {
+  await recordRiskEvent(db, {
+    storeId: job.storeId,
+    eventType,
+    message,
+    actionType: job.actionType,
+    sourceType: job.candidateKind,
+    sourceId: String(job.candidateId),
+    browser,
+  });
 }
 
 async function refreshStoreSession(db: any, browser: BrowserManager, storeId: number): Promise<void> {
@@ -210,18 +235,6 @@ function setCandidateStatus(
   if ('executedAt' in values) updates.push(`executed_at = ${values.executedAt ? quote(values.executedAt) : 'NULL'}`);
   if ('operatorId' in values) updates.push(`operator_id = ${values.operatorId ? quote(values.operatorId) : 'NULL'}`);
   db.run(sql.raw(`UPDATE ${table} SET ${updates.join(', ')} WHERE id = ${id}`));
-}
-
-function markStoreForRiskControl(db: any, storeId: number, message: string): void {
-  const signal = detectRiskControlSignal(message);
-  if (!signal) return;
-  const status = decideStoreStatusForRiskSignal(signal.kind);
-  db.run(sql.raw(`
-    UPDATE stores
-    SET status = ${quote(status)},
-        updated_at = ${quote(new Date().toISOString())}
-    WHERE id = ${storeId}
-  `));
 }
 
 function quote(value: string): string {

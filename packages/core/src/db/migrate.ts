@@ -331,6 +331,25 @@ async function migrate() {
     )
   `);
 
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS risk_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      store_id INTEGER REFERENCES stores(id),
+      scope TEXT NOT NULL DEFAULT 'store',
+      event_type TEXT NOT NULL,
+      severity TEXT NOT NULL DEFAULT 'warning',
+      message TEXT NOT NULL,
+      action_type TEXT,
+      source_type TEXT,
+      source_id TEXT,
+      screenshot_path TEXT,
+      html_path TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT DEFAULT (datetime('now')),
+      resolved_at TEXT
+    )
+  `);
+
   saveDb(db);
   console.log('Migration complete: all tables created.');
 

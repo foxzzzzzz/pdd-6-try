@@ -24,6 +24,7 @@ import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../colle
 import { parseCommentMetricsText } from '../collectors/comments';
 import { buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
 import { clampActionConcurrency, clampInspectionConcurrency, decideStoreStatusForRiskSignal, detectRiskControlSignal, resolveActionDelayMs } from '../action-risk-control';
+import { summarizeRiskEvents } from '../risk-sentinel';
 import { parseStoredStorageState } from '../browser';
 import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
@@ -235,8 +236,20 @@ assert('互动隐藏默认间隔为 20-60 秒', resolveActionDelayMs('hide', und
 assert('自定义间隔支持毫秒范围', resolveActionDelayMs('reply', '1000-2000', 0.5) === 1500);
 assert('识别登录验证类风控信号', detectRiskControlSignal('Store login required before executing approved action')?.kind === 'login');
 assert('识别操作频繁类风控信号', detectRiskControlSignal('页面提示操作频繁，请稍后再试')?.kind === 'rate_limit');
+assert('识别处罚/账号安全类风控信号', detectRiskControlSignal('后台出现处罚和账号安全提醒')?.kind === 'security');
 assert('登录类风控将店铺标记为 pending_login', decideStoreStatusForRiskSignal('login') === 'pending_login');
 assert('安全/频繁类风控将店铺标记为 paused', decideStoreStatusForRiskSignal('security') === 'paused' && decideStoreStatusForRiskSignal('rate_limit') === 'paused');
+const multiStoreRisk = summarizeRiskEvents([
+  { storeId: 1, eventType: 'rate_limit', status: 'active' },
+  { storeId: 2, eventType: 'rate_limit', status: 'active' },
+]);
+assert('多店连续同类风控触发全局写熔断', multiStoreRisk.globalWritePaused && multiStoreRisk.globalReasons.some((reason) => reason.includes('rate_limit')));
+const storeFailureRisk = summarizeRiskEvents([
+  { storeId: 1, eventType: 'action_failure', status: 'active' },
+  { storeId: 1, eventType: 'action_failure', status: 'active' },
+  { storeId: 1, eventType: 'action_failure', status: 'active' },
+]);
+assert('单店写操作失败率升高触发店铺熔断', storeFailureRisk.pausedStoreIds.includes(1));
 const storedState = parseStoredStorageState(JSON.stringify({ cookies: [{ name: 'sid', value: '1' }], origins: [{ origin: 'https://mms.pinduoduo.com', localStorage: [{ name: 'k', value: 'v' }] }] }));
 assert('浏览器登录态恢复包含 localStorage origins', storedState?.origins?.[0]?.localStorage?.[0]?.value === 'v');
 assert('非法浏览器登录态返回 undefined', parseStoredStorageState('{bad json') === undefined);

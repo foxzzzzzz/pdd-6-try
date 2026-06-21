@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Link } from 'react-router-dom';
-import { Play, TrendingUp, FileSpreadsheet, Download, CheckCircle2, AlertTriangle, AlertCircle, Star, Package, ChevronRight } from 'lucide-react';
+import { Play, TrendingUp, FileSpreadsheet, Download, CheckCircle2, AlertTriangle, AlertCircle, Star, Package, ChevronRight, ShieldAlert } from 'lucide-react';
 
 interface StoreStatus {
   id: number; name: string; status: string; severity: string;
@@ -11,6 +11,7 @@ interface StoreStatus {
 export default function Dashboard() {
   const [stores, setStores] = useState<StoreStatus[]>([]);
   const [reports, setReports] = useState<{ daily?: any; weekly?: any; monthly?: any }>({});
+  const [riskStatus, setRiskStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [inspecting, setInspecting] = useState(false);
 
@@ -22,12 +23,13 @@ export default function Dashboard() {
 
   async function loadData() {
     try {
-      const [storeList, inspections, dailyReport, weeklyReport, monthlyReport] = await Promise.all([
+      const [storeList, inspections, dailyReport, weeklyReport, monthlyReport, risk] = await Promise.all([
         api.getStores(),
         api.getInspections({ limit: 50 }),
         api.getDailyReport().catch(() => null),
         api.getWeeklyReport().catch(() => null),
         api.getMonthlyReport().catch(() => null),
+        api.getRiskStatus().catch(() => null),
       ]);
       const merged: StoreStatus[] = storeList.map((s: any) => {
         const latest = (inspections as any[]).find((i: any) => i.storeId === s.id);
@@ -40,6 +42,7 @@ export default function Dashboard() {
       });
       setStores(merged);
       setReports({ daily: dailyReport, weekly: weeklyReport, monthly: monthlyReport });
+      setRiskStatus(risk);
     } catch (err) {
       console.error('Failed to load dashboard:', err);
     } finally {
@@ -100,6 +103,39 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {riskStatus?.activeEvents?.length ? (
+        <div className={`mb-6 rounded-lg border p-4 ${
+          riskStatus.globalWritePaused ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'
+        }`}>
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex gap-3">
+              <ShieldAlert size={20} className={riskStatus.globalWritePaused ? 'text-red-600' : 'text-amber-600'} />
+              <div>
+                <h3 className={`font-semibold ${riskStatus.globalWritePaused ? 'text-red-800' : 'text-amber-800'}`}>
+                  {riskStatus.globalWritePaused ? '全局写操作已熔断' : '存在店铺风控事件'}
+                </h3>
+                <p className={`mt-1 text-sm ${riskStatus.globalWritePaused ? 'text-red-700' : 'text-amber-700'}`}>
+                  {riskStatus.globalWritePaused
+                    ? '系统已暂停真实回复/举报/隐藏，请运营人工接管并处理安全提示。'
+                    : `${riskStatus.activeEvents.length} 条风控事件待处理，请优先查看截图和 HTML 证据。`}
+                </p>
+              </div>
+            </div>
+            <div className="text-xs text-slate-500">
+              受影响店铺 {riskStatus.pausedStoreIds?.length || 0} 家
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {riskStatus.activeEvents.slice(0, 4).map((event: any) => (
+              <div key={event.id} className="rounded border border-white/60 bg-white/70 px-3 py-2 text-xs text-slate-600">
+                <div className="font-medium text-slate-800">{event.storeName || '全局'} · {event.eventType}</div>
+                <div className="mt-1 line-clamp-2">{event.message}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Status Summary */}
       <div className="grid grid-cols-3 gap-4 mb-6">

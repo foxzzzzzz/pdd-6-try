@@ -36,6 +36,7 @@ export const api = {
   triggerInspect: (storeId: number) => request<any>(`/stores/${storeId}/inspect`, { method: 'POST' }),
   triggerInspectAll: () => request<any>('/inspect-all', { method: 'POST' }),
   getQueueStatus: () => request<any>('/queue/status'),
+  getRiskStatus: () => request<any>('/risk/status'),
 
   // Action candidates
   getActionCandidates: (params?: { status?: string; storeId?: number; type?: string }) => {
