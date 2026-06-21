@@ -19,6 +19,7 @@ import { shouldRunRuleBasedAnomalyDetection } from './inspection-config';
 import { ActionMode, resolveActionSafety } from './action-safety';
 import { recordRiskEvent } from './risk-sentinel';
 import { normalizeOperatorId, resolveOperatorStorageState, saveOperatorStoreSession } from './operator-session';
+import { isModuleDegraded, SelectorModuleKey } from './selector-health';
 
 export interface InspectionConfig {
   inspectionId?: number;
@@ -170,19 +171,31 @@ export async function inspectStore(
     log(`[${storeName}] Starting data collection...`);
 
     // Step 1: Store health metrics
-    const healthMetrics = await collectStoreMetrics(browser, storeId);
-    completedSteps++;
-    log(`[${storeName}] Store health collected`);
+    const healthMetrics = shouldSkipModule(db, 'pilot_mall', storeName)
+      ? {}
+      : await collectStoreMetrics(browser, storeId);
+    if (Object.keys(healthMetrics).length > 0) {
+      completedSteps++;
+      log(`[${storeName}] Store health collected`);
+    }
 
     // Step 2: Consumer experience
-    const expMetrics = await collectExperienceMetrics(browser, storeId);
-    completedSteps++;
-    log(`[${storeName}] Consumer experience collected`);
+    const expMetrics = shouldSkipModule(db, 'experience', storeName)
+      ? {}
+      : await collectExperienceMetrics(browser, storeId);
+    if (Object.keys(expMetrics).length > 0) {
+      completedSteps++;
+      log(`[${storeName}] Consumer experience collected`);
+    }
 
     // Step 3: Refund data
-    const refundMetrics = await collectRefundMetrics(browser, storeId);
-    completedSteps++;
-    log(`[${storeName}] Refund data collected`);
+    const refundMetrics = shouldSkipModule(db, 'refunds', storeName)
+      ? {}
+      : await collectRefundMetrics(browser, storeId);
+    if (Object.keys(refundMetrics).length > 0) {
+      completedSteps++;
+      log(`[${storeName}] Refund data collected`);
+    }
 
     // Step 4: Appeal data
     const appealMetrics = await collectAppealMetrics(browser, storeId);
@@ -190,16 +203,21 @@ export async function inspectStore(
     log(`[${storeName}] Appeal data collected`);
 
     // Step 5: Comment data
-    const commentMetrics = await collectCommentMetrics(browser, storeId);
-    completedSteps++;
-    log(`[${storeName}] Comment data collected`);
+    const commentMetrics = shouldSkipModule(db, 'comment', storeName)
+      ? {}
+      : await collectCommentMetrics(browser, storeId);
+    if (Object.keys(commentMetrics).length > 0) {
+      completedSteps++;
+      log(`[${storeName}] Comment data collected`);
+    }
 
     // ======== PHASE 2.5: REVIEW ACTIONS ========
     let reviewResult: ReviewActionResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
     let interactionResult: InteractionActionResult = { details: [], hidden: 0, ignored: 0, skipped: 0 };
 
     // Step 5: Reply to good reviews
-    if (resolvedConfig.enableReply) {
+    const reviewSelectorsDegraded = shouldSkipModule(db, 'reviews', storeName);
+    if (resolvedConfig.enableReply && !reviewSelectorsDegraded) {
       try {
         reviewResult = await replyToGoodReviews(browser, storeId, DEFAULT_REPLY_TEMPLATE, actionSafety);
         log(`[${storeName}] Reviews: ${reviewResult.replied} replied, ${reviewResult.skipped} skipped`);
@@ -207,10 +225,10 @@ export async function inspectStore(
         errors.push(`Reply failed: ${err}`);
       }
     }
-    completedSteps++;
+    if (!reviewSelectorsDegraded) completedSteps++;
 
     // Step 6: Report bad reviews
-    if (resolvedConfig.enableReport || actionSafety.approvalRequired.report) {
+    if ((resolvedConfig.enableReport || actionSafety.approvalRequired.report) && !reviewSelectorsDegraded) {
       try {
         // AI 介入点 1&2: 尝试用 AI 匹配话术
         var reportTemplateFn: (review: { content: string; stars: number }) => string | Promise<string> = ruleBasedReportTemplate;
@@ -230,7 +248,7 @@ export async function inspectStore(
         errors.push(`Report failed: ${err}`);
       }
     }
-    completedSteps++;
+    if (!reviewSelectorsDegraded) completedSteps++;
 
     // Step 7: Handle bad interactions (介入点 3)
     var interactionJudgeFn: (content: string) => { shouldHide: boolean; reason: string } | Promise<{ shouldHide: boolean; reason: string }> = ruleBasedInteractionJudge;
@@ -240,7 +258,8 @@ export async function inspectStore(
         interactionJudgeFn = createInteractionJudge(aiHeavy, ruleBasedInteractionJudge);
       } catch { /* AI not available, use rules */ }
     }
-    if (resolvedConfig.enableHideInteractions || actionSafety.approvalRequired.hide) {
+    const interactionSelectorsDegraded = shouldSkipModule(db, 'interactions', storeName);
+    if ((resolvedConfig.enableHideInteractions || actionSafety.approvalRequired.hide) && !interactionSelectorsDegraded) {
       try {
         interactionResult = await handleInteractions(browser, storeId, interactionJudgeFn, actionSafety);
         log(`[${storeName}] Interactions: ${interactionResult.hidden} hidden, ${interactionResult.ignored} ignored`);
@@ -248,7 +267,7 @@ export async function inspectStore(
         errors.push(`Interactions failed: ${err}`);
       }
     }
-    completedSteps++;
+    if (!interactionSelectorsDegraded) completedSteps++;
 
     // ======== PHASE 3: SAVE RESULTS ========
     const mergedMetrics: MetricsSnapshot = {
@@ -497,6 +516,12 @@ export async function inspectStore(
   }
 
   return { success: errors.length === 0, completionRate, errors };
+}
+
+function shouldSkipModule(db: Awaited<ReturnType<typeof getDb>>, moduleKey: SelectorModuleKey, storeName: string): boolean {
+  if (!isModuleDegraded(db, moduleKey)) return false;
+  log(`[${storeName}] Selector health degraded, skipping module: ${moduleKey}`);
+  return true;
 }
 
 function getDailyActionUsage(db: Awaited<ReturnType<typeof getDb>>, storeId: number, date: string) {

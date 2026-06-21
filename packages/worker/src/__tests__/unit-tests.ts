@@ -26,6 +26,7 @@ import { buildActionAudit, canSubmitAction, resolveActionSafety } from '../actio
 import { clampActionConcurrency, clampInspectionConcurrency, decideStoreStatusForRiskSignal, detectRiskControlSignal, resolveActionDelayMs } from '../action-risk-control';
 import { summarizeRiskEvents } from '../risk-sentinel';
 import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator-session';
+import { evaluateSelectorHealth, isModuleDegradedFromEvents, shouldBlockWriteActionForSelectorHealth } from '../selector-health';
 import { parseStoredStorageState } from '../browser';
 import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
@@ -112,6 +113,27 @@ assert('巡店任务携带归一化 operatorId', operatorJobData.operatorId === 
 assert('空运营 ID 不进入巡店任务', !('operatorId' in createInspectionJobData(12, '测试店铺', '2026-06-17', 99, '   ')));
 assert('运营 ID 会 trim 并拒绝空值', normalizeOperatorId(' operator-a ') === 'operator-a' && normalizeOperatorId('   ') === null);
 assert('运营店铺 profileKey 固定绑定', buildOperatorSessionProfileKey('operator-a', 12) === 'operator-a:store-12');
+const selectorHealthy = evaluateSelectorHealth('refunds', '售后数据', [
+  { name: '纠纷退款率', ok: true },
+  { name: '平台介入率', ok: true },
+  { name: '品质退款率', ok: true },
+  { name: '平均退款时长', ok: false },
+]);
+assert('selector 健康检查低失败率保持 healthy', selectorHealthy.status === 'healthy' && selectorHealthy.failureRate === 0.25);
+const selectorDegraded = evaluateSelectorHealth('reviews', '评价管理', [
+  { name: '评价时间', ok: true },
+  { name: '回复按钮', ok: false },
+  { name: '举报按钮', ok: false },
+]);
+assert('selector 健康检查失败率达到阈值进入 degraded', selectorDegraded.status === 'degraded' && selectorDegraded.failureRate > 0.3);
+const selectorEvents = [
+  { moduleKey: 'reviews', status: 'healthy', createdAt: '2026-06-20T00:00:00.000Z' },
+  { moduleKey: 'reviews', status: 'degraded', createdAt: '2026-06-21T00:00:00.000Z' },
+  { moduleKey: 'refunds', status: 'healthy', createdAt: '2026-06-21T00:00:00.000Z' },
+];
+assert('模块降级判断使用最近 selector 健康事件', isModuleDegradedFromEvents(selectorEvents, 'reviews'));
+assert('健康模块不触发降级', !isModuleDegradedFromEvents(selectorEvents, 'refunds'));
+assert('写操作 selector 降级时阻止 real-run', shouldBlockWriteActionForSelectorHealth('reviews', selectorEvents));
 
 const schedulerJobData = createSchedulerJobData();
 const actionJobData = createActionJobData('review', 7, 12, 'report', 'operator-a');

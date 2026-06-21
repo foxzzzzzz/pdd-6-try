@@ -43,6 +43,7 @@ export const api = {
   ),
   getQueueStatus: () => request<any>('/queue/status'),
   getRiskStatus: () => request<any>('/risk/status'),
+  getSelectorHealthStatus: () => request<any>('/selector-health/status'),
   getOperatorSessions: (params?: { operatorId?: string; storeId?: number }) => {
     const qs = new URLSearchParams();
     if (params?.operatorId) qs.set('operatorId', params.operatorId);

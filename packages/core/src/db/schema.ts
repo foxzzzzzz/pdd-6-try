@@ -274,7 +274,24 @@ export const dailyReports = sqliteTable('daily_reports', {
 });
 
 // ============================================================
-// 13. risk_events - risk-control sentinel events
+// 13. selector_health_events - page selector smoke-test events
+// ============================================================
+export const selectorHealthEvents = sqliteTable('selector_health_events', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  moduleKey: text('module_key').notNull(),
+  moduleName: text('module_name').notNull(),
+  status: text('status').notNull(),                       // healthy | degraded
+  failureRate: real('failure_rate').notNull(),
+  totalChecks: integer('total_checks').notNull(),
+  failedChecks: integer('failed_checks').notNull(),
+  screenshotPath: text('screenshot_path'),
+  htmlPath: text('html_path'),
+  details: text('details'),                               // JSON check results
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+});
+
+// ============================================================
+// 14. risk_events - risk-control sentinel events
 // ============================================================
 export const riskEvents = sqliteTable('risk_events', {
   id: integer('id').primaryKey({ autoIncrement: true }),

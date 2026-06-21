@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 新增
+- P5 选择器和页面变更监控落地：新增 `selector_health_events` 表、只读 `pnpm test:selector-health` smoke test、`/api/selector-health/status` 查询接口和 Dashboard 页面采集健康提醒；Worker 会按最近 selector 健康事件对综合星级、消费者体验、售后、评价数据、评价管理和互动模块做模块级降级，写操作 real-run 在 `reviews/interactions` selector degraded 时强制暂停。
 - P4 账号和权限治理落地：新增 `operators`、`operator_store_sessions` 和 `risk_events.operator_id`，巡店与真实写操作支持按 `operatorId + storeId` 隔离 Playwright `storageState/profileKey`；审批台确认/跳过必须填写运营 ID，action worker 使用对应绑定登录态执行并回写审计；运营绑定风险事件优先暂停对应 session，不直接牵连整个店铺；新增 `/api/operator-sessions` 只读查询接口，详细边界见 `docs/action-approval-risk-control.md`。
 - P1 写操作风控闭环落地候选/审批/单条执行能力：`ActionSafety` 支持审批要求、每日限额和执行审计字段；举报/互动隐藏默认生成 `pending_approval` 候选；新增 `/api/action-candidates` 查询、确认执行和跳过接口，确认后创建 `pdd-action` 单条执行任务，由 Worker 只执行该候选动作并回写结果；Web 新增 `/actions/review` 审批台；详细边界见 `docs/action-approval-risk-control.md`。
 - 写操作节奏和熔断规则落地到代码默认行为：action worker 并发强制不超过 1，真实写操作前后按动作类型加入随机间隔（好评回复默认 8-20 秒，举报/隐藏默认 20-60 秒，支持环境变量覆盖），登录验证/操作频繁/安全验证/权限不足会触发店铺 `pending_login` 或 `paused` 状态，避免自动连续重试。

@@ -449,6 +449,47 @@ failed
 - 当前使用 Playwright `storageState` 做轻量 profile 绑定，没有默认启用 persistent browser context；如果后续需要磁盘级浏览器 profile，需要再补 profile 锁、清理策略和跨进程互斥。
 - 正式用户登录体系接入后，应把审批台手输 `operatorId` 改为从登录态读取，避免人工填错。
 
+## P5 选择器和页面变更监控
+
+当前实现状态（2026-06-21）：
+
+- 新增 `selector_health_events` 表，记录模块、检查项总数、失败数、失败率、截图路径、HTML 路径和详细检查结果。
+- 新增只读 smoke test：`pnpm test:selector-health`。脚本只访问关键页面，不做回复、举报、隐藏等写操作；每个页面保存截图和 HTML，并写入健康事件。
+- 新增 `/api/selector-health/status`，返回每个模块最近一次 selector 健康状态和 degraded 模块列表。
+- Dashboard 顶部新增“页面采集健康异常”提醒，展示 degraded 模块、失败率和最近检查时间。
+- Worker 巡店前会读取最近 24 小时 selector 健康事件；如果某模块最近状态为 `degraded`，只跳过对应模块，不影响其它模块。
+- action worker 执行真实写操作前会检查 `reviews/interactions` selector 健康状态；如果 degraded，即使候选已审批，也不会点击页面执行 real-run。
+
+默认模块映射：
+
+| 模块 | 页面 | 降级影响 |
+| --- | --- | --- |
+| `pilot_mall` | 服务数据 / 综合体验星级 | 跳过综合星级、领航员明细采集 |
+| `experience` | 服务数据 / 消费者体验指标 | 跳过消费者体验分采集 |
+| `refunds` | 服务数据 / 售后数据 | 跳过售后核心指标采集 |
+| `comment` | 服务数据 / 评价数据 | 跳过评价数据采集 |
+| `reviews` | 商品管理 / 评价管理 | 跳过评价回复/举报候选生成，并阻止对应 real-run |
+| `interactions` | 评价管理 / 查看全部互动 | 跳过互动隐藏候选生成，并阻止对应 real-run |
+
+默认阈值：
+
+- 单模块检查项失败率 `>= 30%` 判定为 `degraded`。
+- Worker 默认只参考最近 24 小时的健康事件；没有健康事件时不主动降级。
+- 降级是模块级，不是全局级；售后页异常不会影响评价页或消费者体验页。
+
+日常操作建议：
+
+1. 每天正式巡店前先跑 `pnpm test:selector-health`。
+2. 如果 Dashboard 出现页面采集健康异常，先查看 smoke 报告、截图和 HTML。
+3. 确认是页面结构变化后，维护对应 selector 或解析逻辑。
+4. 修复后重新跑 `pnpm test:selector-health`，健康状态恢复后 Worker 会自动恢复对应模块。
+
+当前边界：
+
+- 当前还没有 Web selector 配置维护页，先以只读 smoke test + Dashboard 提醒 + Worker 降级闭环为主。
+- HTML/截图保留策略目前依赖本地 `data/selector-health` 目录，后续可增加保留天数和异常长期归档。
+- 当前检测以关键文本和按钮存在性为主，后续可扩展到字段解析值范围、表格行级绑定和按钮点击前 dry-run 验证。
+
 ## MVP 实现建议
 
 第一阶段只做最小闭环：

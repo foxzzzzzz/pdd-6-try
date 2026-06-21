@@ -377,6 +377,22 @@ async function migrate() {
     )
   `);
 
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS selector_health_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      module_key TEXT NOT NULL,
+      module_name TEXT NOT NULL,
+      status TEXT NOT NULL,
+      failure_rate REAL NOT NULL,
+      total_checks INTEGER NOT NULL,
+      failed_checks INTEGER NOT NULL,
+      screenshot_path TEXT,
+      html_path TEXT,
+      details TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   try {
     db.run(sql`ALTER TABLE risk_events ADD COLUMN operator_id TEXT`);
   } catch {

@@ -9,6 +9,7 @@
     "start": "tsx src/index.ts",
     "discover": "tsx src/discover.ts",
     "test:selectors": "tsx src/__tests__/selector-validator.ts",
+    "test:selector-health": "tsx src/__tests__/selector-health-smoke.ts",
     "test:unit": "tsx src/__tests__/unit-tests.ts",
     "test:e2e": "tsx src/__tests__/phase2-e2e-dryrun.ts",
     "test:metrics": "tsx src/__tests__/metrics-only-dryrun.ts",

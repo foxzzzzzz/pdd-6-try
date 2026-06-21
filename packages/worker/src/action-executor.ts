@@ -7,6 +7,7 @@ import { isGlobalWritePaused, recordRiskEvent, resolveRiskEventType } from './ri
 import { executeInteractionActionCandidate, InteractionActionCandidate } from './actions/interactions';
 import { executeReviewActionCandidate, ReviewActionCandidate } from './actions/reviews';
 import { normalizeOperatorId, resolveOperatorStorageState, saveOperatorStoreSession } from './operator-session';
+import { isModuleDegraded } from './selector-health';
 
 export interface ActionExecutorConfig {
   headless: boolean;
@@ -42,6 +43,13 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
 
   const store = getStore(db, job.storeId);
   if (!store) throw new Error(`Store not found: ${job.storeId}`);
+  const selectorModule = job.actionType === 'hide' ? 'interactions' : 'reviews';
+  if (isModuleDegraded(db, selectorModule)) {
+    const errorMessage = `Selector health degraded for ${selectorModule}; real-run action paused`;
+    setCandidateStatus(db, job.candidateKind, job.candidateId, 'failed', { errorMessage, operatorId });
+    saveDb(db);
+    return { status: 'failed', error: errorMessage };
+  }
   if (isGlobalWritePaused(db)) {
     const errorMessage = 'Global write risk control active';
     setCandidateStatus(db, job.candidateKind, job.candidateId, 'failed', { errorMessage });

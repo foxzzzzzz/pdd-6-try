@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [stores, setStores] = useState<StoreStatus[]>([]);
   const [reports, setReports] = useState<{ daily?: any; weekly?: any; monthly?: any }>({});
   const [riskStatus, setRiskStatus] = useState<any>(null);
+  const [selectorHealth, setSelectorHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [inspecting, setInspecting] = useState(false);
 
@@ -23,13 +24,14 @@ export default function Dashboard() {
 
   async function loadData() {
     try {
-      const [storeList, inspections, dailyReport, weeklyReport, monthlyReport, risk] = await Promise.all([
+      const [storeList, inspections, dailyReport, weeklyReport, monthlyReport, risk, selectorHealthStatus] = await Promise.all([
         api.getStores(),
         api.getInspections({ limit: 50 }),
         api.getDailyReport().catch(() => null),
         api.getWeeklyReport().catch(() => null),
         api.getMonthlyReport().catch(() => null),
         api.getRiskStatus().catch(() => null),
+        api.getSelectorHealthStatus().catch(() => null),
       ]);
       const merged: StoreStatus[] = storeList.map((s: any) => {
         const latest = (inspections as any[]).find((i: any) => i.storeId === s.id);
@@ -43,6 +45,7 @@ export default function Dashboard() {
       setStores(merged);
       setReports({ daily: dailyReport, weekly: weeklyReport, monthly: monthlyReport });
       setRiskStatus(risk);
+      setSelectorHealth(selectorHealthStatus);
     } catch (err) {
       console.error('Failed to load dashboard:', err);
     } finally {
@@ -131,6 +134,33 @@ export default function Dashboard() {
               <div key={event.id} className="rounded border border-white/60 bg-white/70 px-3 py-2 text-xs text-slate-600">
                 <div className="font-medium text-slate-800">{event.storeName || '全局'} · {event.eventType}</div>
                 <div className="mt-1 line-clamp-2">{event.message}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {selectorHealth?.degradedCount ? (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex gap-3">
+              <AlertTriangle size={20} className="text-amber-600" />
+              <div>
+                <h3 className="font-semibold text-amber-800">页面采集健康异常</h3>
+                <p className="mt-1 text-sm text-amber-700">
+                  {selectorHealth.degradedCount} 个模块 selector smoke test 未通过；Worker 会暂停对应模块，避免采错或误操作。
+                </p>
+              </div>
+            </div>
+            <div className="text-xs text-amber-700">
+              建议查看 smoke 报告、截图和 HTML 后再恢复模块。
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {selectorHealth.modules?.filter((item: any) => item.status === 'degraded').slice(0, 4).map((item: any) => (
+              <div key={item.moduleKey} className="rounded border border-white/60 bg-white/70 px-3 py-2 text-xs text-slate-600">
+                <div className="font-medium text-slate-800">{item.moduleName} · {Math.round((item.failureRate || 0) * 100)}% failed</div>
+                <div className="mt-1">失败 {item.failedChecks}/{item.totalChecks} · {formatDateTime(item.createdAt)}</div>
               </div>
             ))}
           </div>
@@ -273,4 +303,9 @@ function SeverityBadge({ severity }: { severity: string }) {
       {s.label}
     </span>
   );
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '-';
+  return new Date(value).toLocaleString();
 }
