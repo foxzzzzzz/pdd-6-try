@@ -27,7 +27,7 @@ export async function handleInteractions(browser: BrowserManager, storeId: numbe
   try {
     await browser.navigateWithRetry(INTERACTION_URL);
     await page.waitForTimeout(2500);
-    await selectRecentThirtyDays(page);
+    await selectRecentThirtyDays(browser);
     const pageScreenshot = await browser.takeScreenshot(storeId, 'interactions-scan');
     const interactions = await getInteractionRows(page);
     console.log(`  Found ${interactions.length} public interaction comments with hide action`);
@@ -76,10 +76,8 @@ export async function handleInteractions(browser: BrowserManager, storeId: numbe
           continue;
         }
 
-        await hideBtn.scrollIntoViewIfNeeded().catch(() => undefined);
-        await hideBtn.click({ timeout: 5000 });
-        await page.waitForTimeout(800);
-        await clickConfirmIfPresent(page);
+        await browser.humanClick(hideBtn);
+        await clickConfirmIfPresent(browser);
         const screenshotPath = await browser.takeScreenshot(storeId, 'interaction-hide-submitted');
         submittedCount++;
         result.hidden++;
@@ -115,7 +113,7 @@ export async function executeInteractionActionCandidate(
 
   await browser.navigateWithRetry(INTERACTION_URL);
   await page.waitForTimeout(2500);
-  await selectRecentThirtyDays(page);
+  await selectRecentThirtyDays(browser);
   const pageScreenshot = await browser.takeScreenshot(storeId, 'interaction-hide-candidate-scan');
   const interactions = await getInteractionRows(page);
   const interaction = findInteractionCandidateRow(interactions, candidate);
@@ -162,10 +160,8 @@ export async function executeInteractionActionCandidate(
     };
   }
 
-  await hideBtn.scrollIntoViewIfNeeded().catch(() => undefined);
-  await hideBtn.click({ timeout: 5000 });
-  await page.waitForTimeout(800);
-  await clickConfirmIfPresent(page);
+  await browser.humanClick(hideBtn);
+  await clickConfirmIfPresent(browser);
   const screenshotPath = await browser.takeScreenshot(storeId, 'interaction-hide-approved-submitted');
   return {
     interactionId: interaction.id,
@@ -190,7 +186,8 @@ function normalizeText(value: string): string {
   return value.replace(/\s+/g, '').trim();
 }
 
-async function selectRecentThirtyDays(page: any): Promise<void> {
+async function selectRecentThirtyDays(browser: BrowserManager): Promise<void> {
+  const page = browser.getPage();
   const selected = await page.evaluate(() => {
     return Array.from(document.querySelectorAll('input'))
       .some((el) => (el as HTMLInputElement).value === '近30天内');
@@ -208,16 +205,14 @@ async function selectRecentThirtyDays(page: any): Promise<void> {
       await page.waitForTimeout(500);
       const option = page.locator('li:has-text("近30天内")').last();
       if (await option.isVisible().catch(() => false)) {
-        await option.click({ timeout: 5000 });
-        await page.waitForTimeout(500);
+        await browser.humanClick(option);
       }
     }
   }
 
   const query = page.locator('button:has-text("查询")').first();
   if (await query.isVisible().catch(() => false)) {
-    await query.click({ timeout: 5000 });
-    await page.waitForTimeout(2000);
+    await browser.humanClick(query);
   }
 }
 
@@ -294,12 +289,12 @@ async function findRowButton(row: any, labels: string[]): Promise<any> {
   return null;
 }
 
-async function clickConfirmIfPresent(page: any): Promise<void> {
+async function clickConfirmIfPresent(browser: BrowserManager): Promise<void> {
+  const page = browser.getPage();
   for (const label of ['确认', '确定', '知道了']) {
     const btn = page.locator(`button:has-text("${label}"), a:has-text("${label}")`).last();
     if (await btn.isVisible().catch(() => false)) {
-      await btn.click({ timeout: 3000 }).catch(() => undefined);
-      await page.waitForTimeout(800);
+      await browser.humanClick(btn).catch(() => undefined);
       return;
     }
   }

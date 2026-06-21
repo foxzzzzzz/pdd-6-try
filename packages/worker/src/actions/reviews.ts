@@ -62,10 +62,10 @@ export async function replyToGoodReviews(browser: BrowserManager, storeId: numbe
         }
         var replyBtn = review.row ? await findButton(review.row, ['回复/互动', '回复', 'Reply']) : null;
         if (!replyBtn) { result.skipped++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'reply', actionContent: '', ...buildActionAudit(safety, '', { screenshotPath: pageScreenshot, errorMessage: 'Reply button not found' }) }); continue; }
-        await openQuickReplyModal(page, replyBtn);
-        await fillQuickReplyModal(page, replyTemplate);
+        await openQuickReplyModal(browser, replyBtn);
+        await fillQuickReplyModal(browser, replyTemplate);
         const submitBtn = await findQuickReplySubmitButton(page);
-        if (submitBtn) { await submitBtn.click({ timeout: 5000 }); await page.waitForTimeout(1500); submittedCount++; const screenshotPath = await browser.takeScreenshot(storeId, 'review-reply-submitted'); result.replied++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'reply', actionContent: replyTemplate, ...buildActionAudit(safety, replyTemplate, { submitted: true, screenshotPath }) }); }
+        if (submitBtn) { await browser.humanClick(submitBtn); submittedCount++; const screenshotPath = await browser.takeScreenshot(storeId, 'review-reply-submitted'); result.replied++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'reply', actionContent: replyTemplate, ...buildActionAudit(safety, replyTemplate, { submitted: true, screenshotPath }) }); }
         else { result.failed++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'reply', actionContent: replyTemplate, ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot, errorMessage: 'Quick reply submit button not found' }) }); }
       } catch (err) {
         result.failed++;
@@ -121,12 +121,11 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
         }
         var reportBtn = review.row ? await findButton(review.row, ['举报', 'Report']) : null;
         if (!reportBtn) { result.skipped++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, errorMessage: 'Report button not found' }) }); continue; }
-        await reportBtn.scrollIntoViewIfNeeded().catch(() => undefined);
-        await reportBtn.click({ timeout: 5000 }); await page.waitForTimeout(1000);
+        await browser.humanClick(reportBtn);
         var textarea = await page.$('textarea, [contenteditable="true"]');
-        if (textarea) { await textarea.fill(template); await page.waitForTimeout(500); }
+        if (textarea) { await browser.humanFill(textarea, template); }
         var submitBtn = await findButton(page, ['提交', '确认举报', 'Submit']);
-        if (submitBtn) { await submitBtn.click(); await page.waitForTimeout(1500); submittedCount++; const screenshotPath = await browser.takeScreenshot(storeId, 'review-report-submitted'); result.reported++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { submitted: true, screenshotPath }) }); }
+        if (submitBtn) { await browser.humanClick(submitBtn); submittedCount++; const screenshotPath = await browser.takeScreenshot(storeId, 'review-report-submitted'); result.reported++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { submitted: true, screenshotPath }) }); }
         else { result.failed++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, errorMessage: 'Submit button not found' }) }); }
       } catch (err) {
         result.failed++;
@@ -207,8 +206,8 @@ export async function executeReviewActionCandidate(
         ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Reply button not found in approved candidate row' }),
       };
     }
-    await openQuickReplyModal(page, replyBtn);
-    await fillQuickReplyModal(page, actionContent);
+    await openQuickReplyModal(browser, replyBtn);
+    await fillQuickReplyModal(browser, actionContent);
     const submitBtn = await findQuickReplySubmitButton(page);
     if (!submitBtn) {
       return {
@@ -220,8 +219,7 @@ export async function executeReviewActionCandidate(
         ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Quick reply submit button not found' }),
       };
     }
-    await submitBtn.click({ timeout: 5000 });
-    await page.waitForTimeout(1500);
+    await browser.humanClick(submitBtn);
     const screenshotPath = await browser.takeScreenshot(storeId, 'review-reply-approved-submitted');
     return {
       reviewId: review.id,
@@ -244,13 +242,10 @@ export async function executeReviewActionCandidate(
       ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Report button not found in approved candidate row' }),
     };
   }
-  await reportBtn.scrollIntoViewIfNeeded().catch(() => undefined);
-  await reportBtn.click({ timeout: 5000 });
-  await page.waitForTimeout(1000);
+  await browser.humanClick(reportBtn);
   const textarea = await page.$('textarea, [contenteditable="true"]');
   if (textarea) {
-    await textarea.fill(actionContent);
-    await page.waitForTimeout(500);
+    await browser.humanFill(textarea, actionContent);
   }
   const submitBtn = await findButton(page, ['提交', '确认举报', 'Submit']);
   if (!submitBtn) {
@@ -263,8 +258,7 @@ export async function executeReviewActionCandidate(
       ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Report submit button not found' }),
     };
   }
-  await submitBtn.click({ timeout: 5000 });
-  await page.waitForTimeout(1500);
+  await browser.humanClick(submitBtn);
   const screenshotPath = await browser.takeScreenshot(storeId, 'review-report-approved-submitted');
   return {
     reviewId: review.id,
@@ -330,11 +324,11 @@ async function dismissBlockingModal(page: any): Promise<void> {
   }
 }
 
-async function openQuickReplyModal(page: any, replyBtn: any): Promise<void> {
+async function openQuickReplyModal(browser: BrowserManager, replyBtn: any): Promise<void> {
+  const page = browser.getPage();
   await dismissBlockingModal(page);
-  await replyBtn.scrollIntoViewIfNeeded().catch(() => undefined);
   try {
-    await replyBtn.click({ timeout: 5000, force: true });
+    await browser.humanClick(replyBtn, { force: true });
   } catch (err) {
     if (await hasQuickReplyModal(page)) return;
     throw err;
@@ -342,12 +336,12 @@ async function openQuickReplyModal(page: any, replyBtn: any): Promise<void> {
   await waitForQuickReplyModal(page);
 }
 
-async function fillQuickReplyModal(page: any, content: string): Promise<void> {
+async function fillQuickReplyModal(browser: BrowserManager, content: string): Promise<void> {
+  const page = browser.getPage();
   await waitForQuickReplyModal(page);
   const textarea = await page.$('[data-testid="beast-core-modal"] textarea, [class*="MDL_modal"] textarea, textarea, [contenteditable="true"]');
   if (!textarea) throw new Error('Quick reply textarea not found');
-  await textarea.fill(content);
-  await page.waitForTimeout(300);
+  await browser.humanFill(textarea, content);
 }
 
 async function findQuickReplySubmitButton(page: any): Promise<any> {

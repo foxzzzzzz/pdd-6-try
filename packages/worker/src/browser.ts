@@ -7,6 +7,10 @@ const SCREENSHOTS_DIR = path.resolve(process.env.SCREENSHOTS_DIR || './data/scre
 const DEFAULT_VIEWPORT = { width: 1920, height: 1080 };
 const DEFAULT_PROFILE_ROOT = './data/browser-profiles';
 const DEFAULT_PROFILE_LOCK_STALE_MS = 2 * 60 * 60 * 1000;
+const HUMAN_CLICK_BEFORE_MS: [number, number] = [500, 1500];
+const HUMAN_CLICK_AFTER_MS: [number, number] = [800, 2000];
+const HUMAN_FILL_BEFORE_MS: [number, number] = [500, 1200];
+const HUMAN_FILL_AFTER_MS: [number, number] = [600, 1500];
 
 export interface BrowserInitOptions {
   headless?: boolean;
@@ -72,6 +76,13 @@ export function buildBrowserRuntimeOptions(options: BrowserInitOptions = {}): Br
 export function resolveProfileDirectory(profileKey: string, rootDir = process.env.BROWSER_PROFILE_ROOT || DEFAULT_PROFILE_ROOT): string {
   const safeKey = profileKey.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
   return path.resolve(rootDir, safeKey || 'unknown');
+}
+
+export function resolveHumanDelayMs(range: [number, number], randomValue = Math.random()): number {
+  const min = Math.max(0, Math.floor(range[0]));
+  const max = Math.max(min, Math.floor(range[1]));
+  const boundedRandom = Math.max(0, Math.min(1, randomValue));
+  return Math.round(min + (max - min) * boundedRandom);
 }
 
 export class BrowserManager {
@@ -199,6 +210,24 @@ export class BrowserManager {
     } catch {
       return null;
     }
+  }
+
+  async humanPause(range: [number, number] = HUMAN_CLICK_AFTER_MS): Promise<void> {
+    if (!this.page) throw new Error('Page not initialized');
+    await this.page.waitForTimeout(resolveHumanDelayMs(range));
+  }
+
+  async humanClick(target: any, options: Record<string, unknown> = {}): Promise<void> {
+    await this.humanPause(HUMAN_CLICK_BEFORE_MS);
+    await target.scrollIntoViewIfNeeded?.().catch(() => undefined);
+    await target.click({ timeout: 5000, ...options });
+    await this.humanPause(HUMAN_CLICK_AFTER_MS);
+  }
+
+  async humanFill(target: any, value: string, options: Record<string, unknown> = {}): Promise<void> {
+    await this.humanPause(HUMAN_FILL_BEFORE_MS);
+    await target.fill(value, options);
+    await this.humanPause(HUMAN_FILL_AFTER_MS);
   }
 
   async close(): Promise<void> {

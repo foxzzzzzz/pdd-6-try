@@ -30,7 +30,7 @@ import { summarizeRiskEvents } from '../risk-sentinel';
 import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator-session';
 import { evaluateSelectorHealth, isModuleDegradedFromEvents, shouldBlockWriteActionForSelectorHealth } from '../selector-health';
 import { isRuleReviewExpired, shouldBlockActionForRuleReview } from '../rule-review';
-import { buildBrowserRuntimeOptions, parseStoredStorageState, resolveProfileDirectory } from '../browser';
+import { buildBrowserRuntimeOptions, parseStoredStorageState, resolveHumanDelayMs, resolveProfileDirectory } from '../browser';
 import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 
@@ -305,6 +305,8 @@ assert('浏览器默认不硬编码 userAgent', !('userAgent' in browserDefaults
 assert('运营店铺 profile 目录稳定且不混用原始分隔符', resolveProfileDirectory('operator-a:store-12').endsWith(path.join('data', 'browser-profiles', 'operator-a_store-12')));
 assert('默认系统 Chrome 缺失时浏览器环境不可用', !getBrowserEnvironmentStatus({}, 'win32', () => false).ok);
 assert('显式 chromium 可跳过系统 Chrome 检查', getBrowserEnvironmentStatus({ PLAYWRIGHT_CHROME_CHANNEL: 'chromium' }, 'win32', () => false).ok);
+assert('拟人化点击等待范围可配置且带随机抖动', resolveHumanDelayMs([500, 1500], 0.5) === 1000);
+assert('拟人化等待会修正非法范围', resolveHumanDelayMs([1500, 500], 0.5) === 1500);
 
 const realRunFromInspectionConfig = resolveActionSafety({
   actionMode: 'real-run',
