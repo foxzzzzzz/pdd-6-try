@@ -68,14 +68,14 @@ export default function StoreDetail() {
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <MetricBox label="店铺星级" value={metrics.rating ? `${metrics.rating} 星` : '-'} icon={Star} color="amber" />
-        <MetricBox label="劣质率" value={metrics.defectRate != null ? `${(metrics.defectRate * 100).toFixed(1)}%` : '-'} icon={ShieldAlert} color="red" />
-        <MetricBox label="消费者体验分" value={metrics.expBasic ? `${metrics.expBasic}/5` : '-'} icon={BarChart3} color="blue" />
-        <MetricBox label="行业排名" value={metrics.pilotIndustryRank ? `前 ${metrics.pilotIndustryRank}%` : metrics.dsrRankChange || '-'} icon={TrendingUp} color="slate" />
-        <MetricBox label="评价得分排名" value={metrics.reviewScoreRank ? `前 ${metrics.reviewScoreRank}%` : '-'} icon={MessageSquare} color="slate" />
-        <MetricBox label="3分钟回复率" value={metrics.threeMinuteReplyRate ? `${metrics.threeMinuteReplyRate}%` : '-'} icon={Clock} color="slate" />
-        <MetricBox label="签收时效" value={metrics.groupToSignDuration ? `${metrics.groupToSignDuration}天` : '-'} icon={Truck} color="slate" />
-        <MetricBox label="平均退款时长" value={metrics.averageRefundDuration ? `${metrics.averageRefundDuration}h` : '-'} icon={Clock} color="slate" />
+        <MetricBox label="店铺星级" value={metrics.rating ? `${Number(metrics.rating).toFixed(2)} 星` : '-'} icon={Star} color="amber" />
+        <MetricBox label="劣质率" value={metrics.defectRate != null ? `${(metrics.defectRate * 100).toFixed(2)}%` : '-'} icon={ShieldAlert} color="red" />
+        <MetricBox label="消费者体验分" value={metrics.expBasic ? `${Number(metrics.expBasic).toFixed(2)}/5` : '-'} icon={BarChart3} color="blue" />
+        <MetricBox label="行业排名" value={metrics.pilotIndustryRank ? `前 ${Number(metrics.pilotIndustryRank).toFixed(2)}%` : metrics.dsrRankChange || '-'} icon={TrendingUp} color="slate" />
+        <MetricBox label="评价得分排名" value={metrics.reviewScoreRank != null ? `前 ${Number(metrics.reviewScoreRank).toFixed(2)}%` : '-'} icon={MessageSquare} color="slate" />
+        <MetricBox label="3分钟回复率" value={metrics.threeMinuteReplyRate != null ? `${Number(metrics.threeMinuteReplyRate).toFixed(2)}%` : '-'} icon={Clock} color="slate" />
+        <MetricBox label="签收时效" value={metrics.groupToSignDuration != null ? `${Number(metrics.groupToSignDuration).toFixed(2)}天` : '-'} icon={Truck} color="slate" />
+        <MetricBox label="平均退款时长" value={metrics.averageRefundDuration != null ? `${Number(metrics.averageRefundDuration).toFixed(2)}h` : '-'} icon={Clock} color="slate" />
       </div>
 
       {/* Consumer Experience Detail */}
@@ -198,10 +198,10 @@ function ExpDetail({ label, value, change }: { label: string; value: number | nu
   return (
     <div className="text-center p-3 bg-slate-50 rounded-lg">
       <div className="text-xs text-slate-500 mb-1">{label}</div>
-      <div className="text-lg font-bold text-slate-900">{value}</div>
+      <div className="text-lg font-bold text-slate-900">{Number(value).toFixed(2)}</div>
       {change != null && (
         <div className={`text-xs mt-0.5 font-medium ${isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
-          {isUp ? '+' : ''}{change > 0 && change < 1 ? change.toFixed(2) : change}{change != null && Math.abs(change) >= 1 ? '%' : ''}
+          {isUp ? '+' : ''}{Number(change).toFixed(2)}%
         </div>
       )}
     </div>
