@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { getDb, saveDb, schema } from '@pdd-inspector/core';
+import { createInspectionStaggerPlan, getDb, saveDb, schema } from '@pdd-inspector/core';
 import { eq, desc, and } from 'drizzle-orm';
 import { addInspectionJob, getInspectionQueue } from '../queue';
 import { mergeInspectionMetrics } from '../inspection-summary';
@@ -65,8 +65,9 @@ export async function inspectionRoutes(app: FastifyInstance) {
 
     const date = new Date().toISOString().split('T')[0];
     const results = [];
+    const staggerPlan = createInspectionStaggerPlan(activeStores.length, getInspectionStaggerConfig());
 
-    for (const store of activeStores) {
+    for (const [index, store] of activeStores.entries()) {
       const record = db
         .insert(schema.inspectionRecords)
         .values({
@@ -78,7 +79,8 @@ export async function inspectionRoutes(app: FastifyInstance) {
         .get();
 
       const operatorId = resolveInspectionOperatorId(req.body?.operatorId, store.owner);
-      const job = await addInspectionJob(store.id, store.name, date, record.id, operatorId);
+      const delayMs = staggerPlan.delaysMs[index] || 0;
+      const job = await addInspectionJob(store.id, store.name, date, record.id, operatorId, delayMs);
 
       results.push({
         storeId: store.id,
@@ -86,6 +88,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
         operatorId,
         inspectionId: record.id,
         jobId: job.id,
+        delayMs,
       });
     }
     saveDb(db);
@@ -93,6 +96,13 @@ export async function inspectionRoutes(app: FastifyInstance) {
     return {
       totalStores: activeStores.length,
       date,
+      pacing: {
+        intervalMs: staggerPlan.intervalMs,
+        estimatedStoreDurationMs: staggerPlan.estimatedStoreDurationMs,
+        estimatedTotalMs: staggerPlan.estimatedTotalMs,
+        targetWindowMs: staggerPlan.targetWindowMs,
+        expectedFinishBeforeTarget: staggerPlan.expectedFinishBeforeTarget,
+      },
       inspections: results,
     };
   });
@@ -195,4 +205,19 @@ export async function inspectionRoutes(app: FastifyInstance) {
 
 function resolveInspectionOperatorId(input?: string | null, storeOwner?: string | null): string {
   return input?.trim() || storeOwner?.trim() || process.env.DEFAULT_OPERATOR_ID || 'system';
+}
+
+function getInspectionStaggerConfig() {
+  return {
+    targetWindowMinutes: parsePositiveNumber(process.env.INSPECTION_STAGGER_TARGET_MINUTES, 90),
+    minDelayMs: parsePositiveNumber(process.env.INSPECTION_STAGGER_MIN_DELAY_MS, 60_000),
+    maxDelayMs: parsePositiveNumber(process.env.INSPECTION_STAGGER_MAX_DELAY_MS, 300_000),
+    estimatedStoreDurationMs: parsePositiveNumber(process.env.INSPECTION_ESTIMATED_STORE_DURATION_MS, 120_000),
+  };
+}
+
+function parsePositiveNumber(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }

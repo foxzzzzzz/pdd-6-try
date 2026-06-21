@@ -361,6 +361,9 @@ failed
 - 写操作 action worker 并发默认和上限均为 `1`。
 - 同一进程内最多形成 1 个读巡店浏览器会话 + 1 个写操作浏览器会话，符合“最多 1-2 个活跃浏览器会话”的保守策略。
 - 读操作和写操作已拆分为 `pdd-inspection` 与 `pdd-action` 两条队列；审批后的写操作只进入 `pdd-action`，不会和巡店采集混跑。
+- 批量巡店入队支持错峰 delay，`/api/inspect-all` 和定时 scheduler 共用同一套计算逻辑，避免 30+ 店铺同时进入 waiting。
+- 默认错峰参数：`INSPECTION_STAGGER_TARGET_MINUTES=90`、`INSPECTION_STAGGER_MIN_DELAY_MS=60000`、`INSPECTION_STAGGER_MAX_DELAY_MS=300000`、`INSPECTION_ESTIMATED_STORE_DURATION_MS=120000`。
+- 40 家店按默认估算约 2 分钟/店时，预估可在 90 分钟目标窗口内完成；如果真实平均耗时超过约 2 分 15 秒，串行巡店本身会超出 9:30，系统会在 pacing 预估中标记 `expectedFinishBeforeTarget=false`。
 - 写操作 job 默认 `attempts=1`，失败后不连续重试。
 - 巡店 job 默认 `attempts=1`，可通过 `INSPECTION_JOB_ATTEMPTS` 和 `INSPECTION_JOB_BACKOFF_MS` 小心调整。
 - Playwright 登录态改为原生 `storageState` 恢复，包含 cookies 和 localStorage/origins；巡店和 action 执行后都会刷新店铺 `storageState`，减少频繁重新登录。
@@ -379,7 +382,7 @@ failed
 - 每店每日写操作数量受限；举报和隐藏继续保持人工审批，不做无人值守批量执行。
 - 写操作失败后不连续重试；失败进入审批台展示原因，由运营判断是否手动处理。
 - 出现登录验证、操作频繁、安全验证、权限不足时，action executor 会将店铺标记为 `pending_login` 或 `paused`，暂停该店后续自动写操作。
-- 上午集中巡店是正常业务节奏，但多店执行应排队错峰，不要在同一分钟内对多个店铺连续提交写操作。
+- 上午集中巡店是正常业务节奏，多店巡店通过错峰入队 + 串行 worker 执行；若要从 8:00 到 9:30 完成 40 家店，需要持续观察真实平均巡店耗时是否低于约 2 分 15 秒/店。
 
 ## P3 风控哨兵模块
 

@@ -6,6 +6,7 @@ import {
   InspectionJobData,
   SchedulerJobData,
   createInspectionJobData,
+  createInspectionStaggerPlan,
   createSchedulerJobData,
   getDb,
   saveDb,
@@ -31,8 +32,8 @@ async function scheduleDailyInspection() {
   const inspectionQueue = new Queue<InspectionJobData>(INSPECTION_QUEUE, {
     connection,
     defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
+      attempts: parsePositiveNumber(process.env.INSPECTION_JOB_ATTEMPTS, 1),
+      backoff: { type: 'exponential', delay: parsePositiveNumber(process.env.INSPECTION_JOB_BACKOFF_MS, 30000) },
     },
   });
   const schedulerQueue = new Queue<SchedulerJobData>(SCHEDULER_QUEUE, { connection });
@@ -89,8 +90,13 @@ async function triggerAllStores(queue: Queue<InspectionJobData>) {
     .all();
 
   const date = new Date().toISOString().split('T')[0];
+  const staggerPlan = createInspectionStaggerPlan(activeStores.length, getInspectionStaggerConfig());
 
-  for (const store of activeStores) {
+  console.log(
+    `Inspection pacing: stores=${activeStores.length} interval=${Math.round(staggerPlan.intervalMs / 1000)}s estimated=${Math.round(staggerPlan.estimatedTotalMs / 60000)}min target=${Math.round(staggerPlan.targetWindowMs / 60000)}min withinTarget=${staggerPlan.expectedFinishBeforeTarget}`,
+  );
+
+  for (const [index, store] of activeStores.entries()) {
     const record = db.insert(schema.inspectionRecords).values({
       storeId: store.id,
       date,
@@ -100,8 +106,9 @@ async function triggerAllStores(queue: Queue<InspectionJobData>) {
     await queue.add(
       `inspect-${store.id}-${date}`,
       createInspectionJobData(store.id, store.name, date, record.id),
+      staggerPlan.delaysMs[index] ? { delay: staggerPlan.delaysMs[index] } : undefined,
     );
-    console.log(`  Queued: ${store.name}`);
+    console.log(`  Queued: ${store.name} delay=${Math.round((staggerPlan.delaysMs[index] || 0) / 1000)}s`);
   }
 
   saveDb(db);
@@ -112,3 +119,18 @@ scheduleDailyInspection().catch((err) => {
   console.error('Scheduler error:', err);
   process.exit(1);
 });
+
+function getInspectionStaggerConfig() {
+  return {
+    targetWindowMinutes: parsePositiveNumber(process.env.INSPECTION_STAGGER_TARGET_MINUTES, 90),
+    minDelayMs: parsePositiveNumber(process.env.INSPECTION_STAGGER_MIN_DELAY_MS, 60_000),
+    maxDelayMs: parsePositiveNumber(process.env.INSPECTION_STAGGER_MAX_DELAY_MS, 300_000),
+    estimatedStoreDurationMs: parsePositiveNumber(process.env.INSPECTION_ESTIMATED_STORE_DURATION_MS, 120_000),
+  };
+}
+
+function parsePositiveNumber(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}

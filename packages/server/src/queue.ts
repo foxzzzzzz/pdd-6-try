@@ -42,9 +42,14 @@ export async function addInspectionJob(
   date: string,
   inspectionId?: number,
   operatorId?: string | null,
+  delayMs = 0,
 ): Promise<Job<InspectionJobData>> {
   const queue = getInspectionQueue();
-  return queue.add(`inspect-${storeId}-${date}`, createInspectionJobData(storeId, storeName, date, inspectionId, operatorId));
+  return queue.add(
+    `inspect-${storeId}-${date}`,
+    createInspectionJobData(storeId, storeName, date, inspectionId, operatorId),
+    delayMs > 0 ? { delay: delayMs } : undefined,
+  );
 }
 
 export function getActionQueue(): Queue<ActionJobData> {

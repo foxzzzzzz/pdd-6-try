@@ -16,6 +16,23 @@ export interface SchedulerJobData {
   task: 'daily-inspection';
 }
 
+export interface InspectionStaggerConfig {
+  targetWindowMinutes?: number;
+  minDelayMs?: number;
+  maxDelayMs?: number;
+  estimatedStoreDurationMs?: number;
+}
+
+export interface InspectionStaggerPlan {
+  storeCount: number;
+  intervalMs: number;
+  delaysMs: number[];
+  estimatedStoreDurationMs: number;
+  estimatedTotalMs: number;
+  targetWindowMs: number;
+  expectedFinishBeforeTarget: boolean;
+}
+
 export interface ActionJobData {
   candidateKind: 'review' | 'interaction';
   candidateId: number;
@@ -42,6 +59,52 @@ export function createSchedulerJobData(): SchedulerJobData {
   return { task: 'daily-inspection' };
 }
 
+export function createInspectionStaggerPlan(
+  storeCount: number,
+  config: InspectionStaggerConfig = {},
+): InspectionStaggerPlan {
+  const count = Math.max(0, Math.floor(storeCount));
+  const targetWindowMs = positiveNumber(config.targetWindowMinutes, 90) * 60 * 1000;
+  const minDelayMs = positiveNumber(config.minDelayMs, 60_000);
+  const maxDelayMs = positiveNumber(config.maxDelayMs, 300_000);
+  const estimatedStoreDurationMs = positiveNumber(config.estimatedStoreDurationMs, 120_000);
+
+  if (count <= 1) {
+    return {
+      storeCount: count,
+      intervalMs: 0,
+      delaysMs: Array(count).fill(0),
+      estimatedStoreDurationMs,
+      estimatedTotalMs: count * estimatedStoreDurationMs,
+      targetWindowMs,
+      expectedFinishBeforeTarget: count * estimatedStoreDurationMs <= targetWindowMs,
+    };
+  }
+
+  const targetIntervalMs = Math.floor(targetWindowMs / count);
+  const latestIntervalForTargetMs = Math.max(0, Math.floor((targetWindowMs - estimatedStoreDurationMs) / (count - 1)));
+  const preferredIntervalMs = Math.min(targetIntervalMs, latestIntervalForTargetMs, maxDelayMs);
+  let intervalMs = Math.max(minDelayMs, preferredIntervalMs);
+
+  const optimisticTotalMs = count * estimatedStoreDurationMs;
+  if (optimisticTotalMs <= targetWindowMs && intervalMs > latestIntervalForTargetMs) {
+    intervalMs = latestIntervalForTargetMs;
+  }
+
+  const delaysMs = Array.from({ length: count }, (_, index) => index * intervalMs);
+  const estimatedTotalMs = estimateSerialCompletionMs(delaysMs, estimatedStoreDurationMs);
+
+  return {
+    storeCount: count,
+    intervalMs,
+    delaysMs,
+    estimatedStoreDurationMs,
+    estimatedTotalMs,
+    targetWindowMs,
+    expectedFinishBeforeTarget: estimatedTotalMs <= targetWindowMs,
+  };
+}
+
 export function createActionJobData(
   candidateKind: ActionJobData['candidateKind'],
   candidateId: number,
@@ -50,4 +113,17 @@ export function createActionJobData(
   operatorId: string,
 ): ActionJobData {
   return { candidateKind, candidateId, storeId, actionType, operatorId };
+}
+
+function estimateSerialCompletionMs(delaysMs: number[], durationMs: number): number {
+  let currentMs = 0;
+  for (const delayMs of delaysMs) {
+    const startedAtMs = Math.max(currentMs, delayMs);
+    currentMs = startedAtMs + durationMs;
+  }
+  return currentMs;
+}
+
+function positiveNumber(value: number | undefined, fallback: number): number {
+  return Number.isFinite(value) && value! > 0 ? value! : fallback;
 }

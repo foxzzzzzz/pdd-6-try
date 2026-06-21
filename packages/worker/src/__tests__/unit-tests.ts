@@ -11,6 +11,7 @@ import {
   createInspectionJobData,
   createActionJobData,
   createSchedulerJobData,
+  createInspectionStaggerPlan,
   ACTION_QUEUE,
   INSPECTION_QUEUE,
   SCHEDULER_QUEUE,
@@ -144,6 +145,14 @@ const schedulerJobData = createSchedulerJobData();
 const actionJobData = createActionJobData('review', 7, 12, 'report', 'operator-a');
 assert('调度任务使用独立队列', SCHEDULER_QUEUE !== INSPECTION_QUEUE);
 assert('调度任务不伪造店铺 ID', !('storeId' in schedulerJobData));
+const fortyStoreStagger = createInspectionStaggerPlan(40, {
+  targetWindowMinutes: 90,
+  estimatedStoreDurationMs: 120_000,
+});
+assert('40 店默认错峰预估可在 90 分钟窗口内完成', fortyStoreStagger.expectedFinishBeforeTarget && fortyStoreStagger.estimatedTotalMs <= 90 * 60 * 1000);
+assert('40 店错峰间隔控制在 1-5 分钟之间', fortyStoreStagger.intervalMs >= 60_000 && fortyStoreStagger.intervalMs <= 300_000);
+assert('串行巡店耗时超窗时错峰计划会暴露风险', !createInspectionStaggerPlan(40, { targetWindowMinutes: 90, estimatedStoreDurationMs: 150_000 }).expectedFinishBeforeTarget);
+assert('单店巡店不增加错峰 delay', createInspectionStaggerPlan(1).delaysMs[0] === 0);
 assert('审批动作使用独立队列', ACTION_QUEUE !== INSPECTION_QUEUE);
 assert('审批动作任务携带单条候选动作', actionJobData.candidateId === 7 && actionJobData.actionType === 'report' && actionJobData.operatorId === 'operator-a');
 assert('关闭 AI 时仍运行规则异常检测', shouldRunRuleBasedAnomalyDetection({ useAI: false }));
