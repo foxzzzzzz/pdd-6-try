@@ -8,6 +8,7 @@ import { inspectionRoutes } from './routes/inspections';
 import { templateRoutes } from './routes/templates';
 import { issueRoutes } from './routes/issues';
 import { reportRoutes } from './routes/reports';
+import { actionCandidateRoutes } from './routes/action-candidates';
 import { getRedis, closeRedis } from './redis';
 import { getInspectionQueue, closeQueue } from './queue';
 import { getDb, closeDb } from '@pdd-inspector/core';
@@ -63,6 +64,7 @@ async function start() {
   await app.register(templateRoutes);
   await app.register(issueRoutes);
   await app.register(reportRoutes);
+  await app.register(actionCandidateRoutes);
 
   // Health check
   app.get('/api/health', async () => {

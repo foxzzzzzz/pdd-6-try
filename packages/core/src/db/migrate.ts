@@ -209,6 +209,9 @@ async function migrate() {
   for (const [column, type] of [
     ['action_mode', 'TEXT'],
     ['submitted_at', 'TEXT'],
+    ['executed_at', 'TEXT'],
+    ['approved_at', 'TEXT'],
+    ['operator_id', 'TEXT'],
   ] as const) {
     try {
       db.run(sql.raw(`ALTER TABLE review_actions ADD COLUMN ${column} ${type}`));
@@ -240,6 +243,9 @@ async function migrate() {
     ['action_mode', 'TEXT'],
     ['screenshot_path', 'TEXT'],
     ['submitted_at', 'TEXT'],
+    ['executed_at', 'TEXT'],
+    ['approved_at', 'TEXT'],
+    ['operator_id', 'TEXT'],
   ] as const) {
     try {
       db.run(sql.raw(`ALTER TABLE interaction_actions ADD COLUMN ${column} ${type}`));

@@ -9,6 +9,10 @@ export interface ActionSafety {
   enableReport: boolean;
   enableHideInteractions: boolean;
   maxActions: number | null;
+  approvalRequired: Record<WriteActionKind, boolean>;
+  approvedActions: Record<WriteActionKind, boolean>;
+  dailyLimits: Record<WriteActionKind, number | null>;
+  dailyUsage: Record<WriteActionKind, number>;
 }
 
 export interface ActionSafetyInput {
@@ -18,6 +22,12 @@ export interface ActionSafetyInput {
   enableReport?: boolean;
   enableHideInteractions?: boolean;
   maxActions?: number | null;
+  replyApprovalRequired?: boolean;
+  reportApprovalRequired?: boolean;
+  hideApprovalRequired?: boolean;
+  approvedActions?: Partial<Record<WriteActionKind, boolean>>;
+  dailyLimits?: Partial<Record<WriteActionKind, number | null>>;
+  dailyUsage?: Partial<Record<WriteActionKind, number>>;
 }
 
 export interface ActionAudit {
@@ -26,6 +36,9 @@ export interface ActionAudit {
   screenshotPath?: string;
   errorMessage?: string;
   submittedAt?: string;
+  executedAt?: string;
+  approvedAt?: string;
+  operatorId?: string;
 }
 
 export function resolveActionSafety(input: ActionSafetyInput): ActionSafety {
@@ -36,27 +49,73 @@ export function resolveActionSafety(input: ActionSafetyInput): ActionSafety {
     enableReport: input.enableReport === true,
     enableHideInteractions: input.enableHideInteractions === true,
     maxActions: typeof input.maxActions === 'number' && input.maxActions > 0 ? Math.floor(input.maxActions) : null,
+    approvalRequired: {
+      reply: input.replyApprovalRequired === true,
+      report: input.reportApprovalRequired !== false,
+      hide: input.hideApprovalRequired !== false,
+    },
+    approvedActions: {
+      reply: input.approvedActions?.reply === true,
+      report: input.approvedActions?.report === true,
+      hide: input.approvedActions?.hide === true,
+    },
+    dailyLimits: {
+      reply: normalizeLimit(input.dailyLimits?.reply),
+      report: normalizeLimit(input.dailyLimits?.report),
+      hide: normalizeLimit(input.dailyLimits?.hide),
+    },
+    dailyUsage: {
+      reply: normalizeUsage(input.dailyUsage?.reply),
+      report: normalizeUsage(input.dailyUsage?.report),
+      hide: normalizeUsage(input.dailyUsage?.hide),
+    },
   };
 }
 
 export function canSubmitAction(safety: ActionSafety, kind: WriteActionKind): boolean {
   if (safety.mode !== 'real-run') return false;
+  if (requiresApproval(safety, kind) && !safety.approvedActions[kind]) return false;
+  const limit = safety.dailyLimits[kind];
+  if (limit != null && safety.dailyUsage[kind] >= limit) return false;
   if (kind === 'reply') return safety.enableReply;
   if (kind === 'report') return safety.enableReport;
   return safety.enableHideInteractions;
 }
 
+export function requiresApproval(safety: ActionSafety, kind: WriteActionKind): boolean {
+  return safety.approvalRequired[kind] === true;
+}
+
 export function buildActionAudit(
   safety: ActionSafety,
   _actionContent: string,
-  result: { submitted?: boolean; screenshotPath?: string; errorMessage?: string } = {},
+  result: {
+    submitted?: boolean;
+    screenshotPath?: string;
+    errorMessage?: string;
+    approvalRequired?: boolean;
+    approvedAt?: string;
+    operatorId?: string;
+  } = {},
 ): ActionAudit {
   const submitted = safety.mode === 'real-run' && result.submitted === true;
+  const submittedAt = submitted ? new Date().toISOString() : undefined;
   return {
     actionMode: safety.mode,
-    status: result.errorMessage ? 'failed' : submitted ? 'success' : 'skipped',
+    status: result.errorMessage ? 'failed' : submitted ? 'success' : result.approvalRequired ? 'pending_approval' : 'skipped',
     screenshotPath: result.screenshotPath,
     errorMessage: result.errorMessage,
-    submittedAt: submitted ? new Date().toISOString() : undefined,
+    submittedAt,
+    executedAt: submittedAt,
+    approvedAt: result.approvedAt,
+    operatorId: result.operatorId,
   };
+}
+
+function normalizeLimit(value: number | null | undefined): number | null {
+  return typeof value === 'number' && value > 0 ? Math.floor(value) : null;
+}
+
+function normalizeUsage(value: number | undefined): number {
+  return typeof value === 'number' && value > 0 ? Math.floor(value) : 0;
 }

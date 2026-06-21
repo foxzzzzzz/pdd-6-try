@@ -28,6 +28,12 @@ export interface InspectionConfig {
   useAI: boolean;
   actionMode: ActionMode;
   actionLimit: number | null;
+  replyDailyLimit?: number | null;
+  reportDailyLimit?: number | null;
+  hideDailyLimit?: number | null;
+  replyApprovalRequired?: boolean;
+  reportApprovalRequired?: boolean;
+  hideApprovalRequired?: boolean;
 }
 
 const DEFAULT_CONFIG: InspectionConfig = {
@@ -39,6 +45,12 @@ const DEFAULT_CONFIG: InspectionConfig = {
   useAI: true,
   actionMode: 'dry-run',
   actionLimit: null,
+  replyDailyLimit: 20,
+  reportDailyLimit: 5,
+  hideDailyLimit: 5,
+  replyApprovalRequired: false,
+  reportApprovalRequired: true,
+  hideApprovalRequired: true,
 };
 
 /** 默认好评回复模板 (Phase 2 fallback) */
@@ -72,12 +84,21 @@ export async function inspectStore(
   config: Partial<InspectionConfig> = {},
 ): Promise<{ success: boolean; completionRate: number; errors: string[] }> {
   const resolvedConfig: InspectionConfig = { ...DEFAULT_CONFIG, ...config };
+  const db = await getDb();
   const actionSafety = resolveActionSafety({
     ...resolvedConfig,
     maxActions: resolvedConfig.actionLimit,
+    replyApprovalRequired: resolvedConfig.replyApprovalRequired,
+    reportApprovalRequired: resolvedConfig.reportApprovalRequired,
+    hideApprovalRequired: resolvedConfig.hideApprovalRequired,
+    dailyLimits: {
+      reply: resolvedConfig.replyDailyLimit ?? null,
+      report: resolvedConfig.reportDailyLimit ?? null,
+      hide: resolvedConfig.hideDailyLimit ?? null,
+    },
+    dailyUsage: getDailyActionUsage(db, storeId, date),
   });
   log(`[${storeName}] Action safety: mode=${actionSafety.mode} limit=${actionSafety.maxActions ?? 'none'} reply=${actionSafety.enableReply} report=${actionSafety.enableReport} hide=${actionSafety.enableHideInteractions}`);
-  const db = await getDb();
   const errors: string[] = [];
   const totalSteps = 8; // 5 data + 3 actions (reply, report, hide)
   let completedSteps = 0;
@@ -181,7 +202,7 @@ export async function inspectStore(
     completedSteps++;
 
     // Step 6: Report bad reviews
-    if (resolvedConfig.enableReport) {
+    if (resolvedConfig.enableReport || actionSafety.approvalRequired.report) {
       try {
         // AI 介入点 1&2: 尝试用 AI 匹配话术
         var reportTemplateFn: (review: { content: string; stars: number }) => string | Promise<string> = ruleBasedReportTemplate;
@@ -211,7 +232,7 @@ export async function inspectStore(
         interactionJudgeFn = createInteractionJudge(aiHeavy, ruleBasedInteractionJudge);
       } catch { /* AI not available, use rules */ }
     }
-    if (resolvedConfig.enableHideInteractions) {
+    if (resolvedConfig.enableHideInteractions || actionSafety.approvalRequired.hide) {
       try {
         interactionResult = await handleInteractions(browser, storeId, interactionJudgeFn, actionSafety);
         log(`[${storeName}] Interactions: ${interactionResult.hidden} hidden, ${interactionResult.ignored} ignored`);
@@ -382,6 +403,9 @@ export async function inspectStore(
           screenshotPath: detail.screenshotPath || null,
           errorMessage: detail.errorMessage || null,
           submittedAt: detail.submittedAt || null,
+          executedAt: detail.executedAt || null,
+          approvedAt: detail.approvedAt || null,
+          operatorId: detail.operatorId || null,
         })
         .run();
     }
@@ -401,6 +425,9 @@ export async function inspectStore(
           screenshotPath: detail.screenshotPath || null,
           errorMessage: detail.errorMessage || null,
           submittedAt: detail.submittedAt || null,
+          executedAt: detail.executedAt || null,
+          approvedAt: detail.approvedAt || null,
+          operatorId: detail.operatorId || null,
         })
         .run();
     }
@@ -462,4 +489,30 @@ export async function inspectStore(
   }
 
   return { success: errors.length === 0, completionRate, errors };
+}
+
+function getDailyActionUsage(db: Awaited<ReturnType<typeof getDb>>, storeId: number, date: string) {
+  const dayPattern = `${date}%`;
+  const reply = countActionRows(db, 'review_actions', storeId, dayPattern, "action_type = 'reply'");
+  const report = countActionRows(db, 'review_actions', storeId, dayPattern, "action_type = 'report'");
+  const hide = countActionRows(db, 'interaction_actions', storeId, dayPattern, "action = 'hide'");
+  return { reply, report, hide };
+}
+
+function countActionRows(
+  db: Awaited<ReturnType<typeof getDb>>,
+  table: 'review_actions' | 'interaction_actions',
+  storeId: number,
+  dayPattern: string,
+  actionWhere: string,
+): number {
+  const row = db.get(sql.raw(`
+    SELECT COUNT(*) AS count
+    FROM ${table}
+    WHERE store_id = ${storeId}
+      AND ${actionWhere}
+      AND status = 'success'
+      AND submitted_at LIKE '${dayPattern.replace(/'/g, "''")}'
+  `)) as { count?: number } | undefined;
+  return Number(row?.count || 0);
 }

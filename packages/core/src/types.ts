@@ -8,7 +8,7 @@ export type Severity = 'normal' | 'warning' | 'critical';
 export type IssueType = 'quality' | 'logistics' | 'service' | 'review' | 'other';
 export type RectificationStatus = 'pending' | 'in_progress' | 'resolved' | 'closed';
 export type UserRole = 'admin' | 'operator' | 'factory';
-export type ActionStatus = 'pending' | 'success' | 'failed' | 'skipped';
+export type ActionStatus = 'pending' | 'pending_approval' | 'approved' | 'queued' | 'running' | 'success' | 'failed' | 'skipped';
 export type ReviewActionType = 'reply' | 'report';
 export type InteractionAction = 'hide' | 'ignore';
 export type ActionMode = 'dry-run' | 'real-run';
@@ -139,6 +139,9 @@ export interface ReviewActionDetail {
   screenshotPath?: string;
   errorMessage?: string;
   submittedAt?: string;
+  executedAt?: string;
+  approvedAt?: string;
+  operatorId?: string;
 }
 
 export interface InteractionActionDetail {
@@ -151,6 +154,9 @@ export interface InteractionActionDetail {
   screenshotPath?: string;
   errorMessage?: string;
   submittedAt?: string;
+  executedAt?: string;
+  approvedAt?: string;
+  operatorId?: string;
 }
 
 export interface IssueDetail {

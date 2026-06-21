@@ -37,6 +37,24 @@ export const api = {
   triggerInspectAll: () => request<any>('/inspect-all', { method: 'POST' }),
   getQueueStatus: () => request<any>('/queue/status'),
 
+  // Action candidates
+  getActionCandidates: (params?: { status?: string; storeId?: number; type?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.storeId) qs.set('storeId', String(params.storeId));
+    if (params?.type) qs.set('type', params.type);
+    const q = qs.toString();
+    return request<any[]>(`/action-candidates${q ? '?' + q : ''}`);
+  },
+  approveActionCandidate: (kind: string, id: number, operatorId = 'operator') => request<any>(
+    `/action-candidates/${kind}/${id}/approve`,
+    { method: 'POST', body: JSON.stringify({ operatorId }) },
+  ),
+  skipActionCandidate: (kind: string, id: number, operatorId = 'operator') => request<any>(
+    `/action-candidates/${kind}/${id}/skip`,
+    { method: 'POST', body: JSON.stringify({ operatorId }) },
+  ),
+
   // Reports
   getDailyReport: (date?: string) => request<any>(`/reports/daily${date ? `?date=${encodeURIComponent(date)}` : ''}`),
   getWeeklyReport: () => request<any>('/reports/weekly'),

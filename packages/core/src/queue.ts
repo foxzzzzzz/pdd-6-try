@@ -1,6 +1,7 @@
 // Queue names
 export const INSPECTION_QUEUE = 'pdd-inspection';
 export const SCHEDULER_QUEUE = 'pdd-scheduler';
+export const ACTION_QUEUE = 'pdd-action';
 
 // Job data type
 export interface InspectionJobData {
@@ -12,6 +13,14 @@ export interface InspectionJobData {
 
 export interface SchedulerJobData {
   task: 'daily-inspection';
+}
+
+export interface ActionJobData {
+  candidateKind: 'review' | 'interaction';
+  candidateId: number;
+  storeId: number;
+  actionType: 'reply' | 'report' | 'hide';
+  operatorId: string;
 }
 
 export function createInspectionJobData(
@@ -27,4 +36,14 @@ export function createInspectionJobData(
 
 export function createSchedulerJobData(): SchedulerJobData {
   return { task: 'daily-inspection' };
+}
+
+export function createActionJobData(
+  candidateKind: ActionJobData['candidateKind'],
+  candidateId: number,
+  storeId: number,
+  actionType: ActionJobData['actionType'],
+  operatorId: string,
+): ActionJobData {
+  return { candidateKind, candidateId, storeId, actionType, operatorId };
 }

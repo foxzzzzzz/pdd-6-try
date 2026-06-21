@@ -9,7 +9,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   createInspectionJobData,
+  createActionJobData,
   createSchedulerJobData,
+  ACTION_QUEUE,
   INSPECTION_QUEUE,
   SCHEDULER_QUEUE,
 } from '@pdd-inspector/core';
@@ -21,6 +23,7 @@ import { parseRefundMetricsText } from '../collectors/refunds';
 import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
 import { parseCommentMetricsText } from '../collectors/comments';
 import { buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
+import { clampActionConcurrency, decideStoreStatusForRiskSignal, detectRiskControlSignal, resolveActionDelayMs } from '../action-risk-control';
 import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 
@@ -103,8 +106,11 @@ const jobData = createInspectionJobData(12, '测试店铺', '2026-06-17', 99);
 assert('队列任务携带 inspectionId', jobData.inspectionId === 99);
 
 const schedulerJobData = createSchedulerJobData();
+const actionJobData = createActionJobData('review', 7, 12, 'report', 'operator-a');
 assert('调度任务使用独立队列', SCHEDULER_QUEUE !== INSPECTION_QUEUE);
 assert('调度任务不伪造店铺 ID', !('storeId' in schedulerJobData));
+assert('审批动作使用独立队列', ACTION_QUEUE !== INSPECTION_QUEUE);
+assert('审批动作任务携带单条候选动作', actionJobData.candidateId === 7 && actionJobData.actionType === 'report' && actionJobData.operatorId === 'operator-a');
 assert('关闭 AI 时仍运行规则异常检测', shouldRunRuleBasedAnomalyDetection({ useAI: false }));
 assert('开启 AI 时仍运行规则异常检测', shouldRunRuleBasedAnomalyDetection({ useAI: true }));
 
@@ -191,9 +197,43 @@ const realRunSafety = resolveActionSafety({
   maxActions: 1,
 });
 assert('real-run 且开关开启才提交回复', canSubmitAction(realRunSafety, 'reply'));
-assert('real-run 且开关开启才提交举报', canSubmitAction(realRunSafety, 'report'));
-assert('real-run 且开关开启才提交隐藏', canSubmitAction(realRunSafety, 'hide'));
+assert('real-run 举报默认需要审批不直接提交', !canSubmitAction(realRunSafety, 'report'));
+assert('real-run 隐藏默认需要审批不直接提交', !canSubmitAction(realRunSafety, 'hide'));
 assert('real-run 支持限制最大写操作数', realRunSafety.maxActions === 1);
+
+const approvedReportSafety = resolveActionSafety({
+  mode: 'real-run',
+  enableReport: true,
+  reportApprovalRequired: true,
+  approvedActions: { report: true },
+});
+assert('举报审批通过后可以提交', canSubmitAction(approvedReportSafety, 'report'));
+
+const approvedHideSafety = resolveActionSafety({
+  mode: 'real-run',
+  enableHideInteractions: true,
+  hideApprovalRequired: true,
+  approvedActions: { hide: true },
+});
+assert('隐藏审批通过后可以提交', canSubmitAction(approvedHideSafety, 'hide'));
+
+const limitedReplySafety = resolveActionSafety({
+  mode: 'real-run',
+  enableReply: true,
+  dailyLimits: { reply: 2 },
+  dailyUsage: { reply: 2 },
+});
+assert('好评回复达到每日上限后不提交', !canSubmitAction(limitedReplySafety, 'reply'));
+assert('真实写操作 worker 并发强制不超过 1', clampActionConcurrency(3) === 1);
+assert('真实写操作 worker 并发最小为 1', clampActionConcurrency(0) === 1);
+assert('好评回复默认间隔为 8-20 秒', resolveActionDelayMs('reply', undefined, 0) === 8000 && resolveActionDelayMs('reply', undefined, 1) === 20000);
+assert('举报默认间隔为 20-60 秒', resolveActionDelayMs('report', undefined, 0) === 20000 && resolveActionDelayMs('report', undefined, 1) === 60000);
+assert('互动隐藏默认间隔为 20-60 秒', resolveActionDelayMs('hide', undefined, 0) === 20000 && resolveActionDelayMs('hide', undefined, 1) === 60000);
+assert('自定义间隔支持毫秒范围', resolveActionDelayMs('reply', '1000-2000', 0.5) === 1500);
+assert('识别登录验证类风控信号', detectRiskControlSignal('Store login required before executing approved action')?.kind === 'login');
+assert('识别操作频繁类风控信号', detectRiskControlSignal('页面提示操作频繁，请稍后再试')?.kind === 'rate_limit');
+assert('登录类风控将店铺标记为 pending_login', decideStoreStatusForRiskSignal('login') === 'pending_login');
+assert('安全/频繁类风控将店铺标记为 paused', decideStoreStatusForRiskSignal('security') === 'paused' && decideStoreStatusForRiskSignal('rate_limit') === 'paused');
 
 const realRunFromInspectionConfig = resolveActionSafety({
   actionMode: 'real-run',
@@ -206,9 +246,13 @@ assert('dry-run 审计状态为 skipped', dryRunAudit.status === 'skipped');
 assert('dry-run 审计记录 actionMode', dryRunAudit.actionMode === 'dry-run');
 assert('dry-run 审计记录截图路径', dryRunAudit.screenshotPath === 'a.png');
 
+const pendingApprovalAudit = buildActionAudit(realRunSafety, 'needs approval', { screenshotPath: 'approval.png', approvalRequired: true });
+assert('需要审批的候选动作状态为 pending_approval', pendingApprovalAudit.status === 'pending_approval');
+
 const realRunAudit = buildActionAudit(realRunSafety, 'submitted', { submitted: true, screenshotPath: 'b.png' });
 assert('real-run 提交审计状态为 success', realRunAudit.status === 'success');
 assert('real-run 提交审计记录 submittedAt', typeof realRunAudit.submittedAt === 'string' && realRunAudit.submittedAt.length > 0);
+assert('real-run 提交审计记录 executedAt', typeof realRunAudit.executedAt === 'string' && realRunAudit.executedAt.length > 0);
 
 const reviewRow = parseReviewRowText(`用户评价分： ★★★★★    被点赞数：0    互动数：0
 该用户觉得商品很好，给出了5星好评

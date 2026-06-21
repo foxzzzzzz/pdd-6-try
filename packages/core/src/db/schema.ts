@@ -135,6 +135,9 @@ export const reviewActions = sqliteTable('review_actions', {
   screenshotPath: text('screenshot_path'),                // 截图路径
   errorMessage: text('error_message'),                    // 失败原因
   submittedAt: text('submitted_at'),
+  executedAt: text('executed_at'),
+  approvedAt: text('approved_at'),
+  operatorId: text('operator_id'),
   createdAt: text('created_at').default(sql`(datetime('now'))`),
 });
 
@@ -155,6 +158,9 @@ export const interactionActions = sqliteTable('interaction_actions', {
   screenshotPath: text('screenshot_path'),
   errorMessage: text('error_message'),
   submittedAt: text('submitted_at'),
+  executedAt: text('executed_at'),
+  approvedAt: text('approved_at'),
+  operatorId: text('operator_id'),
   createdAt: text('created_at').default(sql`(datetime('now'))`),
 });
 

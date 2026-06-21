@@ -1,9 +1,10 @@
 import React from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { LayoutDashboard, FileText, FileEdit, Store } from 'lucide-react';
+import { ClipboardCheck, LayoutDashboard, FileText, FileEdit, Store } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: '巡店总览', icon: LayoutDashboard },
+  { path: '/actions/review', label: '待确认动作', icon: ClipboardCheck },
   { path: '/reports/daily', label: '日报总览', icon: FileText },
   { path: '/templates', label: '模板管理', icon: FileEdit },
   { path: '/stores', label: '店铺配置', icon: Store },

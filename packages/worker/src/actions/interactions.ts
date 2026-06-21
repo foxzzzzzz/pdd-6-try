@@ -3,13 +3,20 @@
  */
 import { BrowserManager } from '../browser';
 import { InteractionActionDetail } from '@pdd-inspector/core';
-import { ActionSafety, buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
+import { ActionSafety, buildActionAudit, canSubmitAction, requiresApproval, resolveActionSafety } from '../action-safety';
 
 const INTERACTION_URL = 'https://mms.pinduoduo.com/goods/evalution/dynamic';
 
 export interface InteractionActionResult { details: InteractionActionDetail[]; hidden: number; ignored: number; skipped: number; }
 export interface InteractionRow { id: string; content: string; interactionTime: string | null; withinLast7Days: boolean; row?: any; }
 type InteractionJudge = (content: string) => { shouldHide: boolean; reason: string } | Promise<{ shouldHide: boolean; reason: string }>;
+export interface InteractionActionCandidate {
+  id: number;
+  interactionId: string | null;
+  contentSummary: string | null;
+  aiJudgment: string | null;
+  action: 'hide';
+}
 
 export async function handleInteractions(browser: BrowserManager, storeId: number, judgeFunc: InteractionJudge, safetyInput: Partial<ActionSafety> = {}): Promise<InteractionActionResult> {
   const page = browser.getPage();
@@ -58,7 +65,7 @@ export async function handleInteractions(browser: BrowserManager, storeId: numbe
 
         if (!canSubmitAction(safety, 'hide') || (safety.maxActions != null && submittedCount >= safety.maxActions)) {
           result.skipped++;
-          Object.assign(detail, buildActionAudit(safety, judgment.reason, { screenshotPath: pageScreenshot }));
+          Object.assign(detail, buildActionAudit(safety, judgment.reason, { screenshotPath: pageScreenshot, approvalRequired: requiresApproval(safety, 'hide') && !safety.approvedActions.hide }));
           continue;
         }
 
@@ -94,6 +101,93 @@ export async function handleInteractions(browser: BrowserManager, storeId: numbe
   }
 
   return result;
+}
+
+export async function executeInteractionActionCandidate(
+  browser: BrowserManager,
+  storeId: number,
+  candidate: InteractionActionCandidate,
+  safetyInput: Partial<ActionSafety> = {},
+): Promise<InteractionActionDetail> {
+  const page = browser.getPage();
+  const safety = resolveActionSafety(safetyInput);
+  const reason = candidate.aiJudgment || 'approved-hide';
+
+  await browser.navigateWithRetry(INTERACTION_URL);
+  await page.waitForTimeout(2500);
+  await selectRecentThirtyDays(page);
+  const pageScreenshot = await browser.takeScreenshot(storeId, 'interaction-hide-candidate-scan');
+  const interactions = await getInteractionRows(page);
+  const interaction = findInteractionCandidateRow(interactions, candidate);
+  const base = {
+    interactionId: candidate.interactionId || candidate.id.toString(),
+    contentSummary: candidate.contentSummary || '',
+    aiJudgment: candidate.aiJudgment || 'negative',
+    action: 'hide' as const,
+  };
+
+  if (!interaction) {
+    return {
+      ...base,
+      ...buildActionAudit(safety, reason, { screenshotPath: pageScreenshot, errorMessage: 'Approved interaction candidate row not found' }),
+    };
+  }
+  if (!interaction.withinLast7Days) {
+    return {
+      interactionId: interaction.id,
+      contentSummary: interaction.content.substring(0, 100),
+      aiJudgment: candidate.aiJudgment || 'negative',
+      action: 'hide',
+      ...buildActionAudit(safety, reason, { screenshotPath: pageScreenshot, errorMessage: 'Approved interaction is outside the last 7 days or missing interaction time' }),
+    };
+  }
+  if (!canSubmitAction(safety, 'hide')) {
+    return {
+      interactionId: interaction.id,
+      contentSummary: interaction.content.substring(0, 100),
+      aiJudgment: candidate.aiJudgment || 'negative',
+      action: 'hide',
+      ...buildActionAudit(safety, reason, { screenshotPath: pageScreenshot }),
+    };
+  }
+
+  const hideBtn = interaction.row ? await findRowButton(interaction.row, ['隐藏评论']) : null;
+  if (!hideBtn) {
+    return {
+      interactionId: interaction.id,
+      contentSummary: interaction.content.substring(0, 100),
+      aiJudgment: candidate.aiJudgment || 'negative',
+      action: 'hide',
+      ...buildActionAudit(safety, reason, { screenshotPath: pageScreenshot, errorMessage: 'Hide comment button not found in approved candidate row' }),
+    };
+  }
+
+  await hideBtn.scrollIntoViewIfNeeded().catch(() => undefined);
+  await hideBtn.click({ timeout: 5000 });
+  await page.waitForTimeout(800);
+  await clickConfirmIfPresent(page);
+  const screenshotPath = await browser.takeScreenshot(storeId, 'interaction-hide-approved-submitted');
+  return {
+    interactionId: interaction.id,
+    contentSummary: interaction.content.substring(0, 100),
+    aiJudgment: candidate.aiJudgment || 'negative',
+    action: 'hide',
+    ...buildActionAudit(safety, reason, { submitted: true, screenshotPath }),
+  };
+}
+
+function findInteractionCandidateRow(interactions: InteractionRow[], candidate: InteractionActionCandidate): InteractionRow | null {
+  const expectedId = candidate.interactionId || '';
+  const expectedContent = normalizeText(candidate.contentSummary || '');
+  return interactions.find((interaction) => {
+    if (expectedId && interaction.id === expectedId) return true;
+    const actualContent = normalizeText(interaction.content);
+    return Boolean(expectedContent) && (actualContent.includes(expectedContent) || expectedContent.includes(actualContent));
+  }) || null;
+}
+
+function normalizeText(value: string): string {
+  return value.replace(/\s+/g, '').trim();
 }
 
 async function selectRecentThirtyDays(page: any): Promise<void> {

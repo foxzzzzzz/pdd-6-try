@@ -3,7 +3,7 @@
  */
 import { BrowserManager } from '../browser';
 import { ReviewActionDetail } from '@pdd-inspector/core';
-import { ActionSafety, buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
+import { ActionSafety, buildActionAudit, canSubmitAction, requiresApproval, resolveActionSafety } from '../action-safety';
 
 const REVIEW_URL = 'https://mms.pinduoduo.com/goods/evaluation/index?msfrom=mms_sidenav';
 const REVIEW_ACTION_WINDOW_HOURS = 72;
@@ -11,6 +11,14 @@ const REVIEW_ACTION_WINDOW_HOURS = 72;
 export interface ReviewActionResult { details: ReviewActionDetail[]; replied: number; reported: number; skipped: number; failed: number; }
 interface ReviewRow { id: string; content: string; stars: number; createdAt: string | null; row?: any; }
 type ReportTemplateResolver = (r: { content: string; stars: number }) => string | Promise<string>;
+export interface ReviewActionCandidate {
+  id: number;
+  reviewId: string | null;
+  reviewContent: string | null;
+  reviewStars: number | null;
+  actionType: 'reply' | 'report';
+  actionContent: string | null;
+}
 
 export async function replyToGoodReviews(browser: BrowserManager, storeId: number, replyTemplate: string, safetyInput: Partial<ActionSafety> = {}): Promise<ReviewActionResult> {
   const page = browser.getPage();
@@ -107,7 +115,7 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
             reviewStars: review.stars,
             actionType: 'report',
             actionContent: template,
-            ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot }),
+            ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, approvalRequired: requiresApproval(safety, 'report') && !safety.approvedActions.report }),
           });
           continue;
         }
@@ -129,6 +137,157 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
     await browser.takeScreenshot(storeId, 'reviews-reported');
   } catch (err) { console.error(`Report error for ${storeId}:`, err); }
   return result;
+}
+
+export async function executeReviewActionCandidate(
+  browser: BrowserManager,
+  storeId: number,
+  candidate: ReviewActionCandidate,
+  safetyInput: Partial<ActionSafety> = {},
+): Promise<ReviewActionDetail> {
+  const page = browser.getPage();
+  const safety = resolveActionSafety(safetyInput);
+  const actionContent = candidate.actionContent || '';
+  const expectedStars = candidate.reviewStars || (candidate.actionType === 'reply' ? 5 : 1);
+
+  await browser.navigateWithRetry(REVIEW_URL);
+  await page.waitForTimeout(3000);
+  await filterByStars(page, candidate.actionType === 'reply' ? [4, 5] : [1, 2, 3]);
+  await dismissBlockingModal(page);
+
+  const pageScreenshot = await browser.takeScreenshot(storeId, `review-${candidate.actionType}-candidate-scan`);
+  const reviews = (await getReviewRows(page)).filter((review) =>
+    candidate.actionType === 'reply' ? review.stars >= 4 : review.stars <= 3,
+  );
+  const review = findReviewCandidateRow(reviews, candidate);
+  const base = {
+    reviewId: candidate.reviewId || candidate.id.toString(),
+    reviewContent: candidate.reviewContent || '',
+    reviewStars: expectedStars,
+    actionType: candidate.actionType,
+    actionContent,
+  };
+
+  if (!review) {
+    return {
+      ...base,
+      ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Approved review candidate row not found' }),
+    };
+  }
+  if (!isReviewWithinLastHours(review.createdAt, new Date(), REVIEW_ACTION_WINDOW_HOURS)) {
+    return {
+      reviewId: review.id,
+      reviewContent: review.content,
+      reviewStars: review.stars,
+      actionType: candidate.actionType,
+      actionContent,
+      ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Approved review is outside the last 72 hours or missing review time' }),
+    };
+  }
+  if (!canSubmitAction(safety, candidate.actionType)) {
+    return {
+      reviewId: review.id,
+      reviewContent: review.content,
+      reviewStars: review.stars,
+      actionType: candidate.actionType,
+      actionContent,
+      ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot }),
+    };
+  }
+
+  if (candidate.actionType === 'reply') {
+    const replyBtn = review.row ? await findButton(review.row, ['回复/互动', '回复', 'Reply']) : null;
+    if (!replyBtn) {
+      return {
+        reviewId: review.id,
+        reviewContent: review.content,
+        reviewStars: review.stars,
+        actionType: 'reply',
+        actionContent,
+        ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Reply button not found in approved candidate row' }),
+      };
+    }
+    await openQuickReplyModal(page, replyBtn);
+    await fillQuickReplyModal(page, actionContent);
+    const submitBtn = await findQuickReplySubmitButton(page);
+    if (!submitBtn) {
+      return {
+        reviewId: review.id,
+        reviewContent: review.content,
+        reviewStars: review.stars,
+        actionType: 'reply',
+        actionContent,
+        ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Quick reply submit button not found' }),
+      };
+    }
+    await submitBtn.click({ timeout: 5000 });
+    await page.waitForTimeout(1500);
+    const screenshotPath = await browser.takeScreenshot(storeId, 'review-reply-approved-submitted');
+    return {
+      reviewId: review.id,
+      reviewContent: review.content,
+      reviewStars: review.stars,
+      actionType: 'reply',
+      actionContent,
+      ...buildActionAudit(safety, actionContent, { submitted: true, screenshotPath }),
+    };
+  }
+
+  const reportBtn = review.row ? await findButton(review.row, ['举报', 'Report']) : null;
+  if (!reportBtn) {
+    return {
+      reviewId: review.id,
+      reviewContent: review.content,
+      reviewStars: review.stars,
+      actionType: 'report',
+      actionContent,
+      ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Report button not found in approved candidate row' }),
+    };
+  }
+  await reportBtn.scrollIntoViewIfNeeded().catch(() => undefined);
+  await reportBtn.click({ timeout: 5000 });
+  await page.waitForTimeout(1000);
+  const textarea = await page.$('textarea, [contenteditable="true"]');
+  if (textarea) {
+    await textarea.fill(actionContent);
+    await page.waitForTimeout(500);
+  }
+  const submitBtn = await findButton(page, ['提交', '确认举报', 'Submit']);
+  if (!submitBtn) {
+    return {
+      reviewId: review.id,
+      reviewContent: review.content,
+      reviewStars: review.stars,
+      actionType: 'report',
+      actionContent,
+      ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Report submit button not found' }),
+    };
+  }
+  await submitBtn.click({ timeout: 5000 });
+  await page.waitForTimeout(1500);
+  const screenshotPath = await browser.takeScreenshot(storeId, 'review-report-approved-submitted');
+  return {
+    reviewId: review.id,
+    reviewContent: review.content,
+    reviewStars: review.stars,
+    actionType: 'report',
+    actionContent,
+    ...buildActionAudit(safety, actionContent, { submitted: true, screenshotPath }),
+  };
+}
+
+function findReviewCandidateRow(reviews: ReviewRow[], candidate: ReviewActionCandidate): ReviewRow | null {
+  const expectedId = candidate.reviewId || '';
+  const expectedContent = normalizeText(candidate.reviewContent || '');
+  return reviews.find((review) => {
+    if (expectedId && review.id === expectedId) return true;
+    const actualContent = normalizeText(review.content);
+    return Boolean(expectedContent) && (actualContent.includes(expectedContent) || expectedContent.includes(actualContent));
+  }) || null;
+}
+
+function normalizeText(value: string): string {
+  return value.replace(/\s+/g, '').trim();
 }
 
 async function filterByStars(page: any, stars: number[]): Promise<void> {
