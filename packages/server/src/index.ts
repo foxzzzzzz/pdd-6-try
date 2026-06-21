@@ -10,6 +10,7 @@ import { issueRoutes } from './routes/issues';
 import { reportRoutes } from './routes/reports';
 import { actionCandidateRoutes } from './routes/action-candidates';
 import { riskRoutes } from './routes/risk';
+import { operatorSessionRoutes } from './routes/operator-sessions';
 import { getRedis, closeRedis } from './redis';
 import { getInspectionQueue, closeQueue } from './queue';
 import { getDb, closeDb } from '@pdd-inspector/core';
@@ -67,6 +68,7 @@ async function start() {
   await app.register(reportRoutes);
   await app.register(actionCandidateRoutes);
   await app.register(riskRoutes);
+  await app.register(operatorSessionRoutes);
 
   // Health check
   app.get('/api/health', async () => {

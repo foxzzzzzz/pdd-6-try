@@ -18,9 +18,11 @@ import { buildMetricInsertValues } from './inspection-results';
 import { shouldRunRuleBasedAnomalyDetection } from './inspection-config';
 import { ActionMode, resolveActionSafety } from './action-safety';
 import { recordRiskEvent } from './risk-sentinel';
+import { normalizeOperatorId, resolveOperatorStorageState, saveOperatorStoreSession } from './operator-session';
 
 export interface InspectionConfig {
   inspectionId?: number;
+  operatorId?: string | null;
   headless: boolean;
   screenshotOnError: boolean;
   enableReply: boolean;
@@ -85,6 +87,7 @@ export async function inspectStore(
   config: Partial<InspectionConfig> = {},
 ): Promise<{ success: boolean; completionRate: number; errors: string[] }> {
   const resolvedConfig: InspectionConfig = { ...DEFAULT_CONFIG, ...config };
+  const operatorId = normalizeOperatorId(resolvedConfig.operatorId);
   const db = await getDb();
   const actionSafety = resolveActionSafety({
     ...resolvedConfig,
@@ -131,12 +134,14 @@ export async function inspectStore(
     }
 
     await browser.init(resolvedConfig.headless);
-    const loggedIn = await browser.login(storeId, store.storageState);
+    const storageState = resolveOperatorStorageState(db, operatorId, storeId, store.storageState);
+    const loggedIn = await browser.login(storeId, storageState);
 
     if (!loggedIn) {
       const loginMessage = 'Login required - manual intervention needed';
       await recordRiskEvent(db, {
         storeId,
+        operatorId,
         eventType: 'login',
         message: loginMessage,
         browser,
@@ -155,6 +160,7 @@ export async function inspectStore(
 
     // Save fresh storage state
     const newStorageState = await browser.saveStorageState();
+    saveOperatorStoreSession(db, operatorId, storeId, newStorageState, 'active');
     db.update(schema.stores)
       .set({ storageState: newStorageState, status: 'active', updatedAt: new Date().toISOString() })
       .where(eq(schema.stores.id, storeId))
@@ -407,7 +413,7 @@ export async function inspectStore(
           submittedAt: detail.submittedAt || null,
           executedAt: detail.executedAt || null,
           approvedAt: detail.approvedAt || null,
-          operatorId: detail.operatorId || null,
+          operatorId: detail.operatorId || operatorId || null,
         })
         .run();
     }
@@ -429,7 +435,7 @@ export async function inspectStore(
           submittedAt: detail.submittedAt || null,
           executedAt: detail.executedAt || null,
           approvedAt: detail.approvedAt || null,
-          operatorId: detail.operatorId || null,
+          operatorId: detail.operatorId || operatorId || null,
         })
         .run();
     }

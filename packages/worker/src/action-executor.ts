@@ -6,6 +6,7 @@ import { resolveActionDelayMs } from './action-risk-control';
 import { isGlobalWritePaused, recordRiskEvent, resolveRiskEventType } from './risk-sentinel';
 import { executeInteractionActionCandidate, InteractionActionCandidate } from './actions/interactions';
 import { executeReviewActionCandidate, ReviewActionCandidate } from './actions/reviews';
+import { normalizeOperatorId, resolveOperatorStorageState, saveOperatorStoreSession } from './operator-session';
 
 export interface ActionExecutorConfig {
   headless: boolean;
@@ -24,6 +25,8 @@ interface StoreRecord {
 }
 
 export async function executeApprovedAction(job: ActionJobData, config: ActionExecutorConfig): Promise<{ status: string; error?: string }> {
+  const operatorId = normalizeOperatorId(job.operatorId);
+  if (!operatorId) throw new Error('operatorId is required for approved action execution');
   const db = await getDb();
   const candidate = getCandidate(db, job);
   if (!candidate) throw new Error(`Action candidate not found: ${job.candidateKind}#${job.candidateId}`);
@@ -47,14 +50,15 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
   }
 
   setCandidateStatus(db, job.candidateKind, job.candidateId, 'running', {
-    operatorId: job.operatorId,
+    operatorId,
   });
   saveDb(db);
 
   const browser = new BrowserManager();
   try {
     await browser.init(config.headless);
-    const loggedIn = await browser.login(store.id, store.storageState);
+    const storageState = resolveOperatorStorageState(db, operatorId, store.id, store.storageState);
+    const loggedIn = await browser.login(store.id, storageState);
     if (!loggedIn) {
       const errorMessage = 'Store login required before executing approved action';
       setCandidateStatus(db, job.candidateKind, job.candidateId, 'failed', { errorMessage });
@@ -62,7 +66,7 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
       saveDb(db);
       return { status: 'failed', error: errorMessage };
     }
-    refreshStoreSession(db, browser, store.id).catch(() => undefined);
+    refreshStoreSession(db, browser, store.id, operatorId).catch(() => undefined);
 
     const safety = buildSingleActionSafety(job.actionType, config);
     await delayBeforeAction(job.actionType, config);
@@ -80,7 +84,7 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
       screenshotPath: detail.screenshotPath || null,
       submittedAt: detail.submittedAt || null,
       executedAt: detail.executedAt || new Date().toISOString(),
-      operatorId: job.operatorId,
+      operatorId,
     });
     saveDb(db);
     return { status: finalStatus, error: detail.errorMessage };
@@ -104,6 +108,7 @@ async function recordActionRisk(
 ): Promise<void> {
   await recordRiskEvent(db, {
     storeId: job.storeId,
+    operatorId: job.operatorId,
     eventType,
     message,
     actionType: job.actionType,
@@ -113,8 +118,9 @@ async function recordActionRisk(
   });
 }
 
-async function refreshStoreSession(db: any, browser: BrowserManager, storeId: number): Promise<void> {
+async function refreshStoreSession(db: any, browser: BrowserManager, storeId: number, operatorId: string): Promise<void> {
   const storageState = await browser.saveStorageState();
+  saveOperatorStoreSession(db, operatorId, storeId, storageState, 'active');
   db.run(sql.raw(`
     UPDATE stores
     SET storage_state = ${quote(storageState)},

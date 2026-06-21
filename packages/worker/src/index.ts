@@ -49,12 +49,13 @@ async function start() {
 const worker = new Worker<InspectionJobData>(
   INSPECTION_QUEUE,
   async (job) => {
-    const { storeId, storeName, date, inspectionId } = job.data;
-    log(`\n=== Processing: ${storeName} (ID: ${storeId}) ===`);
+    const { storeId, storeName, date, inspectionId, operatorId } = job.data;
+    log(`\n=== Processing: ${storeName} (ID: ${storeId}) operator=${operatorId || 'none'} ===`);
     await job.updateProgress(10);
 
     const result = await inspectStore(storeId, storeName, date, {
       inspectionId,
+      operatorId,
       headless: HEADLESS,
       screenshotOnError: true,
       enableReply: ENABLE_REPLY,

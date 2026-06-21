@@ -316,6 +316,32 @@ async function migrate() {
   `);
 
   db.run(sql`
+    CREATE TABLE IF NOT EXISTS operators (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS operator_store_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      operator_id TEXT NOT NULL REFERENCES operators(id),
+      store_id INTEGER NOT NULL REFERENCES stores(id),
+      profile_key TEXT NOT NULL,
+      storage_state TEXT,
+      status TEXT NOT NULL DEFAULT 'pending_login',
+      last_login_at TEXT,
+      last_used_at TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(operator_id, store_id)
+    )
+  `);
+
+  db.run(sql`
     CREATE TABLE IF NOT EXISTS daily_reports (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL UNIQUE,
@@ -339,6 +365,7 @@ async function migrate() {
       event_type TEXT NOT NULL,
       severity TEXT NOT NULL DEFAULT 'warning',
       message TEXT NOT NULL,
+      operator_id TEXT,
       action_type TEXT,
       source_type TEXT,
       source_id TEXT,
@@ -349,6 +376,12 @@ async function migrate() {
       resolved_at TEXT
     )
   `);
+
+  try {
+    db.run(sql`ALTER TABLE risk_events ADD COLUMN operator_id TEXT`);
+  } catch {
+    // Existing databases may already have this column.
+  }
 
   saveDb(db);
   console.log('Migration complete: all tables created.');

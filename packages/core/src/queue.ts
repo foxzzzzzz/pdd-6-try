@@ -9,6 +9,7 @@ export interface InspectionJobData {
   storeName: string;
   date: string;
   inspectionId?: number;
+  operatorId?: string;
 }
 
 export interface SchedulerJobData {
@@ -28,10 +29,13 @@ export function createInspectionJobData(
   storeName: string,
   date: string,
   inspectionId?: number,
+  operatorId?: string | null,
 ): InspectionJobData {
-  return inspectionId == null
-    ? { storeId, storeName, date }
-    : { storeId, storeName, date, inspectionId };
+  const job: InspectionJobData = { storeId, storeName, date };
+  if (inspectionId != null) job.inspectionId = inspectionId;
+  const normalizedOperatorId = operatorId?.trim();
+  if (normalizedOperatorId) job.operatorId = normalizedOperatorId;
+  return job;
 }
 
 export function createSchedulerJobData(): SchedulerJobData {

@@ -33,10 +33,23 @@ export const api = {
     return request<any[]>(`/inspections${q ? '?' + q : ''}`);
   },
   getInspection: (id: number) => request<any>(`/inspections/${id}`),
-  triggerInspect: (storeId: number) => request<any>(`/stores/${storeId}/inspect`, { method: 'POST' }),
-  triggerInspectAll: () => request<any>('/inspect-all', { method: 'POST' }),
+  triggerInspect: (storeId: number, operatorId?: string) => request<any>(
+    `/stores/${storeId}/inspect`,
+    { method: 'POST', body: JSON.stringify(operatorId ? { operatorId } : {}) },
+  ),
+  triggerInspectAll: (operatorId?: string) => request<any>(
+    '/inspect-all',
+    { method: 'POST', body: JSON.stringify(operatorId ? { operatorId } : {}) },
+  ),
   getQueueStatus: () => request<any>('/queue/status'),
   getRiskStatus: () => request<any>('/risk/status'),
+  getOperatorSessions: (params?: { operatorId?: string; storeId?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.operatorId) qs.set('operatorId', params.operatorId);
+    if (params?.storeId) qs.set('storeId', String(params.storeId));
+    const q = qs.toString();
+    return request<any[]>(`/operator-sessions${q ? '?' + q : ''}`);
+  },
 
   // Action candidates
   getActionCandidates: (params?: { status?: string; storeId?: number; type?: string }) => {
@@ -47,11 +60,11 @@ export const api = {
     const q = qs.toString();
     return request<any[]>(`/action-candidates${q ? '?' + q : ''}`);
   },
-  approveActionCandidate: (kind: string, id: number, operatorId = 'operator') => request<any>(
+  approveActionCandidate: (kind: string, id: number, operatorId: string) => request<any>(
     `/action-candidates/${kind}/${id}/approve`,
     { method: 'POST', body: JSON.stringify({ operatorId }) },
   ),
-  skipActionCandidate: (kind: string, id: number, operatorId = 'operator') => request<any>(
+  skipActionCandidate: (kind: string, id: number, operatorId: string) => request<any>(
     `/action-candidates/${kind}/${id}/skip`,
     { method: 'POST', body: JSON.stringify({ operatorId }) },
   ),

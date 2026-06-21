@@ -25,6 +25,7 @@ import { parseCommentMetricsText } from '../collectors/comments';
 import { buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
 import { clampActionConcurrency, clampInspectionConcurrency, decideStoreStatusForRiskSignal, detectRiskControlSignal, resolveActionDelayMs } from '../action-risk-control';
 import { summarizeRiskEvents } from '../risk-sentinel';
+import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator-session';
 import { parseStoredStorageState } from '../browser';
 import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
@@ -106,6 +107,11 @@ console.log('\n📋 测试: 巡店记录关联与异常落库');
 
 const jobData = createInspectionJobData(12, '测试店铺', '2026-06-17', 99);
 assert('队列任务携带 inspectionId', jobData.inspectionId === 99);
+const operatorJobData = createInspectionJobData(12, '测试店铺', '2026-06-17', 99, ' operator-a ');
+assert('巡店任务携带归一化 operatorId', operatorJobData.operatorId === 'operator-a');
+assert('空运营 ID 不进入巡店任务', !('operatorId' in createInspectionJobData(12, '测试店铺', '2026-06-17', 99, '   ')));
+assert('运营 ID 会 trim 并拒绝空值', normalizeOperatorId(' operator-a ') === 'operator-a' && normalizeOperatorId('   ') === null);
+assert('运营店铺 profileKey 固定绑定', buildOperatorSessionProfileKey('operator-a', 12) === 'operator-a:store-12');
 
 const schedulerJobData = createSchedulerJobData();
 const actionJobData = createActionJobData('review', 7, 12, 'report', 'operator-a');

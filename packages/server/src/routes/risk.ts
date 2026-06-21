@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 type RiskEventRow = {
   id: number;
   storeId: number | null;
+  operatorId: string | null;
   storeName: string | null;
   scope: string;
   eventType: string;
@@ -54,6 +55,7 @@ function listActiveEvents(db: any): RiskEventRow[] {
     SELECT
       re.id,
       re.store_id AS storeId,
+      re.operator_id AS operatorId,
       s.name AS storeName,
       re.scope,
       re.event_type AS eventType,
@@ -86,12 +88,14 @@ function summarizeRiskEvents(events: RiskEventRow[]) {
       continue;
     }
     if (event.storeId == null) continue;
-    if (event.eventType !== 'action_failure') pausedStoreIds.add(event.storeId);
+    if (event.eventType !== 'action_failure' && !event.operatorId) pausedStoreIds.add(event.storeId);
     if (event.eventType === 'action_failure') {
       actionFailuresByStore.set(event.storeId, (actionFailuresByStore.get(event.storeId) || 0) + 1);
     }
-    if (!eventsByType.has(event.eventType)) eventsByType.set(event.eventType, new Set());
-    eventsByType.get(event.eventType)!.add(event.storeId);
+    if (!event.operatorId) {
+      if (!eventsByType.has(event.eventType)) eventsByType.set(event.eventType, new Set());
+      eventsByType.get(event.eventType)!.add(event.storeId);
+    }
   }
 
   for (const [storeId, count] of actionFailuresByStore) {
@@ -119,6 +123,7 @@ function ensureRiskEventTable(db: any) {
       event_type TEXT NOT NULL,
       severity TEXT NOT NULL DEFAULT 'warning',
       message TEXT NOT NULL,
+      operator_id TEXT,
       action_type TEXT,
       source_type TEXT,
       source_id TEXT,
@@ -129,6 +134,11 @@ function ensureRiskEventTable(db: any) {
       resolved_at TEXT
     )
   `));
+  try {
+    db.run(sql.raw(`ALTER TABLE risk_events ADD COLUMN operator_id TEXT`));
+  } catch {
+    // Column already exists.
+  }
 }
 
 function quote(value: string): string {

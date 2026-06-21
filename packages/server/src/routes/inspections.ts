@@ -6,7 +6,7 @@ import { mergeInspectionMetrics } from '../inspection-summary';
 
 export async function inspectionRoutes(app: FastifyInstance) {
   // Trigger inspection for a store
-  app.post<{ Params: { id: string } }>('/api/stores/:id/inspect', async (req) => {
+  app.post<{ Params: { id: string }; Body: { operatorId?: string } }>('/api/stores/:id/inspect', async (req) => {
     const db = await getDb();
     const store = db
       .select()
@@ -36,20 +36,22 @@ export async function inspectionRoutes(app: FastifyInstance) {
       .get();
 
     // Add to queue
-    const job = await addInspectionJob(store.id, store.name, date, record.id);
+    const operatorId = resolveInspectionOperatorId(req.body?.operatorId, store.owner);
+    const job = await addInspectionJob(store.id, store.name, date, record.id, operatorId);
     saveDb(db);
 
     return {
       inspectionId: record.id,
       jobId: job.id,
       storeId: store.id,
+      operatorId,
       status: 'pending',
       message: `Inspection queued for ${store.name}`,
     };
   });
 
   // Trigger inspection for ALL active stores
-  app.post('/api/inspect-all', async () => {
+  app.post<{ Body: { operatorId?: string } }>('/api/inspect-all', async (req) => {
     const db = await getDb();
     const activeStores = db
       .select()
@@ -75,11 +77,13 @@ export async function inspectionRoutes(app: FastifyInstance) {
         .returning()
         .get();
 
-      const job = await addInspectionJob(store.id, store.name, date, record.id);
+      const operatorId = resolveInspectionOperatorId(req.body?.operatorId, store.owner);
+      const job = await addInspectionJob(store.id, store.name, date, record.id, operatorId);
 
       results.push({
         storeId: store.id,
         storeName: store.name,
+        operatorId,
         inspectionId: record.id,
         jobId: job.id,
       });
@@ -187,4 +191,8 @@ export async function inspectionRoutes(app: FastifyInstance) {
 
     return { waiting, active, completed, failed, delayed };
   });
+}
+
+function resolveInspectionOperatorId(input?: string | null, storeOwner?: string | null): string {
+  return input?.trim() || storeOwner?.trim() || process.env.DEFAULT_OPERATOR_ID || 'system';
 }

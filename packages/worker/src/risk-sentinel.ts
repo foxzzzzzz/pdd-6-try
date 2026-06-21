@@ -2,12 +2,14 @@ import { sql } from 'drizzle-orm';
 import { saveDb } from '@pdd-inspector/core';
 import { BrowserManager } from './browser';
 import { decideStoreStatusForRiskSignal, detectRiskControlSignal, RiskControlKind } from './action-risk-control';
+import { markOperatorStoreSessionStatus, normalizeOperatorId } from './operator-session';
 
 export type RiskEventType = RiskControlKind | 'action_failure';
 export type RiskEventSeverity = 'warning' | 'critical';
 
 export interface RiskEventLike {
   storeId: number | null;
+  operatorId?: string | null;
   eventType: string;
   status: string;
 }
@@ -23,6 +25,7 @@ export interface RiskSentinelEventInput {
   storeId: number | null;
   eventType: RiskEventType;
   message: string;
+  operatorId?: string | null;
   actionType?: string | null;
   sourceType?: string | null;
   sourceId?: string | null;
@@ -38,12 +41,14 @@ export function summarizeRiskEvents(events: RiskEventLike[]): RiskSummary {
 
   for (const event of active) {
     if (event.storeId != null) {
-      if (event.eventType !== 'action_failure') pausedStoreIds.add(event.storeId);
+      if (event.eventType !== 'action_failure' && !event.operatorId) pausedStoreIds.add(event.storeId);
       if (event.eventType === 'action_failure') {
         actionFailuresByStore.set(event.storeId, (actionFailuresByStore.get(event.storeId) || 0) + 1);
       }
-      if (!eventsByType.has(event.eventType)) eventsByType.set(event.eventType, new Set());
-      eventsByType.get(event.eventType)!.add(event.storeId);
+      if (!event.operatorId) {
+        if (!eventsByType.has(event.eventType)) eventsByType.set(event.eventType, new Set());
+        eventsByType.get(event.eventType)!.add(event.storeId);
+      }
     }
     if (event.storeId == null && event.eventType !== 'action_failure') {
       globalReasons.push(`global:${event.eventType}`);
@@ -75,6 +80,7 @@ export function isGlobalWritePaused(db: any): boolean {
   ensureRiskEventTable(db);
   const events = db.all(sql.raw(`
     SELECT store_id AS storeId, event_type AS eventType, status
+    , operator_id AS operatorId
     FROM risk_events
     WHERE status = 'active'
   `));
@@ -85,15 +91,17 @@ export async function recordRiskEvent(db: any, input: RiskSentinelEventInput): P
   ensureRiskEventTable(db);
   const severity: RiskEventSeverity = input.eventType === 'login' || input.eventType === 'action_failure' ? 'warning' : 'critical';
   const timestamp = new Date().toISOString();
+  const operatorId = normalizeOperatorId(input.operatorId);
   const screenshotPath = input.browser ? await input.browser.takeScreenshot(input.storeId || 0, `risk-${input.eventType}`).catch(() => null) : null;
   const htmlPath = input.browser ? await input.browser.savePageHtml(input.storeId || 0, `risk-${input.eventType}`).catch(() => null) : null;
 
   db.run(sql.raw(`
     INSERT INTO risk_events (
-      store_id, scope, event_type, severity, message, action_type, source_type,
+      store_id, operator_id, scope, event_type, severity, message, action_type, source_type,
       source_id, screenshot_path, html_path, status, created_at
     ) VALUES (
       ${input.storeId == null ? 'NULL' : input.storeId},
+      ${operatorId ? quote(operatorId) : 'NULL'},
       ${quote(input.storeId == null ? 'global' : 'store')},
       ${quote(input.eventType)},
       ${quote(severity)},
@@ -108,7 +116,9 @@ export async function recordRiskEvent(db: any, input: RiskSentinelEventInput): P
     )
   `));
 
-  if (input.storeId != null && input.eventType !== 'action_failure') {
+  if (input.storeId != null && operatorId && input.eventType !== 'action_failure') {
+    markOperatorStoreSessionStatus(db, operatorId, input.storeId, input.eventType === 'login' ? 'pending_login' : 'paused');
+  } else if (input.storeId != null && input.eventType !== 'action_failure') {
     const storeStatus = decideStoreStatusForRiskSignal(input.eventType);
     db.run(sql.raw(`
       UPDATE stores
@@ -119,7 +129,7 @@ export async function recordRiskEvent(db: any, input: RiskSentinelEventInput): P
   }
 
   const summary = summarizeRiskEvents(db.all(sql.raw(`
-    SELECT store_id AS storeId, event_type AS eventType, status
+    SELECT store_id AS storeId, operator_id AS operatorId, event_type AS eventType, status
     FROM risk_events
     WHERE status = 'active'
   `)));
@@ -159,6 +169,7 @@ export function ensureRiskEventTable(db: any): void {
       event_type TEXT NOT NULL,
       severity TEXT NOT NULL DEFAULT 'warning',
       message TEXT NOT NULL,
+      operator_id TEXT,
       action_type TEXT,
       source_type TEXT,
       source_id TEXT,
@@ -169,6 +180,11 @@ export function ensureRiskEventTable(db: any): void {
       resolved_at TEXT
     )
   `));
+  try {
+    db.run(sql.raw(`ALTER TABLE risk_events ADD COLUMN operator_id TEXT`));
+  } catch {
+    // Column already exists.
+  }
 }
 
 function hasActiveGlobalWritePause(db: any): boolean {

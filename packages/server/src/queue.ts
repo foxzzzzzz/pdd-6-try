@@ -41,9 +41,10 @@ export async function addInspectionJob(
   storeName: string,
   date: string,
   inspectionId?: number,
+  operatorId?: string | null,
 ): Promise<Job<InspectionJobData>> {
   const queue = getInspectionQueue();
-  return queue.add(`inspect-${storeId}-${date}`, createInspectionJobData(storeId, storeName, date, inspectionId));
+  return queue.add(`inspect-${storeId}-${date}`, createInspectionJobData(storeId, storeName, date, inspectionId, operatorId));
 }
 
 export function getActionQueue(): Queue<ActionJobData> {

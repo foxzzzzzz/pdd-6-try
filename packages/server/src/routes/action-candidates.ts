@@ -24,14 +24,14 @@ export async function actionCandidateRoutes(app: FastifyInstance) {
     Params: { kind: CandidateKind; id: string };
     Body: { operatorId?: string };
   }>('/api/action-candidates/:kind/:id/approve', async (req) => {
-    return approveCandidate(req.params.kind, parseInt(req.params.id, 10), req.body?.operatorId || 'operator');
+    return approveCandidate(req.params.kind, parseInt(req.params.id, 10), requireOperatorId(req.body?.operatorId));
   });
 
   app.post<{
     Params: { kind: CandidateKind; id: string };
     Body: { operatorId?: string };
   }>('/api/action-candidates/:kind/:id/skip', async (req) => {
-    return updateCandidate(req.params.kind, parseInt(req.params.id, 10), 'skipped', req.body?.operatorId || 'operator');
+    return updateCandidate(req.params.kind, parseInt(req.params.id, 10), 'skipped', requireOperatorId(req.body?.operatorId));
   });
 }
 
@@ -195,4 +195,10 @@ function sanitizeType(value: string | null): string | null {
 
 function quote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
+}
+
+function requireOperatorId(value?: string | null): string {
+  const operatorId = value?.trim();
+  if (!operatorId) throw { statusCode: 400, message: 'operatorId is required' };
+  return operatorId;
 }

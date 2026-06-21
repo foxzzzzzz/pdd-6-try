@@ -423,6 +423,32 @@ failed
 - 通知运营人工接管。
 - 禁止自动重试真实写操作。
 
+## P4 账号和权限治理
+
+当前实现状态（2026-06-21）：
+
+- 新增 `operators` 表，用于记录运营身份；当前先以运营 ID 作为最小身份标识，后续可接入正式登录用户体系。
+- 新增 `operator_store_sessions` 表，将 `operatorId + storeId` 固定绑定到一个 `profileKey` 和一份 Playwright `storageState`，避免不同运营或不同店铺混用同一登录态。
+- 巡店 job 支持携带 `operatorId`。Worker 登录时优先读取 `operator_store_sessions.storage_state`，没有绑定态时才 fallback 到店铺级 `stores.storage_state`；登录成功后同时刷新当前运营-店铺绑定。
+- 审批台确认/跳过写操作时必须填写 `operatorId`，Server 不再默认写成 `operator`；`pdd-action` 单条执行 job 会带上真实 `operatorId`。
+- action worker 执行真实写操作时使用 `operatorId + storeId` 的绑定登录态，并在执行后刷新该绑定的 `storageState`。
+- `risk_events` 新增 `operator_id`。带 `operatorId` 的登录、安全验证、操作频繁、权限不足等风险事件，优先暂停对应 `operator_store_sessions`，不直接暂停整个店铺，避免牵连同店铺下其他运营。
+- 新增 `/api/operator-sessions` 只读接口，可查看运营、店铺、`profileKey`、session 状态、最近登录和最近使用时间，便于后续做账号/profile 绑定配置页。
+
+默认治理规则：
+
+- 每个运营使用自己的拼多多子账号。
+- 每个运营-店铺组合拥有固定 `profileKey` 和独立 `storageState`。
+- 后台读数据巡店可 fallback 到店铺 owner 或 `system`，但真实写操作必须由审批台传入明确 `operatorId`。
+- 登录异常只暂停相关运营-店铺绑定；未绑定运营身份的老流程才沿用店铺级 `pending_login/paused`。
+- 写操作审计继续记录 `operatorId/storeId/actionType/sourceId/screenshot/result/errorMessage`。
+
+当前边界：
+
+- 还没有完整的 Web 账号管理页；目前审批台提供运营 ID 输入，后端提供只读绑定查询接口。
+- 当前使用 Playwright `storageState` 做轻量 profile 绑定，没有默认启用 persistent browser context；如果后续需要磁盘级浏览器 profile，需要再补 profile 锁、清理策略和跨进程互斥。
+- 正式用户登录体系接入后，应把审批台手输 `operatorId` 改为从登录态读取，避免人工填错。
+
 ## MVP 实现建议
 
 第一阶段只做最小闭环：

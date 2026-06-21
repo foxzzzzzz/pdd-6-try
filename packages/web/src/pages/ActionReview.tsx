@@ -31,6 +31,7 @@ export default function ActionReview() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [operatorId, setOperatorId] = useState(() => localStorage.getItem('pdd.operatorId') || '');
 
   useEffect(() => {
     loadCandidates();
@@ -49,12 +50,18 @@ export default function ActionReview() {
   }
 
   async function approve(candidate: Candidate) {
-    await api.approveActionCandidate(candidate.kind, candidate.id);
+    const currentOperatorId = requireOperatorId(operatorId);
+    if (!currentOperatorId) return;
+    localStorage.setItem('pdd.operatorId', currentOperatorId);
+    await api.approveActionCandidate(candidate.kind, candidate.id, currentOperatorId);
     await loadCandidates();
   }
 
   async function skip(candidate: Candidate) {
-    await api.skipActionCandidate(candidate.kind, candidate.id);
+    const currentOperatorId = requireOperatorId(operatorId);
+    if (!currentOperatorId) return;
+    localStorage.setItem('pdd.operatorId', currentOperatorId);
+    await api.skipActionCandidate(candidate.kind, candidate.id, currentOperatorId);
     await loadCandidates();
   }
 
@@ -74,6 +81,15 @@ export default function ActionReview() {
           <p className="mt-1 text-sm text-slate-500">举报和互动隐藏默认先确认后执行；好评回复按低风险策略受限放行。</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={operatorId}
+            onChange={(event) => {
+              setOperatorId(event.target.value);
+              localStorage.setItem('pdd.operatorId', event.target.value.trim());
+            }}
+            placeholder="运营ID"
+            className="w-36 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
           <select value={status} onChange={(event) => setStatus(event.target.value)}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="pending_approval">待确认</option>
@@ -184,4 +200,13 @@ function typeBadgeClass(type: string) {
 function formatDateTime(value?: string | null) {
   if (!value) return '-';
   return new Date(value).toLocaleString();
+}
+
+function requireOperatorId(value: string): string | null {
+  const operatorId = value.trim();
+  if (!operatorId) {
+    alert('请先填写运营ID，再确认或跳过写操作。');
+    return null;
+  }
+  return operatorId;
 }

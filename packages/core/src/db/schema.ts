@@ -230,7 +230,34 @@ export const users = sqliteTable('users', {
 });
 
 // ============================================================
-// 10. daily_reports - daily report snapshots for archive/review
+// 10. operators - PDD subaccount/operator identity
+// ============================================================
+export const operators = sqliteTable('operators', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  status: text('status').notNull().default('active'),     // active | disabled
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+});
+
+// ============================================================
+// 11. operator_store_sessions - fixed operator/store login binding
+// ============================================================
+export const operatorStoreSessions = sqliteTable('operator_store_sessions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  operatorId: text('operator_id').notNull().references(() => operators.id),
+  storeId: integer('store_id').references(() => stores.id).notNull(),
+  profileKey: text('profile_key').notNull(),
+  storageState: text('storage_state'),
+  status: text('status').notNull().default('pending_login'), // active | pending_login | paused
+  lastLoginAt: text('last_login_at'),
+  lastUsedAt: text('last_used_at'),
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+});
+
+// ============================================================
+// 12. daily_reports - daily report snapshots for archive/review
 // ============================================================
 export const dailyReports = sqliteTable('daily_reports', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -247,11 +274,12 @@ export const dailyReports = sqliteTable('daily_reports', {
 });
 
 // ============================================================
-// 11. risk_events - risk-control sentinel events
+// 13. risk_events - risk-control sentinel events
 // ============================================================
 export const riskEvents = sqliteTable('risk_events', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   storeId: integer('store_id').references(() => stores.id),
+  operatorId: text('operator_id'),
   scope: text('scope').notNull().default('store'),        // store | global
   eventType: text('event_type').notNull(),                // login | security | rate_limit | permission | action_failure
   severity: text('severity').notNull().default('warning'), // warning | critical
