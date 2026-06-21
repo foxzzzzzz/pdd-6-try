@@ -6,7 +6,7 @@ import { resolveActionDelayMs } from './action-risk-control';
 import { isGlobalWritePaused, recordRiskEvent, resolveRiskEventType } from './risk-sentinel';
 import { executeInteractionActionCandidate, InteractionActionCandidate } from './actions/interactions';
 import { executeReviewActionCandidate, ReviewActionCandidate } from './actions/reviews';
-import { normalizeOperatorId, resolveOperatorStorageState, saveOperatorStoreSession } from './operator-session';
+import { getOperatorStoreSession, normalizeOperatorId, saveOperatorStoreSession } from './operator-session';
 import { isModuleDegraded } from './selector-health';
 import { getRuleReviewBlockReason } from './rule-review';
 
@@ -72,8 +72,9 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
 
   const browser = new BrowserManager();
   try {
-    await browser.init(config.headless);
-    const storageState = resolveOperatorStorageState(db, operatorId, store.id, store.storageState);
+    const operatorSession = getOperatorStoreSession(db, operatorId, store.id);
+    await browser.init({ headless: config.headless, profileKey: operatorSession?.profileKey });
+    const storageState = operatorSession?.storageState || store.storageState;
     const loggedIn = await browser.login(store.id, storageState);
     if (!loggedIn) {
       const errorMessage = 'Store login required before executing approved action';

@@ -18,7 +18,7 @@ import { buildMetricInsertValues } from './inspection-results';
 import { shouldRunRuleBasedAnomalyDetection } from './inspection-config';
 import { ActionMode, resolveActionSafety } from './action-safety';
 import { recordRiskEvent } from './risk-sentinel';
-import { normalizeOperatorId, resolveOperatorStorageState, saveOperatorStoreSession } from './operator-session';
+import { getOperatorStoreSession, normalizeOperatorId, saveOperatorStoreSession } from './operator-session';
 import { isModuleDegraded, SelectorModuleKey } from './selector-health';
 import { getRuleReviewBlockReason } from './rule-review';
 
@@ -42,7 +42,7 @@ export interface InspectionConfig {
 }
 
 const DEFAULT_CONFIG: InspectionConfig = {
-  headless: true,
+  headless: false,
   screenshotOnError: true,
   enableReply: false,
   enableReport: false,
@@ -139,8 +139,9 @@ export async function inspectStore(
       throw new Error(`Store ${storeId} not found`);
     }
 
-    await browser.init(resolvedConfig.headless);
-    const storageState = resolveOperatorStorageState(db, operatorId, storeId, store.storageState);
+    const operatorSession = getOperatorStoreSession(db, operatorId, storeId);
+    await browser.init({ headless: resolvedConfig.headless, profileKey: operatorSession?.profileKey });
+    const storageState = operatorSession?.storageState || store.storageState;
     const loggedIn = await browser.login(storeId, storageState);
 
     if (!loggedIn) {

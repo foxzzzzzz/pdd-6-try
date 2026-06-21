@@ -12,6 +12,7 @@ import {
   createActionJobData,
   createSchedulerJobData,
   createInspectionStaggerPlan,
+  getBrowserEnvironmentStatus,
   ACTION_QUEUE,
   INSPECTION_QUEUE,
   SCHEDULER_QUEUE,
@@ -29,7 +30,7 @@ import { summarizeRiskEvents } from '../risk-sentinel';
 import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator-session';
 import { evaluateSelectorHealth, isModuleDegradedFromEvents, shouldBlockWriteActionForSelectorHealth } from '../selector-health';
 import { isRuleReviewExpired, shouldBlockActionForRuleReview } from '../rule-review';
-import { parseStoredStorageState } from '../browser';
+import { buildBrowserRuntimeOptions, parseStoredStorageState, resolveProfileDirectory } from '../browser';
 import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 
@@ -295,6 +296,15 @@ assert('单店写操作失败率升高触发店铺熔断', storeFailureRisk.paus
 const storedState = parseStoredStorageState(JSON.stringify({ cookies: [{ name: 'sid', value: '1' }], origins: [{ origin: 'https://mms.pinduoduo.com', localStorage: [{ name: 'k', value: 'v' }] }] }));
 assert('浏览器登录态恢复包含 localStorage origins', storedState?.origins?.[0]?.localStorage?.[0]?.value === 'v');
 assert('非法浏览器登录态返回 undefined', parseStoredStorageState('{bad json') === undefined);
+const browserDefaults = buildBrowserRuntimeOptions();
+assert('浏览器默认使用可见模式', browserDefaults.headless === false);
+assert('浏览器默认使用系统 Chrome channel', browserDefaults.channel === 'chrome');
+assert('浏览器启动参数不隐藏 AutomationControlled', !browserDefaults.args.some((arg) => arg.includes('AutomationControlled')));
+assert('浏览器默认固定真实窗口大小', browserDefaults.args.includes('--window-size=1920,1080') && browserDefaults.viewport.width === 1920 && browserDefaults.viewport.height === 1080);
+assert('浏览器默认不硬编码 userAgent', !('userAgent' in browserDefaults.contextOptions));
+assert('运营店铺 profile 目录稳定且不混用原始分隔符', resolveProfileDirectory('operator-a:store-12').endsWith(path.join('data', 'browser-profiles', 'operator-a_store-12')));
+assert('默认系统 Chrome 缺失时浏览器环境不可用', !getBrowserEnvironmentStatus({}, 'win32', () => false).ok);
+assert('显式 chromium 可跳过系统 Chrome 检查', getBrowserEnvironmentStatus({ PLAYWRIGHT_CHROME_CHANNEL: 'chromium' }, 'win32', () => false).ok);
 
 const realRunFromInspectionConfig = resolveActionSafety({
   actionMode: 'real-run',

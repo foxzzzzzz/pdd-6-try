@@ -367,11 +367,16 @@ failed
 - 写操作 job 默认 `attempts=1`，失败后不连续重试。
 - 巡店 job 默认 `attempts=1`，可通过 `INSPECTION_JOB_ATTEMPTS` 和 `INSPECTION_JOB_BACKOFF_MS` 小心调整。
 - Playwright 登录态改为原生 `storageState` 恢复，包含 cookies 和 localStorage/origins；巡店和 action 执行后都会刷新店铺 `storageState`，减少频繁重新登录。
+- 浏览器默认使用可见模式 `headless=false`，只有显式 `WORKER_HEADLESS=true` 时才启用 headless。
+- 浏览器默认使用系统 Chrome channel；生产环境要求当前机器安装 Google Chrome。`/api/system/browser` 会返回 Chrome 可用状态，Dashboard 缺 Chrome 时展示提醒并禁用“一键巡店”，后端触发巡店和 Worker 启动浏览器前也会阻止执行。
+- `PLAYWRIGHT_CHROME_CHANNEL=chromium` 仅作为开发/测试回退，不作为生产默认策略。
+- 浏览器固定窗口尺寸 `--window-size=1920,1080` 和 `viewport=1920x1080`，不再硬编码 UA，也不再使用 `--disable-blink-features=AutomationControlled`。
+- 对有 `operatorId + storeId` 绑定的巡店和 action 执行，默认使用 persistent `userDataDir`，目录由 `profileKey` 稳定映射生成；同一 profile 打开前会创建 `.profile.lock`，关闭时释放，超过 `BROWSER_PROFILE_LOCK_STALE_MS` 的陈旧锁可自动清理。
 
 仍需后续实测/观察：
 
 - 如果未来部署多个 worker 进程，需要增加跨进程的 Redis 全局浏览器会话 semaphore，避免多个进程各自启动 1-2 个浏览器后叠加超限。
-- 如果需要更强的“固定浏览器 profile”，可以在现有 `storageState` 方案基础上评估按店铺绑定 persistent context；但这会增加 profile 锁、磁盘清理和多进程互斥复杂度，当前先不默认启用。
+- 如果未来部署多个 worker 进程，仍需观察 profile lock 命中情况；同一运营-店铺 profile 被占用时会暂停当前任务，避免两个浏览器同时打开同一 profile。
 
 建议默认策略：
 
@@ -441,7 +446,7 @@ failed
 默认治理规则：
 
 - 每个运营使用自己的拼多多子账号。
-- 每个运营-店铺组合拥有固定 `profileKey` 和独立 `storageState`。
+- 每个运营-店铺组合拥有固定 `profileKey`、独立 `storageState` 和独立 persistent browser profile。
 - 后台读数据巡店可 fallback 到店铺 owner 或 `system`，但真实写操作必须由审批台传入明确 `operatorId`。
 - 登录异常只暂停相关运营-店铺绑定；未绑定运营身份的老流程才沿用店铺级 `pending_login/paused`。
 - 写操作审计继续记录 `operatorId/storeId/actionType/sourceId/screenshot/result/errorMessage`。
@@ -449,7 +454,7 @@ failed
 当前边界：
 
 - 还没有完整的 Web 账号管理页；目前审批台提供运营 ID 输入，后端提供只读绑定查询接口。
-- 当前使用 Playwright `storageState` 做轻量 profile 绑定，没有默认启用 persistent browser context；如果后续需要磁盘级浏览器 profile，需要再补 profile 锁、清理策略和跨进程互斥。
+- 当前已默认启用磁盘级 persistent browser profile，并使用 `.profile.lock` 做同 profile 互斥；profile 数据目录默认在 `data/browser-profiles`，不要提交到 git。
 - 正式用户登录体系接入后，应把审批台手输 `operatorId` 改为从登录态读取，避免人工填错。
 
 ## P5 选择器和页面变更监控

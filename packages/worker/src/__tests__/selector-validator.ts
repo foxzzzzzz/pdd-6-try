@@ -4,6 +4,7 @@
 import { chromium } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
+import { buildBrowserRuntimeOptions } from '../browser';
 
 const COOKIE_FILE = path.resolve('./data/discovery-cookie.json');
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-selector-test.md');
@@ -83,11 +84,13 @@ async function runTests() {
   var passed = 0;
   var failed = 0;
 
-  const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-    viewport: { width: 1920, height: 1080 }, locale: 'zh-CN',
+  const runtime = buildBrowserRuntimeOptions({ headless: false });
+  const browser = await chromium.launch({
+    headless: runtime.headless,
+    args: runtime.args,
+    ...(runtime.channel ? { channel: runtime.channel } : {}),
   });
+  const context = await browser.newContext(runtime.contextOptions);
 
   if (fs.existsSync(COOKIE_FILE)) {
     try { const c = JSON.parse(fs.readFileSync(COOKIE_FILE, 'utf-8')); await context.addCookies(c); } catch { /* */ }

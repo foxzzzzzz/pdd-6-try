@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { createInspectionStaggerPlan, getDb, saveDb, schema } from '@pdd-inspector/core';
+import { createInspectionStaggerPlan, getBrowserEnvironmentStatus, getDb, saveDb, schema } from '@pdd-inspector/core';
 import { eq, desc, and } from 'drizzle-orm';
 import { addInspectionJob, getInspectionQueue } from '../queue';
 import { mergeInspectionMetrics } from '../inspection-summary';
@@ -7,6 +7,7 @@ import { mergeInspectionMetrics } from '../inspection-summary';
 export async function inspectionRoutes(app: FastifyInstance) {
   // Trigger inspection for a store
   app.post<{ Params: { id: string }; Body: { operatorId?: string } }>('/api/stores/:id/inspect', async (req) => {
+    ensureBrowserReady();
     const db = await getDb();
     const store = db
       .select()
@@ -52,6 +53,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
 
   // Trigger inspection for ALL active stores
   app.post<{ Body: { operatorId?: string } }>('/api/inspect-all', async (req) => {
+    ensureBrowserReady();
     const db = await getDb();
     const activeStores = db
       .select()
@@ -220,4 +222,11 @@ function parsePositiveNumber(value: string | undefined, fallback: number): numbe
   if (!value) return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function ensureBrowserReady(): void {
+  const browserStatus = getBrowserEnvironmentStatus();
+  if (!browserStatus.ok) {
+    throw { statusCode: 409, message: browserStatus.message };
+  }
 }

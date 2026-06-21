@@ -1,8 +1,40 @@
 import { chromium, Browser, BrowserContext, Page } from 'playwright';
+import { getBrowserChannel, getBrowserEnvironmentStatus } from '@pdd-inspector/core';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const SCREENSHOTS_DIR = path.resolve(process.env.SCREENSHOTS_DIR || './data/screenshots');
+const DEFAULT_VIEWPORT = { width: 1920, height: 1080 };
+const DEFAULT_PROFILE_ROOT = './data/browser-profiles';
+const DEFAULT_PROFILE_LOCK_STALE_MS = 2 * 60 * 60 * 1000;
+
+export interface BrowserInitOptions {
+  headless?: boolean;
+  channel?: string | null;
+  profileKey?: string | null;
+  profileRootDir?: string;
+  lockStaleMs?: number;
+  viewport?: { width: number; height: number };
+}
+
+export interface BrowserRuntimeOptions {
+  headless: boolean;
+  channel: string | null;
+  profileKey: string | null;
+  profileRootDir: string;
+  lockStaleMs: number;
+  viewport: { width: number; height: number };
+  args: string[];
+  contextOptions: {
+    viewport: { width: number; height: number };
+    locale: string;
+  };
+}
+
+interface ProfileLock {
+  filePath: string;
+  fd: number;
+}
 
 export function parseStoredStorageState(storageState?: string | null): Record<string, unknown> | undefined {
   if (!storageState) return undefined;
@@ -15,58 +47,67 @@ export function parseStoredStorageState(storageState?: string | null): Record<st
   }
 }
 
+export function buildBrowserRuntimeOptions(options: BrowserInitOptions = {}): BrowserRuntimeOptions {
+  const viewport = options.viewport || DEFAULT_VIEWPORT;
+  const channel = options.channel ?? getBrowserChannel();
+  return {
+    headless: options.headless ?? false,
+    channel: channel && channel !== 'chromium' ? channel : null,
+    profileKey: options.profileKey?.trim() || null,
+    profileRootDir: options.profileRootDir || process.env.BROWSER_PROFILE_ROOT || DEFAULT_PROFILE_ROOT,
+    lockStaleMs: options.lockStaleMs || parsePositiveNumber(process.env.BROWSER_PROFILE_LOCK_STALE_MS, DEFAULT_PROFILE_LOCK_STALE_MS),
+    viewport,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      `--window-size=${viewport.width},${viewport.height}`,
+    ],
+    contextOptions: {
+      viewport,
+      locale: 'zh-CN',
+    },
+  };
+}
+
+export function resolveProfileDirectory(profileKey: string, rootDir = process.env.BROWSER_PROFILE_ROOT || DEFAULT_PROFILE_ROOT): string {
+  const safeKey = profileKey.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+  return path.resolve(rootDir, safeKey || 'unknown');
+}
+
 export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
-  private headless = true;
+  private profileLock: ProfileLock | null = null;
+  private runtimeOptions: BrowserRuntimeOptions = buildBrowserRuntimeOptions();
 
-  async init(headless = true): Promise<void> {
-    this.headless = headless;
-    this.browser = await chromium.launch({
-      headless,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-      ],
-    });
+  async init(options: boolean | BrowserInitOptions = {}): Promise<void> {
+    const normalized = typeof options === 'boolean' ? { headless: options } : options;
+    this.runtimeOptions = buildBrowserRuntimeOptions(normalized);
   }
 
   async login(storeId: number, storageState?: string | null): Promise<boolean> {
-    if (!this.browser) throw new Error('Browser not initialized');
+    await this.openContext(storageState);
 
-    this.context = await this.browser.newContext({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1920, height: 1080 },
-      locale: 'zh-CN',
-      storageState: parseStoredStorageState(storageState) as any,
-    });
-
-    this.page = await this.context.newPage();
-
-    // Navigate to PDD merchant backend
-    await this.page.goto('https://mms.pinduoduo.com/', {
+    await this.page!.goto('https://mms.pinduoduo.com/', {
       waitUntil: 'domcontentloaded',
       timeout: 30000,
     });
 
-    // Check if already logged in (look for login page indicators)
-    const isLoginPage = await this.page.$('input[placeholder*="手机"], .login-form, [class*="login"]');
+    const isLoginPage = await this.page!.$('input[placeholder*="手机"], .login-form, [class*="login"]');
 
     if (isLoginPage) {
-      console.log(`Store ${storeId}: Login required — please scan QR code or enter credentials`);
+      console.log(`Store ${storeId}: Login required, please scan QR code or enter credentials`);
       await this.takeScreenshot(storeId, 'login-required');
 
-      if (this.headless || !this.browser.isConnected()) return false;
+      if (this.runtimeOptions.headless) return false;
       try {
-        await this.page.waitForURL(
+        await this.page!.waitForURL(
           (url) => !url.toString().includes('login') && !url.toString().includes('passport'),
           { timeout: 180000 },
         );
-        await this.page.waitForTimeout(3000);
-        const stillLoginPage = await this.page.$('input[placeholder*="手机"], .login-form, [class*="login"]');
+        await this.page!.waitForTimeout(3000);
+        const stillLoginPage = await this.page!.$('input[placeholder*="手机"], .login-form, [class*="login"]');
         if (!stillLoginPage) {
           console.log(`Store ${storeId}: Manual login completed`);
           return true;
@@ -75,10 +116,10 @@ export class BrowserManager {
         // Manual login timed out.
       }
 
-      return false; // Needs manual login
+      return false;
     }
 
-    console.log(`Store ${storeId}: Already logged in (cookie valid)`);
+    console.log(`Store ${storeId}: Already logged in (storage state valid)`);
     return true;
   }
 
@@ -130,7 +171,6 @@ export class BrowserManager {
           waitUntil: 'domcontentloaded',
           timeout: 15000,
         });
-        // Random delay to simulate human
         await this.page.waitForTimeout(500 + Math.random() * 1500);
         return;
       } catch {
@@ -162,11 +202,88 @@ export class BrowserManager {
   }
 
   async close(): Promise<void> {
-    if (this.page) await this.page.close();
-    if (this.context) await this.context.close();
-    if (this.browser) await this.browser.close();
+    if (this.page) await this.page.close().catch(() => undefined);
+    if (this.context) await this.context.close().catch(() => undefined);
+    if (this.browser) await this.browser.close().catch(() => undefined);
+    this.releaseProfileLock();
     this.page = null;
     this.context = null;
     this.browser = null;
   }
+
+  private async openContext(storageState?: string | null): Promise<void> {
+    const options = this.runtimeOptions;
+    const browserStatus = getBrowserEnvironmentStatus();
+    if (!browserStatus.ok) {
+      throw new Error(browserStatus.message);
+    }
+    const launchOptions = {
+      headless: options.headless,
+      args: options.args,
+      ...(options.channel ? { channel: options.channel } : {}),
+    };
+    const contextOptions = {
+      ...options.contextOptions,
+      storageState: parseStoredStorageState(storageState) as any,
+    };
+
+    if (options.profileKey) {
+      const profileDir = resolveProfileDirectory(options.profileKey, options.profileRootDir);
+      this.profileLock = acquireProfileLock(profileDir, options.lockStaleMs);
+      try {
+        this.context = await chromium.launchPersistentContext(profileDir, {
+          ...launchOptions,
+          ...contextOptions,
+        });
+        this.page = this.context.pages()[0] || await this.context.newPage();
+        return;
+      } catch (err) {
+        this.releaseProfileLock();
+        throw err;
+      }
+    }
+
+    this.browser = await chromium.launch(launchOptions);
+    this.context = await this.browser.newContext(contextOptions);
+    this.page = await this.context.newPage();
+  }
+
+  private releaseProfileLock(): void {
+    if (!this.profileLock) return;
+    try {
+      fs.closeSync(this.profileLock.fd);
+    } catch {
+      // Ignore close errors during cleanup.
+    }
+    try {
+      fs.unlinkSync(this.profileLock.filePath);
+    } catch {
+      // Ignore stale cleanup errors.
+    }
+    this.profileLock = null;
+  }
+}
+
+function acquireProfileLock(profileDir: string, staleMs: number): ProfileLock {
+  fs.mkdirSync(profileDir, { recursive: true });
+  const filePath = path.join(profileDir, '.profile.lock');
+  try {
+    const fd = fs.openSync(filePath, 'wx');
+    fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }));
+    return { filePath, fd };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    const stat = fs.statSync(filePath);
+    if (Date.now() - stat.mtimeMs > staleMs) {
+      fs.unlinkSync(filePath);
+      return acquireProfileLock(profileDir, staleMs);
+    }
+    throw new Error(`Browser profile is already in use: ${profileDir}`);
+  }
+}
+
+function parsePositiveNumber(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }

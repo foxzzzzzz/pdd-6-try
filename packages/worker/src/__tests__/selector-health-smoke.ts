@@ -2,6 +2,7 @@ import { getDb } from '@pdd-inspector/core';
 import { chromium, Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
+import { buildBrowserRuntimeOptions } from '../browser';
 import { evaluateSelectorHealth, recordSelectorHealthEvent, SelectorCheckResult, SelectorModuleKey } from '../selector-health';
 
 const COOKIE_FILE = path.resolve('./data/discovery-cookie.json');
@@ -58,12 +59,13 @@ async function main() {
   ensureDir(OUTPUT_DIR);
   ensureDir(path.dirname(REPORT_FILE));
   const db = await getDb();
-  const browser = await chromium.launch({ headless: process.env.SELECTOR_HEALTH_HEADLESS === 'true' });
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-    viewport: { width: 1920, height: 1080 },
-    locale: 'zh-CN',
+  const runtime = buildBrowserRuntimeOptions({ headless: process.env.SELECTOR_HEALTH_HEADLESS === 'true' });
+  const browser = await chromium.launch({
+    headless: runtime.headless,
+    args: runtime.args,
+    ...(runtime.channel ? { channel: runtime.channel } : {}),
   });
+  const context = await browser.newContext(runtime.contextOptions);
 
   if (fs.existsSync(COOKIE_FILE)) {
     try {

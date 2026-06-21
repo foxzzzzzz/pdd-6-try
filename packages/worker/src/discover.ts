@@ -12,6 +12,7 @@
 import { chromium } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
+import { buildBrowserRuntimeOptions } from './browser';
 
 const OUTPUT_DIR = path.resolve('./data/page-discovery');
 const COOKIE_FILE = path.resolve('./data/discovery-cookie.json');
@@ -28,16 +29,14 @@ async function discover() {
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   console.log('=== PDD 页面采集 v5 ===\n');
 
+  const runtime = buildBrowserRuntimeOptions({ headless: false });
   const browser = await chromium.launch({
-    headless: false,
-    args: ['--disable-blink-features=AutomationControlled'],
+    headless: runtime.headless,
+    args: runtime.args,
+    ...(runtime.channel ? { channel: runtime.channel } : {}),
   });
 
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-    viewport: { width: 1920, height: 1080 },
-    locale: 'zh-CN',
-  });
+  const context = await browser.newContext(runtime.contextOptions);
 
   if (fs.existsSync(COOKIE_FILE)) {
     try {

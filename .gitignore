@@ -4,6 +4,7 @@ dist/
 *.db
 *.db-journal
 data/screenshots/
+data/browser-profiles/
 data/page-discovery/
 data/discovery-cookie.json
 packages/worker/data/

@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-21
 **版本**: v0.2.0
-**结果**: 162/162 通过 (100%)
+**结果**: 170/170 通过 (100%)
 
 ## 测试结果
 
@@ -82,6 +82,14 @@
 | 单店写操作失败率升高触发店铺熔断 | ✅ |  |
 | 浏览器登录态恢复包含 localStorage origins | ✅ |  |
 | 非法浏览器登录态返回 undefined | ✅ |  |
+| 浏览器默认使用可见模式 | ✅ |  |
+| 浏览器默认使用系统 Chrome channel | ✅ |  |
+| 浏览器启动参数不隐藏 AutomationControlled | ✅ |  |
+| 浏览器默认固定真实窗口大小 | ✅ |  |
+| 浏览器默认不硬编码 userAgent | ✅ |  |
+| 运营店铺 profile 目录稳定且不混用原始分隔符 | ✅ |  |
+| 默认系统 Chrome 缺失时浏览器环境不可用 | ✅ |  |
+| 显式 chromium 可跳过系统 Chrome 检查 | ✅ |  |
 | inspection config actionMode=real-run enables reply | ✅ |  |
 | dry-run 审计状态为 skipped | ✅ |  |
 | dry-run 审计记录 actionMode | ✅ |  |
@@ -172,6 +180,6 @@
 | 多变量填充 | ✅ |  |
 
 ## 汇总
-- ✅ 通过: 162
+- ✅ 通过: 170
 - ❌ 失败: 0
 - 📊 通过率: 100%

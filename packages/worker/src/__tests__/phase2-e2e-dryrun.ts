@@ -10,6 +10,7 @@
 import { chromium, Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
+import { buildBrowserRuntimeOptions } from '../browser';
 
 const COOKIE_FILE = path.resolve('./data/discovery-cookie.json');
 const OUTPUT_DIR = path.resolve('./data/e2e-dryrun');
@@ -49,15 +50,13 @@ async function dryRun() {
   console.log('║  读操作: 真实采集  |  写操作: 仅扫描    ║');
   console.log('╚══════════════════════════════════════════╝\n');
 
+  const runtime = buildBrowserRuntimeOptions({ headless: false });
   const browser = await chromium.launch({
-    headless: false,
-    args: ['--disable-blink-features=AutomationControlled'],
+    headless: runtime.headless,
+    args: runtime.args,
+    ...(runtime.channel ? { channel: runtime.channel } : {}),
   });
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-    viewport: { width: 1920, height: 1080 },
-    locale: 'zh-CN',
-  });
+  const context = await browser.newContext(runtime.contextOptions);
 
   if (fs.existsSync(COOKIE_FILE)) {
     try {

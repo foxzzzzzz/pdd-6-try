@@ -8,5 +8,8 @@ export * from './types';
 // Queue
 export * from './queue';
 
+// Browser environment
+export * from './browser-environment';
+
 // AI
 export * from './ai/types';

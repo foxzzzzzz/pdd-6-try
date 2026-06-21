@@ -14,7 +14,7 @@ const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
 const CONCURRENCY = clampInspectionConcurrency(parseInt(process.env.WORKER_CONCURRENCY || '1', 10));
 const ACTION_CONCURRENCY = clampActionConcurrency(parseInt(process.env.WORKER_ACTION_CONCURRENCY || '1', 10));
-const HEADLESS = process.env.WORKER_HEADLESS !== 'false';
+const HEADLESS = process.env.WORKER_HEADLESS === 'true';
 const ACTION_MODE = process.env.WORKER_ACTION_MODE === 'real-run' ? 'real-run' : 'dry-run';
 const ACTION_LIMIT = process.env.WORKER_ACTION_LIMIT ? parseInt(process.env.WORKER_ACTION_LIMIT, 10) : null;
 const ENABLE_REPLY = process.env.WORKER_ENABLE_REPLY === 'true';
