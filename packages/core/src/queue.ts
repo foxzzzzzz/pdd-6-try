@@ -2,6 +2,7 @@
 export const INSPECTION_QUEUE = 'pdd-inspection';
 export const SCHEDULER_QUEUE = 'pdd-scheduler';
 export const ACTION_QUEUE = 'pdd-action';
+export const LOGIN_BIND_QUEUE = 'pdd-login-bind';
 
 // Job data type
 export interface InspectionJobData {
@@ -38,6 +39,12 @@ export interface ActionJobData {
   candidateId: number;
   storeId: number;
   actionType: 'reply' | 'report' | 'hide';
+  operatorId: string;
+}
+
+export interface LoginBindJobData {
+  storeId: number;
+  storeName: string;
   operatorId: string;
 }
 
@@ -113,6 +120,10 @@ export function createActionJobData(
   operatorId: string,
 ): ActionJobData {
   return { candidateKind, candidateId, storeId, actionType, operatorId };
+}
+
+export function createLoginBindJobData(storeId: number, storeName: string, operatorId: string): LoginBindJobData {
+  return { storeId, storeName, operatorId: operatorId.trim() };
 }
 
 function estimateSerialCompletionMs(delaysMs: number[], durationMs: number): number {

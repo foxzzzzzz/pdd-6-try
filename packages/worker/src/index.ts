@@ -1,9 +1,10 @@
 import { loadWorkspaceEnv } from './env-loader';
 import { Worker } from 'bullmq';
 import { inspectStore } from './inspector';
-import { ACTION_QUEUE, ActionJobData, INSPECTION_QUEUE, InspectionJobData } from '@pdd-inspector/core';
+import { ACTION_QUEUE, ActionJobData, INSPECTION_QUEUE, InspectionJobData, LOGIN_BIND_QUEUE, LoginBindJobData } from '@pdd-inspector/core';
 import { executeApprovedAction } from './action-executor';
 import { clampActionConcurrency, clampInspectionConcurrency } from './action-risk-control';
+import { executeLoginBind } from './login-bind';
 
 loadWorkspaceEnv();
 
@@ -39,7 +40,7 @@ const connection = {
 
 log('Starting PDD Inspection Worker...');
 log(`  Redis: ${REDIS_HOST}:${REDIS_PORT}`);
-log(`  Concurrency: inspection=${CONCURRENCY} action=${ACTION_CONCURRENCY} | Headless: ${HEADLESS}`);
+log(`  Concurrency: inspection=${CONCURRENCY} action=${ACTION_CONCURRENCY} login-bind=1 | Headless: ${HEADLESS}`);
 log(`  Ops: mode=${ACTION_MODE} limit=${ACTION_LIMIT ?? 'none'} reply=${ENABLE_REPLY} report=${ENABLE_REPORT} hide=${ENABLE_HIDE} ai=${ENABLE_AI}`);
 log(`  Approval: reply=${APPROVAL_REPLY} report=${APPROVAL_REPORT} hide=${APPROVAL_HIDE} dailyLimits=${DAILY_LIMIT_REPLY}/${DAILY_LIMIT_REPORT}/${DAILY_LIMIT_HIDE}`);
 log(`  Action pacing: reply=${ACTION_DELAY_REPLY_MS || '8000-20000'}ms report=${ACTION_DELAY_REPORT_MS || '20000-60000'}ms hide=${ACTION_DELAY_HIDE_MS || '20000-60000'}ms`);
@@ -126,6 +127,29 @@ const actionWorker = new Worker<ActionJobData>(
   },
 );
 
+const loginBindWorker = new Worker<LoginBindJobData>(
+  LOGIN_BIND_QUEUE,
+  async (job) => {
+    const { storeId, storeName, operatorId } = job.data;
+    log(`\n=== Login binding: ${storeName} (ID: ${storeId}) operator=${operatorId} ===`);
+    await job.updateProgress(10);
+    const result = await executeLoginBind(job.data, { headless: HEADLESS });
+    await job.updateProgress(100);
+    if (result.status !== 'success') {
+      throw new Error(result.error || 'Login binding failed');
+    }
+    return result;
+  },
+  {
+    connection,
+    concurrency: 1,
+    limiter: {
+      max: 1,
+      duration: 1000,
+    },
+  },
+);
+
 worker.on('active', (job) => {
   log(`▶️  Job active: ${job.data.storeName} (inspectionId=${job.data.inspectionId})`);
 });
@@ -158,16 +182,34 @@ actionWorker.on('error', (err) => {
   log('[ERROR]','Action worker error:', err);
 });
 
+loginBindWorker.on('active', (job) => {
+  log(`Login bind job active: ${job.data.storeName} operator=${job.data.operatorId}`);
+});
+
+loginBindWorker.on('completed', (job) => {
+  log(`Login bind job completed: ${job.data.storeName} operator=${job.data.operatorId}`);
+});
+
+loginBindWorker.on('failed', (job, err) => {
+  log('[ERROR]',`Login bind job failed: ${job?.data.storeName} operator=${job?.data.operatorId} - ${err.message}`);
+});
+
+loginBindWorker.on('error', (err) => {
+  log('[ERROR]','Login bind worker error:', err);
+});
+
 const shutdown = async () => {
   log('\nShutting down worker...');
   await worker.close(true);
   await actionWorker.close(true);
+  await loginBindWorker.close(true);
   process.exit(0);
 };
 
 // Clean stale locks from previous instance (hot reload safety)
 await worker.waitUntilReady();
 await actionWorker.waitUntilReady();
+await loginBindWorker.waitUntilReady();
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

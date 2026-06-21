@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### 新增
+- 多店铺登录绑定闭环：新增 `pdd-login-bind` 独立队列、`/api/stores/:id/login-bind` 接口和 Worker 登录绑定消费者；店铺配置页支持按 `operatorId + storeId` 触发“登录绑定 / 重新登录 / 测试登录态”，成功后保存到 `operator_store_sessions` 和店铺状态，未完成绑定的店铺不能直接巡店。
 - 浏览器运行策略按低风险运营辅助模式收敛：默认 `headless=false`、默认使用系统 Chrome channel、固定 `1920x1080` 窗口；移除硬编码 UA 和 `--disable-blink-features=AutomationControlled`，并为 `operatorId + storeId` 启用 persistent `userDataDir` 与 `.profile.lock`，避免同一浏览器 profile 被并发打开。
 - 新增系统 Chrome 环境检查：`/api/system/browser` 会检测当前机器是否安装 Google Chrome；Dashboard 缺 Chrome 时展示红色提醒并禁用“一键巡店”，后端触发巡店和 Worker 启动浏览器前也会阻止执行，避免静默回退到 bundled Chromium。
 - 写操作路径新增统一拟人化交互 helper：回复、举报、互动隐藏的按钮点击和文本填写会通过 `humanClick/humanFill/humanPause` 加入点击前后随机停顿，减少固定毫秒级连续操作；只读采集仍保持直接打开页面读取。

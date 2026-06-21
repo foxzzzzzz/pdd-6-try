@@ -5,12 +5,16 @@ import {
   ActionJobData,
   INSPECTION_QUEUE,
   InspectionJobData,
+  LOGIN_BIND_QUEUE,
+  LoginBindJobData,
   createActionJobData,
   createInspectionJobData,
+  createLoginBindJobData,
 } from '@pdd-inspector/core';
 
 let inspectionQueue: Queue<InspectionJobData> | null = null;
 let actionQueue: Queue<ActionJobData> | null = null;
+let loginBindQueue: Queue<LoginBindJobData> | null = null;
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -80,6 +84,32 @@ export async function addActionJob(
   );
 }
 
+export function getLoginBindQueue(): Queue<LoginBindJobData> {
+  if (!loginBindQueue) {
+    loginBindQueue = new Queue<LoginBindJobData>(LOGIN_BIND_QUEUE, {
+      connection: getRedisOptions(),
+      defaultJobOptions: {
+        attempts: 1,
+        removeOnComplete: 100,
+        removeOnFail: 50,
+      },
+    });
+  }
+  return loginBindQueue;
+}
+
+export async function addLoginBindJob(
+  storeId: number,
+  storeName: string,
+  operatorId: string,
+): Promise<Job<LoginBindJobData>> {
+  const queue = getLoginBindQueue();
+  return queue.add(
+    `login-bind-${storeId}-${operatorId.trim()}`,
+    createLoginBindJobData(storeId, storeName, operatorId),
+  );
+}
+
 export async function closeQueue(): Promise<void> {
   if (inspectionQueue) {
     await inspectionQueue.close();
@@ -88,5 +118,9 @@ export async function closeQueue(): Promise<void> {
   if (actionQueue) {
     await actionQueue.close();
     actionQueue = null;
+  }
+  if (loginBindQueue) {
+    await loginBindQueue.close();
+    loginBindQueue = null;
   }
 }

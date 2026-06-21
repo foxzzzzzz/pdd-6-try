@@ -22,6 +22,10 @@ export const api = {
   createStore: (data: any) => request<any>('/stores', { method: 'POST', body: JSON.stringify(data) }),
   updateStore: (id: number, data: any) => request<any>(`/stores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteStore: (id: number) => request<any>(`/stores/${id}`, { method: 'DELETE' }),
+  loginBindStore: (id: number, operatorId?: string) => request<any>(
+    `/stores/${id}/login-bind`,
+    { method: 'POST', body: JSON.stringify(operatorId ? { operatorId } : {}) },
+  ),
 
   // Inspections
   getInspections: (params?: { storeId?: number; date?: string; limit?: number }) => {

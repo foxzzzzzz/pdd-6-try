@@ -12,9 +12,11 @@ import {
   createActionJobData,
   createSchedulerJobData,
   createInspectionStaggerPlan,
+  createLoginBindJobData,
   getBrowserEnvironmentStatus,
   ACTION_QUEUE,
   INSPECTION_QUEUE,
+  LOGIN_BIND_QUEUE,
   SCHEDULER_QUEUE,
 } from '@pdd-inspector/core';
 import { shouldRunRuleBasedAnomalyDetection } from '../inspection-config';
@@ -144,6 +146,7 @@ assert('好评回复不依赖举报隐藏规则复核', !shouldBlockActionForRul
 
 const schedulerJobData = createSchedulerJobData();
 const actionJobData = createActionJobData('review', 7, 12, 'report', 'operator-a');
+const loginBindJobData = createLoginBindJobData(12, '测试店铺', ' operator-a ');
 assert('调度任务使用独立队列', SCHEDULER_QUEUE !== INSPECTION_QUEUE);
 assert('调度任务不伪造店铺 ID', !('storeId' in schedulerJobData));
 const fortyStoreStagger = createInspectionStaggerPlan(40, {
@@ -156,6 +159,8 @@ assert('串行巡店耗时超窗时错峰计划会暴露风险', !createInspecti
 assert('单店巡店不增加错峰 delay', createInspectionStaggerPlan(1).delaysMs[0] === 0);
 assert('审批动作使用独立队列', ACTION_QUEUE !== INSPECTION_QUEUE);
 assert('审批动作任务携带单条候选动作', actionJobData.candidateId === 7 && actionJobData.actionType === 'report' && actionJobData.operatorId === 'operator-a');
+assert('登录绑定任务使用独立队列', LOGIN_BIND_QUEUE !== INSPECTION_QUEUE && LOGIN_BIND_QUEUE !== ACTION_QUEUE);
+assert('登录绑定任务携带归一化运营 ID', loginBindJobData.storeId === 12 && loginBindJobData.operatorId === 'operator-a');
 assert('关闭 AI 时仍运行规则异常检测', shouldRunRuleBasedAnomalyDetection({ useAI: false }));
 assert('开启 AI 时仍运行规则异常检测', shouldRunRuleBasedAnomalyDetection({ useAI: true }));
 
