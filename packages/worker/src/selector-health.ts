@@ -1,4 +1,4 @@
-import { saveDb } from '@pdd-inspector/core';
+import { quoteSqlString, saveDb, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 
 export type SelectorHealthStatus = 'healthy' | 'degraded';
@@ -69,7 +69,7 @@ export function shouldBlockWriteActionForSelectorHealth(
   return isModuleDegradedFromEvents(events, moduleKey);
 }
 
-export function ensureSelectorHealthTable(db: any): void {
+export function ensureSelectorHealthTable(db: AppDb): void {
   db.run(sql.raw(`
     CREATE TABLE IF NOT EXISTS selector_health_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,7 +88,7 @@ export function ensureSelectorHealthTable(db: any): void {
 }
 
 export function recordSelectorHealthEvent(
-  db: any,
+  db: AppDb,
   event: SelectorHealthEvaluation & { screenshotPath?: string | null; htmlPath?: string | null },
 ): void {
   ensureSelectorHealthTable(db);
@@ -98,36 +98,32 @@ export function recordSelectorHealthEvent(
       module_key, module_name, status, failure_rate, total_checks, failed_checks,
       screenshot_path, html_path, details, created_at
     ) VALUES (
-      ${quote(event.moduleKey)},
-      ${quote(event.moduleName)},
-      ${quote(event.status)},
+      ${quoteSqlString(event.moduleKey)},
+      ${quoteSqlString(event.moduleName)},
+      ${quoteSqlString(event.status)},
       ${event.failureRate},
       ${event.totalChecks},
       ${event.failedChecks},
-      ${event.screenshotPath ? quote(event.screenshotPath) : 'NULL'},
-      ${event.htmlPath ? quote(event.htmlPath) : 'NULL'},
-      ${quote(JSON.stringify(event.checks))},
-      ${quote(createdAt)}
+      ${event.screenshotPath ? quoteSqlString(event.screenshotPath) : 'NULL'},
+      ${event.htmlPath ? quoteSqlString(event.htmlPath) : 'NULL'},
+      ${quoteSqlString(JSON.stringify(event.checks))},
+      ${quoteSqlString(createdAt)}
     )
   `));
   saveDb(db);
 }
 
-export function listRecentSelectorHealthEvents(db: any, maxAgeHours = 24): SelectorHealthEventLike[] {
+export function listRecentSelectorHealthEvents(db: AppDb, maxAgeHours = 24): SelectorHealthEventLike[] {
   ensureSelectorHealthTable(db);
   const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000).toISOString();
   return db.all(sql.raw(`
     SELECT module_key AS moduleKey, status, created_at AS createdAt
     FROM selector_health_events
-    WHERE created_at >= ${quote(since)}
+    WHERE created_at >= ${quoteSqlString(since)}
     ORDER BY created_at DESC, id DESC
   `));
 }
 
-export function isModuleDegraded(db: any, moduleKey: SelectorModuleKey | string, maxAgeHours = 24): boolean {
+export function isModuleDegraded(db: AppDb, moduleKey: SelectorModuleKey | string, maxAgeHours = 24): boolean {
   return isModuleDegradedFromEvents(listRecentSelectorHealthEvents(db, maxAgeHours), moduleKey);
-}
-
-function quote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }

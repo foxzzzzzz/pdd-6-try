@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { saveDb } from '@pdd-inspector/core';
+import { quoteSqlString, saveDb, type AppDb } from '@pdd-inspector/core';
 import { BrowserManager } from './browser';
 import { decideStoreStatusForRiskSignal, detectRiskControlSignal, RiskControlKind } from './action-risk-control';
 import { markOperatorStoreSessionStatus, normalizeOperatorId } from './operator-session';
@@ -76,18 +76,18 @@ export function resolveRiskEventType(message: string): RiskEventType | null {
   return detectRiskControlSignal(message)?.kind || null;
 }
 
-export function isGlobalWritePaused(db: any): boolean {
+export function isGlobalWritePaused(db: AppDb): boolean {
   ensureRiskEventTable(db);
   const events = db.all(sql.raw(`
     SELECT store_id AS storeId, event_type AS eventType, status
     , operator_id AS operatorId
     FROM risk_events
     WHERE status = 'active'
-  `));
+  `)) as RiskEventLike[];
   return summarizeRiskEvents(events).globalWritePaused;
 }
 
-export async function recordRiskEvent(db: any, input: RiskSentinelEventInput): Promise<void> {
+export async function recordRiskEvent(db: AppDb, input: RiskSentinelEventInput): Promise<void> {
   ensureRiskEventTable(db);
   const severity: RiskEventSeverity = input.eventType === 'login' || input.eventType === 'action_failure' ? 'warning' : 'critical';
   const timestamp = new Date().toISOString();
@@ -101,18 +101,18 @@ export async function recordRiskEvent(db: any, input: RiskSentinelEventInput): P
       source_id, screenshot_path, html_path, status, created_at
     ) VALUES (
       ${input.storeId == null ? 'NULL' : input.storeId},
-      ${operatorId ? quote(operatorId) : 'NULL'},
-      ${quote(input.storeId == null ? 'global' : 'store')},
-      ${quote(input.eventType)},
-      ${quote(severity)},
-      ${quote(input.message)},
-      ${input.actionType ? quote(input.actionType) : 'NULL'},
-      ${input.sourceType ? quote(input.sourceType) : 'NULL'},
-      ${input.sourceId ? quote(input.sourceId) : 'NULL'},
-      ${screenshotPath ? quote(screenshotPath) : 'NULL'},
-      ${htmlPath ? quote(htmlPath) : 'NULL'},
+      ${operatorId ? quoteSqlString(operatorId) : 'NULL'},
+      ${quoteSqlString(input.storeId == null ? 'global' : 'store')},
+      ${quoteSqlString(input.eventType)},
+      ${quoteSqlString(severity)},
+      ${quoteSqlString(input.message)},
+      ${input.actionType ? quoteSqlString(input.actionType) : 'NULL'},
+      ${input.sourceType ? quoteSqlString(input.sourceType) : 'NULL'},
+      ${input.sourceId ? quoteSqlString(input.sourceId) : 'NULL'},
+      ${screenshotPath ? quoteSqlString(screenshotPath) : 'NULL'},
+      ${htmlPath ? quoteSqlString(htmlPath) : 'NULL'},
       'active',
-      ${quote(timestamp)}
+      ${quoteSqlString(timestamp)}
     )
   `));
 
@@ -122,8 +122,8 @@ export async function recordRiskEvent(db: any, input: RiskSentinelEventInput): P
     const storeStatus = decideStoreStatusForRiskSignal(input.eventType);
     db.run(sql.raw(`
       UPDATE stores
-      SET status = ${quote(storeStatus)},
-          updated_at = ${quote(timestamp)}
+      SET status = ${quoteSqlString(storeStatus)},
+          updated_at = ${quoteSqlString(timestamp)}
       WHERE id = ${input.storeId}
     `));
   }
@@ -132,12 +132,12 @@ export async function recordRiskEvent(db: any, input: RiskSentinelEventInput): P
     SELECT store_id AS storeId, operator_id AS operatorId, event_type AS eventType, status
     FROM risk_events
     WHERE status = 'active'
-  `)));
+  `)) as RiskEventLike[]);
   for (const storeId of summary.pausedStoreIds) {
     db.run(sql.raw(`
       UPDATE stores
       SET status = 'paused',
-          updated_at = ${quote(timestamp)}
+          updated_at = ${quoteSqlString(timestamp)}
       WHERE id = ${storeId}
     `));
   }
@@ -150,9 +150,9 @@ export async function recordRiskEvent(db: any, input: RiskSentinelEventInput): P
         'global',
         'security',
         'critical',
-        ${quote(`Global write operations paused: ${summary.globalReasons.join(', ')}`)},
+        ${quoteSqlString(`Global write operations paused: ${summary.globalReasons.join(', ')}`)},
         'active',
-        ${quote(timestamp)}
+        ${quoteSqlString(timestamp)}
       )
     `));
   }
@@ -160,7 +160,7 @@ export async function recordRiskEvent(db: any, input: RiskSentinelEventInput): P
   saveDb(db);
 }
 
-export function ensureRiskEventTable(db: any): void {
+export function ensureRiskEventTable(db: AppDb): void {
   db.run(sql.raw(`
     CREATE TABLE IF NOT EXISTS risk_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -187,15 +187,11 @@ export function ensureRiskEventTable(db: any): void {
   }
 }
 
-function hasActiveGlobalWritePause(db: any): boolean {
+function hasActiveGlobalWritePause(db: AppDb): boolean {
   return Boolean(db.get(sql.raw(`
     SELECT id
     FROM risk_events
     WHERE scope = 'global' AND status = 'active'
     LIMIT 1
   `)));
-}
-
-function quote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }

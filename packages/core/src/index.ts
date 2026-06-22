@@ -1,6 +1,8 @@
 // Database
 export { getDb, saveDb, closeDb, schema } from './db/connection';
+export type { AppDb } from './db/connection';
 export * from './db/schema';
+export * from './sql-utils';
 
 // Types
 export * from './types';

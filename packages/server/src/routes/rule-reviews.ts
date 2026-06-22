@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { getDb, saveDb } from '@pdd-inspector/core';
+import { getDb, quoteSqlString, saveDb, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 
 type RuleReviewStatus = 'pending' | 'approved' | 'expired' | 'paused';
@@ -51,21 +51,21 @@ export async function ruleReviewRoutes(app: FastifyInstance) {
     seedDefaultRuleReviews(db);
     db.run(sql.raw(`
       UPDATE rule_reviews
-      SET status = ${quote(status)},
-          last_reviewed_at = ${quote(lastReviewedAt)},
-          next_review_at = ${quote(nextReviewAt)},
-          conclusion = ${req.body?.conclusion ? quote(req.body.conclusion) : 'NULL'},
-          evidence_path = ${req.body?.evidencePath ? quote(req.body.evidencePath) : 'NULL'},
-          owner = ${req.body?.owner ? quote(req.body.owner) : 'NULL'},
-          updated_at = ${quote(now)}
-      WHERE category = ${quote(category)}
+      SET status = ${quoteSqlString(status)},
+          last_reviewed_at = ${quoteSqlString(lastReviewedAt)},
+          next_review_at = ${quoteSqlString(nextReviewAt)},
+          conclusion = ${req.body?.conclusion ? quoteSqlString(req.body.conclusion) : 'NULL'},
+          evidence_path = ${req.body?.evidencePath ? quoteSqlString(req.body.evidencePath) : 'NULL'},
+          owner = ${req.body?.owner ? quoteSqlString(req.body.owner) : 'NULL'},
+          updated_at = ${quoteSqlString(now)}
+      WHERE category = ${quoteSqlString(category)}
     `));
     saveDb(db);
     return { ok: true, category, status, lastReviewedAt, nextReviewAt };
   });
 }
 
-function listRuleReviews(db: any): RuleReviewRow[] {
+function listRuleReviews(db: AppDb): RuleReviewRow[] {
   ensureRuleReviewTable(db);
   seedDefaultRuleReviews(db);
   return db.all(sql.raw(`
@@ -85,7 +85,7 @@ function listRuleReviews(db: any): RuleReviewRow[] {
   `));
 }
 
-function ensureRuleReviewTable(db: any): void {
+function ensureRuleReviewTable(db: AppDb): void {
   db.run(sql.raw(`
     CREATE TABLE IF NOT EXISTS rule_reviews (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,7 +103,7 @@ function ensureRuleReviewTable(db: any): void {
   `));
 }
 
-function seedDefaultRuleReviews(db: any): void {
+function seedDefaultRuleReviews(db: AppDb): void {
   const defaults = [
     ['review_management', '评价管理规则'],
     ['report_hide', '举报/隐藏规则'],
@@ -114,7 +114,7 @@ function seedDefaultRuleReviews(db: any): void {
   for (const [category, title] of defaults) {
     db.run(sql.raw(`
       INSERT INTO rule_reviews (category, title, status)
-      VALUES (${quote(category)}, ${quote(title)}, 'pending')
+      VALUES (${quoteSqlString(category)}, ${quoteSqlString(title)}, 'pending')
       ON CONFLICT(category) DO NOTHING
     `));
   }
@@ -137,8 +137,4 @@ function sanitizeStatus(value: string): RuleReviewStatus {
 
 function addDaysIso(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-}
-
-function quote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }

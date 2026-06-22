@@ -1,4 +1,4 @@
-import { saveDb } from '@pdd-inspector/core';
+import { quoteSqlString, saveDb, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 
 export type OperatorSessionStatus = 'active' | 'pending_login' | 'paused';
@@ -22,7 +22,7 @@ export function buildOperatorSessionProfileKey(operatorId: string, storeId: numb
   return `${normalizeOperatorId(operatorId) || 'unknown'}:store-${storeId}`;
 }
 
-export function ensureOperatorSessionTables(db: any): void {
+export function ensureOperatorSessionTables(db: AppDb): void {
   db.run(sql.raw(`
     CREATE TABLE IF NOT EXISTS operators (
       id TEXT PRIMARY KEY,
@@ -49,7 +49,7 @@ export function ensureOperatorSessionTables(db: any): void {
   `));
 }
 
-export function getOperatorStoreSession(db: any, operatorId: string | null, storeId: number): OperatorStoreSession | null {
+export function getOperatorStoreSession(db: AppDb, operatorId: string | null, storeId: number): OperatorStoreSession | null {
   const normalized = normalizeOperatorId(operatorId);
   if (!normalized) return null;
   ensureOperatorRecord(db, normalized);
@@ -65,7 +65,7 @@ export function getOperatorStoreSession(db: any, operatorId: string | null, stor
       last_login_at AS lastLoginAt,
       last_used_at AS lastUsedAt
     FROM operator_store_sessions
-    WHERE operator_id = ${quote(normalized)} AND store_id = ${storeId}
+    WHERE operator_id = ${quoteSqlString(normalized)} AND store_id = ${storeId}
   `)) as OperatorStoreSession | undefined;
   if (existing) return existing;
 
@@ -75,7 +75,7 @@ export function getOperatorStoreSession(db: any, operatorId: string | null, stor
     INSERT INTO operator_store_sessions (
       operator_id, store_id, profile_key, status, created_at, updated_at
     ) VALUES (
-      ${quote(normalized)}, ${storeId}, ${quote(profileKey)}, 'pending_login', ${quote(now)}, ${quote(now)}
+      ${quoteSqlString(normalized)}, ${storeId}, ${quoteSqlString(profileKey)}, 'pending_login', ${quoteSqlString(now)}, ${quoteSqlString(now)}
     )
   `));
   saveDb(db);
@@ -92,7 +92,7 @@ export function getOperatorStoreSession(db: any, operatorId: string | null, stor
 }
 
 export function resolveOperatorStorageState(
-  db: any,
+  db: AppDb,
   operatorId: string | null,
   storeId: number,
   fallbackStorageState: string | null,
@@ -102,7 +102,7 @@ export function resolveOperatorStorageState(
 }
 
 export function saveOperatorStoreSession(
-  db: any,
+  db: AppDb,
   operatorId: string | null,
   storeId: number,
   storageState: string,
@@ -119,8 +119,8 @@ export function saveOperatorStoreSession(
     INSERT INTO operator_store_sessions (
       operator_id, store_id, profile_key, storage_state, status, last_login_at, last_used_at, created_at, updated_at
     ) VALUES (
-      ${quote(normalized)}, ${storeId}, ${quote(profileKey)}, ${quote(storageState)}, ${quote(status)},
-      ${quote(now)}, ${quote(now)}, ${quote(now)}, ${quote(now)}
+      ${quoteSqlString(normalized)}, ${storeId}, ${quoteSqlString(profileKey)}, ${quoteSqlString(storageState)}, ${quoteSqlString(status)},
+      ${quoteSqlString(now)}, ${quoteSqlString(now)}, ${quoteSqlString(now)}, ${quoteSqlString(now)}
     )
     ON CONFLICT(operator_id, store_id) DO UPDATE SET
       profile_key = excluded.profile_key,
@@ -133,7 +133,7 @@ export function saveOperatorStoreSession(
 }
 
 export function markOperatorStoreSessionStatus(
-  db: any,
+  db: AppDb,
   operatorId: string | null,
   storeId: number,
   status: OperatorSessionStatus,
@@ -144,23 +144,19 @@ export function markOperatorStoreSessionStatus(
   const now = new Date().toISOString();
   db.run(sql.raw(`
     UPDATE operator_store_sessions
-    SET status = ${quote(status)},
-        last_used_at = ${quote(now)},
-        updated_at = ${quote(now)}
-    WHERE operator_id = ${quote(normalized)} AND store_id = ${storeId}
+    SET status = ${quoteSqlString(status)},
+        last_used_at = ${quoteSqlString(now)},
+        updated_at = ${quoteSqlString(now)}
+    WHERE operator_id = ${quoteSqlString(normalized)} AND store_id = ${storeId}
   `));
 }
 
-function ensureOperatorRecord(db: any, operatorId: string): void {
+function ensureOperatorRecord(db: AppDb, operatorId: string): void {
   ensureOperatorSessionTables(db);
   const now = new Date().toISOString();
   db.run(sql.raw(`
     INSERT INTO operators (id, name, status, created_at, updated_at)
-    VALUES (${quote(operatorId)}, ${quote(operatorId)}, 'active', ${quote(now)}, ${quote(now)})
+    VALUES (${quoteSqlString(operatorId)}, ${quoteSqlString(operatorId)}, 'active', ${quoteSqlString(now)}, ${quoteSqlString(now)})
     ON CONFLICT(id) DO UPDATE SET updated_at = excluded.updated_at
   `));
-}
-
-function quote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }

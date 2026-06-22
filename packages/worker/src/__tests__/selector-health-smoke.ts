@@ -1,4 +1,4 @@
-import { getDb } from '@pdd-inspector/core';
+import { getBrowserEnvironmentStatus, getDb } from '@pdd-inspector/core';
 import { chromium, Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -59,6 +59,13 @@ async function main() {
   ensureDir(OUTPUT_DIR);
   ensureDir(path.dirname(REPORT_FILE));
   const db = await getDb();
+  const browserStatus = getBrowserEnvironmentStatus();
+  if (!browserStatus.ok) {
+    console.error(browserStatus.message);
+    console.error('Install Chrome manually or run: pnpm --filter @pdd-inspector/worker exec playwright install chrome');
+    console.error('Development-only fallback: set PLAYWRIGHT_CHROME_CHANNEL=chromium');
+    process.exit(1);
+  }
   const runtime = buildBrowserRuntimeOptions({ headless: process.env.SELECTOR_HEALTH_HEADLESS === 'true' });
   const browser = await chromium.launch({
     headless: runtime.headless,

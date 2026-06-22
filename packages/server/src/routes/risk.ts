@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { getDb, saveDb } from '@pdd-inspector/core';
+import { getDb, quoteSqlString, saveDb, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 
 type RiskEventRow = {
@@ -42,7 +42,7 @@ export async function riskRoutes(app: FastifyInstance) {
     db.run(sql.raw(`
       UPDATE risk_events
       SET status = 'resolved',
-          resolved_at = ${quote(new Date().toISOString())}
+          resolved_at = ${quoteSqlString(new Date().toISOString())}
       WHERE id = ${id}
     `));
     saveDb(db);
@@ -50,7 +50,7 @@ export async function riskRoutes(app: FastifyInstance) {
   });
 }
 
-function listActiveEvents(db: any): RiskEventRow[] {
+function listActiveEvents(db: AppDb): RiskEventRow[] {
   return db.all(sql.raw(`
     SELECT
       re.id,
@@ -114,7 +114,7 @@ function summarizeRiskEvents(events: RiskEventRow[]) {
   };
 }
 
-function ensureRiskEventTable(db: any) {
+function ensureRiskEventTable(db: AppDb) {
   db.run(sql.raw(`
     CREATE TABLE IF NOT EXISTS risk_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -139,8 +139,4 @@ function ensureRiskEventTable(db: any) {
   } catch {
     // Column already exists.
   }
-}
-
-function quote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }

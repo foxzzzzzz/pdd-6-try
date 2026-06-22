@@ -14,7 +14,7 @@
     "db:generate": "pnpm --filter @pdd-inspector/core run db:generate",
     "db:push": "pnpm --filter @pdd-inspector/core run db:push",
     "db:migrate": "pnpm --filter @pdd-inspector/core run db:migrate",
-    "db:seed": "tsx packages/core/src/db/seed.ts",
+    "db:seed": "pnpm --filter @pdd-inspector/core run db:seed",
     "discover": "pnpm --filter @pdd-inspector/worker run discover"
   },
   "engines": {

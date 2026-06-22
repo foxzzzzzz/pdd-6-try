@@ -1,4 +1,4 @@
-import { ActionJobData, getDb, saveDb } from '@pdd-inspector/core';
+import { ActionJobData, getDb, quoteSqlString, saveDb, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 import { BrowserManager } from './browser';
 import { ActionSafety } from './action-safety';
@@ -117,7 +117,7 @@ export async function executeApprovedAction(job: ActionJobData, config: ActionEx
 }
 
 async function recordActionRisk(
-  db: any,
+  db: AppDb,
   browser: BrowserManager,
   job: ActionJobData,
   message: string,
@@ -135,14 +135,14 @@ async function recordActionRisk(
   });
 }
 
-async function refreshStoreSession(db: any, browser: BrowserManager, storeId: number, operatorId: string): Promise<void> {
+async function refreshStoreSession(db: AppDb, browser: BrowserManager, storeId: number, operatorId: string): Promise<void> {
   const storageState = await browser.saveStorageState();
   saveOperatorStoreSession(db, operatorId, storeId, storageState, 'active');
   db.run(sql.raw(`
     UPDATE stores
-    SET storage_state = ${quote(storageState)},
+    SET storage_state = ${quoteSqlString(storageState)},
         status = 'active',
-        updated_at = ${quote(new Date().toISOString())}
+        updated_at = ${quoteSqlString(new Date().toISOString())}
     WHERE id = ${storeId}
   `));
   saveDb(db);
@@ -191,7 +191,7 @@ function buildSingleActionSafety(actionType: ActionJobData['actionType'], config
   };
 }
 
-function getStore(db: any, storeId: number): StoreRecord | null {
+function getStore(db: AppDb, storeId: number): StoreRecord | null {
   return db.get(sql.raw(`
     SELECT id, name, storage_state AS storageState
     FROM stores
@@ -199,7 +199,7 @@ function getStore(db: any, storeId: number): StoreRecord | null {
   `)) || null;
 }
 
-function getCandidate(db: any, job: ActionJobData): (ReviewActionCandidate | InteractionActionCandidate) & {
+function getCandidate(db: AppDb, job: ActionJobData): (ReviewActionCandidate | InteractionActionCandidate) & {
   storeId: number;
   actionType: ActionJobData['actionType'];
   status: string;
@@ -238,7 +238,7 @@ function getCandidate(db: any, job: ActionJobData): (ReviewActionCandidate | Int
 }
 
 function setCandidateStatus(
-  db: any,
+  db: AppDb,
   kind: ActionJobData['candidateKind'],
   id: number,
   status: string,
@@ -251,15 +251,11 @@ function setCandidateStatus(
   } = {},
 ): void {
   const table = kind === 'review' ? 'review_actions' : 'interaction_actions';
-  const updates = [`status = ${quote(status)}`];
-  if ('errorMessage' in values) updates.push(`error_message = ${values.errorMessage ? quote(values.errorMessage) : 'NULL'}`);
-  if ('screenshotPath' in values) updates.push(`screenshot_path = ${values.screenshotPath ? quote(values.screenshotPath) : 'NULL'}`);
-  if ('submittedAt' in values) updates.push(`submitted_at = ${values.submittedAt ? quote(values.submittedAt) : 'NULL'}`);
-  if ('executedAt' in values) updates.push(`executed_at = ${values.executedAt ? quote(values.executedAt) : 'NULL'}`);
-  if ('operatorId' in values) updates.push(`operator_id = ${values.operatorId ? quote(values.operatorId) : 'NULL'}`);
+  const updates = [`status = ${quoteSqlString(status)}`];
+  if ('errorMessage' in values) updates.push(`error_message = ${values.errorMessage ? quoteSqlString(values.errorMessage) : 'NULL'}`);
+  if ('screenshotPath' in values) updates.push(`screenshot_path = ${values.screenshotPath ? quoteSqlString(values.screenshotPath) : 'NULL'}`);
+  if ('submittedAt' in values) updates.push(`submitted_at = ${values.submittedAt ? quoteSqlString(values.submittedAt) : 'NULL'}`);
+  if ('executedAt' in values) updates.push(`executed_at = ${values.executedAt ? quoteSqlString(values.executedAt) : 'NULL'}`);
+  if ('operatorId' in values) updates.push(`operator_id = ${values.operatorId ? quoteSqlString(values.operatorId) : 'NULL'}`);
   db.run(sql.raw(`UPDATE ${table} SET ${updates.join(', ')} WHERE id = ${id}`));
-}
-
-function quote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }

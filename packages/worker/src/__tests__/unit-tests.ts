@@ -18,6 +18,7 @@ import {
   INSPECTION_QUEUE,
   LOGIN_BIND_QUEUE,
   SCHEDULER_QUEUE,
+  quoteSqlString,
 } from '@pdd-inspector/core';
 import { shouldRunRuleBasedAnomalyDetection } from '../inspection-config';
 import { detectAnomaliesByRules } from '../ai/anomaly-detector';
@@ -143,6 +144,8 @@ assert('规则复核未过期不阻止高风险写操作', !isRuleReviewExpired(
 assert('规则复核过期会阻止高风险写操作', isRuleReviewExpired({ nextReviewAt: '2026-06-20T00:00:00.000Z', status: 'approved' }, new Date('2026-06-21T00:00:00.000Z')));
 assert('缺少规则复核记录会阻止举报和隐藏 real-run', shouldBlockActionForRuleReview('report', [], new Date('2026-06-21T00:00:00.000Z')) && shouldBlockActionForRuleReview('hide', [], new Date('2026-06-21T00:00:00.000Z')));
 assert('好评回复不依赖举报隐藏规则复核', !shouldBlockActionForRuleReview('reply', [], new Date('2026-06-21T00:00:00.000Z')));
+
+assert('SQL quote helper escapes single quotes', quoteSqlString("operator's store") === "'operator''s store'");
 
 const schedulerJobData = createSchedulerJobData();
 const actionJobData = createActionJobData('review', 7, 12, 'report', 'operator-a');

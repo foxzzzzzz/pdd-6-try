@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { getDb } from '@pdd-inspector/core';
+import { getDb, quoteSqlString, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 
 export async function operatorSessionRoutes(app: FastifyInstance) {
@@ -9,7 +9,7 @@ export async function operatorSessionRoutes(app: FastifyInstance) {
     const where: string[] = [];
     const operatorId = req.query.operatorId?.trim();
     const storeId = req.query.storeId ? parseInt(req.query.storeId, 10) : null;
-    if (operatorId) where.push(`oss.operator_id = ${quote(operatorId)}`);
+    if (operatorId) where.push(`oss.operator_id = ${quoteSqlString(operatorId)}`);
     if (storeId != null && Number.isFinite(storeId)) where.push(`oss.store_id = ${storeId}`);
 
     return db.all(sql.raw(`
@@ -34,7 +34,7 @@ export async function operatorSessionRoutes(app: FastifyInstance) {
   });
 }
 
-function ensureOperatorSessionTables(db: any): void {
+function ensureOperatorSessionTables(db: AppDb): void {
   db.run(sql.raw(`
     CREATE TABLE IF NOT EXISTS operators (
       id TEXT PRIMARY KEY,
@@ -59,8 +59,4 @@ function ensureOperatorSessionTables(db: any): void {
       UNIQUE(operator_id, store_id)
     )
   `));
-}
-
-function quote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }

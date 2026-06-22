@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { getDb } from '@pdd-inspector/core';
+import { getDb, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 
 type SelectorHealthRow = {
@@ -33,7 +33,7 @@ export async function selectorHealthRoutes(app: FastifyInstance) {
   });
 }
 
-function listLatestHealthByModule(db: any): SelectorHealthRow[] {
+function listLatestHealthByModule(db: AppDb): SelectorHealthRow[] {
   return db.all(sql.raw(`
     SELECT
       seh.id,
@@ -57,7 +57,7 @@ function listLatestHealthByModule(db: any): SelectorHealthRow[] {
   `));
 }
 
-function ensureSelectorHealthTable(db: any): void {
+function ensureSelectorHealthTable(db: AppDb): void {
   db.run(sql.raw(`
     CREATE TABLE IF NOT EXISTS selector_health_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

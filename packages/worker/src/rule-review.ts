@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { quoteSqlString, type AppDb } from '@pdd-inspector/core';
 
 export type RuleReviewCategory =
   | 'review_management'
@@ -55,7 +56,7 @@ export function shouldBlockActionForRuleReview(
   return false;
 }
 
-export function ensureRuleReviewTable(db: any): void {
+export function ensureRuleReviewTable(db: AppDb): void {
   db.run(sql.raw(`
     CREATE TABLE IF NOT EXISTS rule_reviews (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +74,7 @@ export function ensureRuleReviewTable(db: any): void {
   `));
 }
 
-export function listRuleReviews(db: any): RuleReviewRow[] {
+export function listRuleReviews(db: AppDb): RuleReviewRow[] {
   ensureRuleReviewTable(db);
   seedDefaultRuleReviews(db);
   return db.all(sql.raw(`
@@ -94,7 +95,7 @@ export function listRuleReviews(db: any): RuleReviewRow[] {
 }
 
 export function getRuleReviewBlockReason(
-  db: any,
+  db: AppDb,
   actionType: 'reply' | 'report' | 'hide',
   now = new Date(),
 ): string | null {
@@ -105,7 +106,7 @@ export function getRuleReviewBlockReason(
   return `Rule review expired or missing for: ${expired.map((item) => item.category).join(', ')}`;
 }
 
-function seedDefaultRuleReviews(db: any): void {
+function seedDefaultRuleReviews(db: AppDb): void {
   const defaults: Array<{ category: RuleReviewCategory; title: string }> = [
     { category: 'review_management', title: '评价管理规则' },
     { category: 'report_hide', title: '举报/隐藏规则' },
@@ -117,12 +118,8 @@ function seedDefaultRuleReviews(db: any): void {
   for (const item of defaults) {
     db.run(sql.raw(`
       INSERT INTO rule_reviews (category, title, status, created_at, updated_at)
-      VALUES (${quote(item.category)}, ${quote(item.title)}, 'pending', ${quote(now)}, ${quote(now)})
+      VALUES (${quoteSqlString(item.category)}, ${quoteSqlString(item.title)}, 'pending', ${quoteSqlString(now)}, ${quoteSqlString(now)})
       ON CONFLICT(category) DO NOTHING
     `));
   }
-}
-
-function quote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }

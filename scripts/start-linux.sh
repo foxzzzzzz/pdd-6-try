@@ -19,7 +19,11 @@ if [ ! -f ".env" ]; then
 fi
 
 cleanup() {
-  jobs -p | xargs -r kill 2>/dev/null || true
+  local pids
+  pids="$(jobs -p)"
+  if [ -n "$pids" ]; then
+    kill $pids 2>/dev/null || true
+  fi
 }
 trap cleanup INT TERM EXIT
 

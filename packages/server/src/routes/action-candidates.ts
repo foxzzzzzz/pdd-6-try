@@ -1,10 +1,17 @@
 import { FastifyInstance } from 'fastify';
-import { getDb, saveDb } from '@pdd-inspector/core';
+import { getDb, quoteSqlString, saveDb, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 import { addActionJob } from '../queue';
 
 type CandidateStatus = 'pending_approval' | 'approved' | 'queued' | 'skipped';
 type CandidateKind = 'review' | 'interaction';
+type ActionCandidateRow = Record<string, unknown> & { createdAt?: string | null };
+type ActionJobCandidateRow = {
+  id: number;
+  storeId: number;
+  actionType: 'reply' | 'report' | 'hide';
+  status: string;
+};
 
 export async function actionCandidateRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { status?: string; storeId?: string; type?: string } }>('/api/action-candidates', async (req) => {
@@ -35,14 +42,14 @@ export async function actionCandidateRoutes(app: FastifyInstance) {
   });
 }
 
-function listReviewCandidates(db: any, status: string, storeId: number | null, type: string | null) {
+function listReviewCandidates(db: AppDb, status: string, storeId: number | null, type: string | null): ActionCandidateRow[] {
   if (type && type !== 'reply' && type !== 'report') return [];
-  let where = `ra.status = ${quote(status)}`;
+  let where = `ra.status = ${quoteSqlString(status)}`;
   if (storeId != null && Number.isFinite(storeId)) {
     where += ` AND ra.store_id = ${storeId}`;
   }
   if (type) {
-    where += ` AND ra.action_type = ${quote(type)}`;
+    where += ` AND ra.action_type = ${quoteSqlString(type)}`;
   }
   return db.all(sql.raw(`
     SELECT
@@ -68,12 +75,12 @@ function listReviewCandidates(db: any, status: string, storeId: number | null, t
     FROM review_actions ra
     LEFT JOIN stores s ON s.id = ra.store_id
     WHERE ${where}
-  `));
+  `)) as ActionCandidateRow[];
 }
 
-function listInteractionCandidates(db: any, status: string, storeId: number | null, type: string | null) {
+function listInteractionCandidates(db: AppDb, status: string, storeId: number | null, type: string | null): ActionCandidateRow[] {
   if (type && type !== 'hide') return [];
-  let where = `ia.status = ${quote(status)} AND ia.action = 'hide'`;
+  let where = `ia.status = ${quoteSqlString(status)} AND ia.action = 'hide'`;
   if (storeId != null && Number.isFinite(storeId)) {
     where += ` AND ia.store_id = ${storeId}`;
   }
@@ -101,7 +108,7 @@ function listInteractionCandidates(db: any, status: string, storeId: number | nu
     FROM interaction_actions ia
     LEFT JOIN stores s ON s.id = ia.store_id
     WHERE ${where}
-  `));
+  `)) as ActionCandidateRow[];
 }
 
 async function updateCandidate(kind: CandidateKind, id: number, status: CandidateStatus, operatorId: string) {
@@ -110,9 +117,9 @@ async function updateCandidate(kind: CandidateKind, id: number, status: Candidat
   ensureApprovalColumns(db);
   const table = kind === 'review' ? 'review_actions' : 'interaction_actions';
   const timestamp = new Date().toISOString();
-  const approvedAt = status === 'approved' ? quote(timestamp) : 'NULL';
+  const approvedAt = status === 'approved' ? quoteSqlString(timestamp) : 'NULL';
   db.run(sql.raw(
-    `UPDATE ${table} SET status = ${quote(status)}, approved_at = ${approvedAt}, operator_id = ${quote(operatorId)} WHERE id = ${id}`,
+    `UPDATE ${table} SET status = ${quoteSqlString(status)}, approved_at = ${approvedAt}, operator_id = ${quoteSqlString(operatorId)} WHERE id = ${id}`,
   ));
   saveDb(db);
   const updated = db.get(sql.raw(`SELECT id FROM ${table} WHERE id = ${id}`));
@@ -135,8 +142,8 @@ async function approveCandidate(kind: CandidateKind, id: number, operatorId: str
   db.run(sql.raw(`
     UPDATE ${table}
     SET status = 'approved',
-        approved_at = ${quote(timestamp)},
-        operator_id = ${quote(operatorId)}
+        approved_at = ${quoteSqlString(timestamp)},
+        operator_id = ${quoteSqlString(operatorId)}
     WHERE id = ${id}
   `));
   saveDb(db);
@@ -147,29 +154,24 @@ async function approveCandidate(kind: CandidateKind, id: number, operatorId: str
   return { ok: true, kind, id, status: 'queued', jobId: job.id };
 }
 
-function getCandidateForJob(db: any, kind: CandidateKind, id: number): {
-  id: number;
-  storeId: number;
-  actionType: 'reply' | 'report' | 'hide';
-  status: string;
-} | null {
+function getCandidateForJob(db: AppDb, kind: CandidateKind, id: number): ActionJobCandidateRow | null {
   if (kind === 'review') {
     const row = db.get(sql.raw(`
       SELECT id, store_id AS storeId, action_type AS actionType, status
       FROM review_actions
       WHERE id = ${id}
-    `));
+    `)) as ActionJobCandidateRow | undefined;
     return row && ['reply', 'report'].includes(row.actionType) ? row : null;
   }
   const row = db.get(sql.raw(`
     SELECT id, store_id AS storeId, action AS actionType, status
     FROM interaction_actions
     WHERE id = ${id}
-  `));
+  `)) as ActionJobCandidateRow | undefined;
   return row && row.actionType === 'hide' ? row : null;
 }
 
-function ensureApprovalColumns(db: any) {
+function ensureApprovalColumns(db: AppDb) {
   for (const table of ['review_actions', 'interaction_actions']) {
     for (const [column, type] of [
       ['executed_at', 'TEXT'],
@@ -191,10 +193,6 @@ function sanitizeStatus(value: string): string {
 
 function sanitizeType(value: string | null): string | null {
   return value && ['reply', 'report', 'hide'].includes(value) ? value : null;
-}
-
-function quote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }
 
 function requireOperatorId(value?: string | null): string {

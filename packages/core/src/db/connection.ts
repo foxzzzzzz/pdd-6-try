@@ -4,7 +4,9 @@ import * as schema from './schema';
 import * as fs from 'fs';
 import * as path from 'path';
 
-let db: SQLJsDatabase<typeof schema> | null = null;
+export type AppDb = SQLJsDatabase<typeof schema>;
+
+let db: AppDb | null = null;
 let sqlDb: SqlJsDatabase | null = null;
 type DbMetadata = {
   sqlDb: SqlJsDatabase;
@@ -12,7 +14,7 @@ type DbMetadata = {
 };
 
 let dbMetadata: DbMetadata | null = null;
-const metadataByDrizzleDb = new WeakMap<SQLJsDatabase<typeof schema>, DbMetadata>();
+const metadataByDrizzleDb = new WeakMap<AppDb, DbMetadata>();
 
 function findWorkspaceRoot(): string {
   let dir = process.cwd();
@@ -84,7 +86,7 @@ function getDbFileSignature(): string {
   return `${stat.mtimeMs}:${stat.size}`;
 }
 
-export async function getDb(): Promise<SQLJsDatabase<typeof schema>> {
+export async function getDb(): Promise<AppDb> {
   return withLock(async () => {
     if (!initPromise) initPromise = initSqlJs();
     const SQL = await initPromise;
@@ -113,7 +115,7 @@ export async function getDb(): Promise<SQLJsDatabase<typeof schema>> {
   });
 }
 
-export function saveDb(targetDb?: SQLJsDatabase<typeof schema>): void {
+export function saveDb(targetDb?: AppDb): void {
   const metadata = targetDb ? metadataByDrizzleDb.get(targetDb) : dbMetadata;
   if (!metadata) return;
 
