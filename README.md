@@ -61,13 +61,13 @@ packages/
 
 ### 基础要求
 
-- Node.js >= 20
-- pnpm
-- Redis 7+
-- Google Chrome
+- Node.js >= 20（[下载](https://nodejs.org/)）
+- pnpm（部署脚本会自动安装，无需手动操作）
+- Redis 7+（部署脚本通过 Docker Compose 自动启动）
+- Google Chrome（[下载](https://www.google.com/chrome/)）
 - Windows 10/11、macOS、Linux 均可运行
 
-> 生产环境建议使用系统 Chrome。项目默认会检测 Chrome 是否存在；没有安装 Chrome 时，巡店和登录绑定会被阻止，并在 Web 端提示先安装 Chrome。
+> 新机器克隆后直接运行部署脚本即可：`.\scripts\deploy-windows.ps1`（或对应平台的脚本）。脚本会自动处理 Node.js 版本检查、pnpm 安装、依赖安装、数据库迁移、默认数据 seed 和项目构建。
 
 ### 自动化脚本
 

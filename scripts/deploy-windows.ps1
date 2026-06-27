@@ -27,7 +27,22 @@ Write-Host "PDD Inspector Windows deploy" -ForegroundColor Green
 Write-Host "Workspace: $Root"
 
 Require-Command "node" "Install Node.js 20+ from https://nodejs.org/"
-Require-Command "pnpm" "Install pnpm with: corepack enable"
+
+if (-not (Get-Command "pnpm" -ErrorAction SilentlyContinue)) {
+  Write-Host "pnpm not found, installing..."
+  try {
+    corepack enable 2>$null
+    if (-not (Get-Command "pnpm" -ErrorAction SilentlyContinue)) {
+      npm install -g pnpm 2>$null
+    }
+  } catch {
+    npm install -g pnpm
+  }
+  if (-not (Get-Command "pnpm" -ErrorAction SilentlyContinue)) {
+    throw "Failed to install pnpm. Please install manually: npm install -g pnpm"
+  }
+  Write-Host "pnpm installed successfully."
+}
 
 $nodeMajor = [int]((node -p "process.versions.node.split('.')[0]") -as [string])
 if ($nodeMajor -lt 20) {
