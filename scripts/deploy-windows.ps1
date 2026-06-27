@@ -58,7 +58,7 @@ if (-not (Test-Path ".env")) {
 }
 
 if (-not $SkipRedis) {
-  $dockerAvailable = Get-Command "docker" -ErrorAction SilentlyContinue
+  $dockerAvailable = (Test-Path "$env:ProgramFiles\Docker\Docker\resources\bin\docker.exe") -or (Test-Path "${env:ProgramFiles(x86)}\Docker\Docker\resources\bin\docker.exe")
 
   if ($dockerAvailable) {
     try {
