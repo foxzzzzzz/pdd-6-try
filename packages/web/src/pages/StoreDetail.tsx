@@ -50,7 +50,7 @@ export default function StoreDetail() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-900">{store.name}</h2>
-            <p className="text-sm text-slate-500 mt-1">ID: {store.pddStoreId}{store.factory ? ` · ${store.factory}` : ''}</p>
+            <p className="text-sm text-slate-500 mt-1">标识: {store.pddStoreId}{store.factory ? ` · ${store.factory}` : ''}</p>
           </div>
           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${
             store.status === 'active' ? 'bg-emerald-50 text-emerald-700' :

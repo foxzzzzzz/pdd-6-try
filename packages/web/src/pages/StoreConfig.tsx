@@ -48,7 +48,7 @@ export default function StoreConfig() {
   }
 
   async function handleSave() {
-    if (!form.name || !form.pddStoreId) return alert('请填写店铺名称和 PDD 店铺 ID');
+    if (!form.name || !form.pddStoreId) return alert('请填写店铺名称和店铺标识');
     if (!form.owner.trim()) return alert('请填写运营 ID，用于固定绑定浏览器登录态');
     try {
       editing ? await api.updateStore(editing.id, form) : await api.createStore(form);
@@ -135,8 +135,11 @@ export default function StoreConfig() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="店铺名称 *" className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-          <input value={form.pddStoreId} onChange={(e) => setForm({ ...form, pddStoreId: e.target.value })}
-            placeholder="PDD 店铺 ID *" className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <div>
+            <input value={form.pddStoreId} onChange={(e) => setForm({ ...form, pddStoreId: e.target.value })}
+              placeholder="店铺标识 *" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <p className="text-xs text-slate-400 mt-1">每个店铺的唯一识别码，建议用店铺拼音，如 yanlugong</p>
+          </div>
           <input value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })}
             placeholder="运营 ID *" className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
           <input value={form.factory} onChange={(e) => setForm({ ...form, factory: e.target.value })}
