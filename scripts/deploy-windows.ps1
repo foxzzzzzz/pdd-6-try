@@ -61,13 +61,21 @@ if (-not $SkipRedis) {
   $redisStarted = $false
 
   # Strategy 1: Docker Compose (if available)
-  if (Get-Command "docker" -ErrorAction SilentlyContinue) {
+  $dockerAvailable = Get-Command "docker" -ErrorAction SilentlyContinue
+  if ($dockerAvailable) {
     try {
       docker compose up -d redis 2>$null
       $redisStarted = $true
       Write-Host "Redis started via Docker Compose." -ForegroundColor Green
     } catch {
-      Write-Warning "Docker Compose failed, trying native Redis..."
+      Write-Host ""
+      Write-Warning "Docker Compose failed. Redis is required for task queues."
+      $choice = Read-Host "Switch to native Redis instead? [Y/n]"
+      if ($choice -eq '' -or $choice -eq 'y' -or $choice -eq 'Y') {
+        Write-Host "Switching to native Redis..." -ForegroundColor Yellow
+      } else {
+        throw "Deploy aborted. Please fix Docker and retry."
+      }
     }
   }
 
@@ -76,16 +84,51 @@ if (-not $SkipRedis) {
     if (Get-Command "redis-cli" -ErrorAction SilentlyContinue) {
       $redisRunning = & redis-cli ping 2>$null
       if ($redisRunning -ne 'PONG') {
-        $redisRunning = Start-Process redis-server -WindowStyle Hidden -PassThru 2>$null
+        Start-Process redis-server -WindowStyle Hidden -PassThru 2>$null
       }
       $redisStarted = $true
       Write-Host "Using native Redis." -ForegroundColor Green
     }
   }
 
-  # Strategy 3: Auto-install native Redis via winget
+  # Strategy 3: No Docker + prompt user to choose
+  if (-not $redisStarted -and -not $dockerAvailable) {
+    Write-Host ""
+    Write-Host "Redis is required. Choose an option:" -ForegroundColor Yellow
+    Write-Host "  [1] Install native Redis via winget (fast, no reboot)"
+    Write-Host "  [2] Skip Redis for now (run again with -SkipRedis)"
+    $choice = Read-Host "Enter 1 or 2"
+    if ($choice -eq '1') {
+      if (Get-Command "winget" -ErrorAction SilentlyContinue) {
+        Write-Host "Installing Redis via winget..." -ForegroundColor Yellow
+        winget install Redis.Redis --accept-package-agreements --silent 2>$null
+        if (Get-Command "redis-cli" -ErrorAction SilentlyContinue) {
+          Start-Process redis-server -WindowStyle Hidden -PassThru 2>$null
+          $redisStarted = $true
+          Write-Host "Redis installed and started." -ForegroundColor Green
+        }
+      } elseif (Get-Command "choco" -ErrorAction SilentlyContinue) {
+        choco install redis-64 -y 2>$null
+        if (Get-Command "redis-cli" -ErrorAction SilentlyContinue) {
+          Start-Process redis-server -WindowStyle Hidden -PassThru 2>$null
+          $redisStarted = $true
+          Write-Host "Redis installed via Chocolatey." -ForegroundColor Green
+        }
+      } else {
+        throw "Cannot auto-install Redis. Please install manually: winget install Redis.Redis"
+      }
+    } else {
+      throw "Deploy aborted. Run again with: .\scripts\deploy-windows.ps1 -SkipRedis"
+    }
+  }
+
+  # Strategy 4: Docker failed + user agreed to native Redis → install
   if (-not $redisStarted) {
-    if (Get-Command "winget" -ErrorAction SilentlyContinue) {
+    if (Get-Command "redis-cli" -ErrorAction SilentlyContinue) {
+      Start-Process redis-server -WindowStyle Hidden -PassThru 2>$null
+      $redisStarted = $true
+      Write-Host "Using native Redis." -ForegroundColor Green
+    } elseif (Get-Command "winget" -ErrorAction SilentlyContinue) {
       Write-Host "Installing Redis via winget..." -ForegroundColor Yellow
       winget install Redis.Redis --accept-package-agreements --silent 2>$null
       if (Get-Command "redis-cli" -ErrorAction SilentlyContinue) {
@@ -94,30 +137,10 @@ if (-not $SkipRedis) {
         Write-Host "Redis installed and started." -ForegroundColor Green
       }
     }
-  }
 
-  # Strategy 4: Auto-install via Chocolatey
-  if (-not $redisStarted) {
-    if (Get-Command "choco" -ErrorAction SilentlyContinue) {
-      choco install redis-64 -y 2>$null
-      if (Get-Command "redis-cli" -ErrorAction SilentlyContinue) {
-        Start-Process redis-server -WindowStyle Hidden -PassThru 2>$null
-        $redisStarted = $true
-        Write-Host "Redis installed via Chocolatey." -ForegroundColor Green
-      }
+    if (-not $redisStarted) {
+      throw "Failed to start Redis. Please install manually and retry."
     }
-  }
-
-  if (-not $redisStarted) {
-    Write-Warning @"
-
-Redis is not available. Options:
-  1. Install Docker Desktop: winget install Docker.DockerDesktop
-  2. Install Redis directly:   winget install Redis.Redis
-  3. Run deploy again with:    .\scripts\deploy-windows.ps1 -SkipRedis
-     (then manually start Redis and configure .env)
-"@
-    throw "Redis is required. Please install Redis using one of the options above and retry."
   }
 }
 
