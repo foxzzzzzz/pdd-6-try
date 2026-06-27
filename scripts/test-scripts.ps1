@@ -93,6 +93,32 @@ if ($deploy -match 'Docker Desktop' -and $deploy -match 'winget install') {
   $failed++
 }
 
+# ---- Runtime: docker detection does not hang ----
+Write-Host ""
+Write-Host "[Runtime]" -ForegroundColor Yellow
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
+$job = Start-Job -ScriptBlock {
+  docker compose up -d redis 2>$null
+  exit $LASTEXITCODE
+}
+$null = Wait-Job $job -Timeout 5
+$exitCode = (Receive-Job $job -ErrorAction SilentlyContinue)
+Remove-Job $job -Force
+$sw.Stop()
+
+if ($sw.Elapsed.TotalSeconds -lt 4.5) {
+  Write-Host "  PASS docker detection completes in $([math]::Round($sw.Elapsed.TotalSeconds, 1))s" -ForegroundColor Green
+  $passed++
+} else {
+  Write-Host "  FAIL docker detection hung or timed out" -ForegroundColor Red
+  $failed++
+}
+
+$ErrorActionPreference = $prevEAP
+
 Write-Host ""
 Write-Host "=== Result: $passed passed, $failed failed ===" -ForegroundColor $(if ($failed -eq 0) { 'Green' } else { 'Red' })
 if ($failed -gt 0) { exit 1 }

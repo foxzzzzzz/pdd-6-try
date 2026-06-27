@@ -70,7 +70,10 @@ if (-not $SkipRedis) {
   }
 
   if ($dockerAvailable) {
-    docker compose up -d redis 2>&1 | Out-Null
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    docker compose up -d redis 2>$null
+    $ErrorActionPreference = $prevEAP
     if ($LASTEXITCODE -ne 0) {
       Write-Warning "Docker Compose failed (exit code $LASTEXITCODE). Is Docker Desktop running?"
       throw "Docker installed but docker compose failed. Start Docker Desktop and retry."
