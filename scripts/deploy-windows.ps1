@@ -58,68 +58,44 @@ if (-not (Test-Path ".env")) {
 }
 
 if (-not $SkipRedis) {
-  $redisStarted = $false
   $dockerAvailable = Get-Command "docker" -ErrorAction SilentlyContinue
 
-  # Strategy 1: Docker Compose (if available)
   if ($dockerAvailable) {
     try {
       docker compose up -d redis 2>$null
-      $redisStarted = $true
       Write-Host "Redis started via Docker Compose." -ForegroundColor Green
     } catch {
-      Write-Host ""
-      Write-Warning "Docker Compose 启动失败。"
-      Write-Host ""
-      Write-Host "  请确认:"
-      Write-Host "    1. Docker Desktop 是否已打开并完成初始化"
-      Write-Host "    2. 右下角 Docker 图标是否为绿色运行状态"
-      Write-Host ""
-      throw "Docker is installed but not running. Please start Docker Desktop and retry."
+      Write-Warning "Docker Compose failed. Is Docker Desktop running (green icon)?"
+      throw "Docker installed but not running. Start Docker Desktop and retry."
     }
   } else {
-    # No Docker — give clear instructions, do NOT continue
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Red
-    Write-Host "  Redis 未安装。Redis 是系统运行必需的组件。" -ForegroundColor Red
+    Write-Host "  Redis missing. Redis is required." -ForegroundColor Red
     Write-Host "============================================" -ForegroundColor Red
     Write-Host ""
-    Write-Host "  请选择一种安装方式:" -ForegroundColor Yellow
+    Write-Host "  [1] Docker Desktop:   winget install Docker.DockerDesktop"
+    Write-Host "  [2] Native Redis:     winget install Redis.Redis"
+    Write-Host "  [3] Skip:             .\scripts\deploy-windows.ps1 -SkipRedis"
     Write-Host ""
-    Write-Host "  [1] Docker Desktop (推荐，跨平台)"
-    Write-Host "      winget install Docker.DockerDesktop"
-    Write-Host "      (安装后重启电脑，打开 Docker Desktop)"
-    Write-Host ""
-    Write-Host "  [2] 原生 Redis (最快，无需重启)"
-    Write-Host "      winget install Redis.Redis"
-    Write-Host ""
-    Write-Host "  [3] 跳过安装，手动启动 Redis"
-    Write-Host "      .\scripts\deploy-windows.ps1 -SkipRedis"
-    Write-Host ""
-    $choice = Read-Host "  输入 1 / 2 / 3"
-    if ($choice -eq '2') {
+    $choice = Read-Host "Enter 1, 2 or 3"
+
+    if ($choice -eq "2") {
       if (Get-Command "winget" -ErrorAction SilentlyContinue) {
-        Write-Host "Installing Redis via winget..." -ForegroundColor Yellow
         winget install Redis.Redis --accept-package-agreements --silent 2>$null
         if (Get-Command "redis-cli" -ErrorAction SilentlyContinue) {
           Start-Process redis-server -WindowStyle Hidden -PassThru 2>$null
-          $redisStarted = $true
           Write-Host "Redis installed and started." -ForegroundColor Green
         } else {
-          throw "Redis installation failed. Please install manually: winget install Redis.Redis"
+          throw "Redis install failed. Try: winget install Redis.Redis"
         }
       } else {
-        throw "winget not available. Please install Redis manually: https://github.com/tporadowski/redis/releases"
+        throw "winget not available. Install Redis from: https://github.com/tporadowski/redis/releases"
       }
-    } elseif ($choice -eq '3') {
-      throw "Deploy aborted. Run again with: .\scripts\deploy-windows.ps1 -SkipRedis"
+    } elseif ($choice -eq "3") {
+      throw "Deploy aborted. Retry with: .\scripts\deploy-windows.ps1 -SkipRedis"
     } else {
-      $msg = @"
-Deploy aborted. Please install Docker Desktop:
-  winget install Docker.DockerDesktop
-  (restart your PC, then open Docker Desktop)
-"@
-      throw $msg
+      throw "Deploy aborted. Install Docker: winget install Docker.DockerDesktop"
     }
   }
 }
