@@ -62,7 +62,7 @@ export function buildReportSummary(period: string, stores: ReportStoreSummary[])
   for (const store of stores.filter(s => s.severity && s.severity !== 'normal').slice(0, 3)) {
     const flags = store.anomalyFlags ? tryParseFlags(store.anomalyFlags) : [];
     if (flags.length > 0) {
-      recommendations.push(`${store.storeName}：${flags.slice(0, 2).join('；')}`);
+      recommendations.push(`${store.storeName}\n${flags.map(f => `  ${f}`).join('\n')}`);
     } else {
       recommendations.push(`${store.storeName}：${shortReason(store)}`);
     }

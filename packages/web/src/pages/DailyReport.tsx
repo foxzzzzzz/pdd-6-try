@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import AnomalyText from '../components/AnomalyText';
 
 type AttentionStore = {
   name: string;
@@ -158,7 +159,7 @@ export default function DailyReport() {
                   {attentionStores.map((store, index) => (
                     <div key={`${store.name}-${index}`} className="rounded border border-orange-100 bg-orange-50 p-3">
                       <div className="font-medium text-gray-800">{store.name}</div>
-                      <div className="mt-1 text-sm leading-6 text-gray-600">{store.reason}</div>
+                      <div className="mt-1"><AnomalyText text={store.reason} /></div>
                     </div>
                   ))}
                 </div>
@@ -176,7 +177,7 @@ export default function DailyReport() {
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
                         {index + 1}
                       </span>
-                      <span>{item}</span>
+                      <AnomalyText text={item} />
                     </li>
                   ))}
                 </ol>
@@ -216,7 +217,7 @@ export default function DailyReport() {
                       <td className="px-5 py-3 text-gray-700">{formatNumber(store.latestRating)}</td>
                       <td className="px-5 py-3 text-gray-700">{formatPercent(store.latestDefectRate)}</td>
                       <td className="px-5 py-3 text-gray-700">{store.issueCount ?? 0}</td>
-                      <td className="max-w-md px-5 py-3 text-gray-500">{store.latestInspectionSummary || '-'}</td>
+                      <td className="max-w-md px-5 py-3">{store.latestInspectionSummary ? <AnomalyText text={store.latestInspectionSummary} /> : '-'}</td>
                     </tr>
                   ))}
                   {stores.length === 0 ? (
