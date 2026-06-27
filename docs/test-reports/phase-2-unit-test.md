@@ -1,8 +1,8 @@
 # Phase 2 单元测试报告
 
-**日期**: 2026-06-22
+**日期**: 2026-06-27
 **版本**: v0.2.0
-**结果**: 175/175 通过 (100%)
+**结果**: 183/183 通过 (100%)
 
 ## 测试结果
 
@@ -18,6 +18,8 @@
 | comment page extracts signed score rank change | ✅ |  |
 | comment page extracts comment count | ✅ |  |
 | comment page extracts signed comment count change | ✅ |  |
+| customer page extracts 3-minute reply rate | ✅ |  |
+| customer page extracts average response minutes | ✅ |  |
 | pilot unmet parser keeps only unmet rows | ✅ |  |
 | pilot unmet parser extracts dimension | ✅ |  |
 | pilot unmet parser extracts metric | ✅ |  |
@@ -95,6 +97,9 @@
 | 显式 chromium 可跳过系统 Chrome 检查 | ✅ |  |
 | 拟人化点击等待范围可配置且带随机抖动 | ✅ |  |
 | 拟人化等待会修正非法范围 | ✅ |  |
+| PDD login URL is detected as login | ✅ |  |
+| PDD backend text is authenticated even when URL stays on root | ✅ |  |
+| PDD scan-login text is detected as login | ✅ |  |
 | inspection config actionMode=real-run enables reply | ✅ |  |
 | dry-run 审计状态为 skipped | ✅ |  |
 | dry-run 审计记录 actionMode | ✅ |  |
@@ -132,6 +137,9 @@
 | 不把评价得分排名误写为 DSR 描述分 | ✅ |  |
 | 不把3分钟回复率误写为 DSR 服务分 | ✅ |  |
 | 不把签收时效误写为 DSR 物流分 | ✅ |  |
+| 店铺星级取真实卡片而不是顶部说明文案 | ✅ |  |
+| 店铺星级提取卡片分数 | ✅ |  |
+| 店铺星级提取较前1天变化 | ✅ |  |
 | 提取领航员行业排名 | ✅ |  |
 | 提取平台求助率 | ✅ |  |
 | 提取3分钟人工回复率 | ✅ |  |
@@ -185,6 +193,6 @@
 | 多变量填充 | ✅ |  |
 
 ## 汇总
-- ✅ 通过: 175
+- ✅ 通过: 183
 - ❌ 失败: 0
 - 📊 通过率: 100%

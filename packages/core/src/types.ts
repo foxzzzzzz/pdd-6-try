@@ -61,6 +61,10 @@ export interface MetricsSnapshot {
   commentCount: number | null;
   commentCountChange: number | null;
 
+  // Customer service metrics page
+  customerThreeMinuteReplyRate: number | null;
+  customerAvgResponseMinutes: number | null;
+
   // Consumer experience
   expBasic: number | null;
   expServiceBasic: number | null;

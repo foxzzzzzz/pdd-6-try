@@ -40,6 +40,19 @@ interface ProfileLock {
   fd: number;
 }
 
+const LOGIN_PAGE_TEXT_MARKERS = [
+  '\u626b\u7801\u767b\u5f55',
+  '\u8d26\u53f7\u767b\u5f55',
+  '\u6253\u5f00\u62fc\u591a\u591a\u5546\u5bb6\u7248App\u626b\u7801\u767b\u5f55',
+];
+const AUTHENTICATED_PAGE_TEXT_MARKERS = [
+  '\u5546\u5bb6\u540e\u53f0',
+  '\u53ef\u7533\u8bc9\u8ba2\u5355',
+  '\u672a\u8bfb\u7ad9\u5185\u4fe1',
+  '\u670d\u52a1\u6570\u636e',
+  '\u8bc4\u4ef7\u7ba1\u7406',
+];
+
 export function parseStoredStorageState(storageState?: string | null): Record<string, unknown> | undefined {
   if (!storageState) return undefined;
   try {
@@ -85,6 +98,20 @@ export function resolveHumanDelayMs(range: [number, number], randomValue = Math.
   return Math.round(min + (max - min) * boundedRandom);
 }
 
+export function isPddLoginUrl(url: string): boolean {
+  return url.includes('login') || url.includes('passport');
+}
+
+export function inferPddPageLoginState(
+  url: string,
+  bodyText: string,
+  hasLoginForm: boolean,
+): 'login' | 'authenticated' | 'unknown' {
+  if (AUTHENTICATED_PAGE_TEXT_MARKERS.some((marker) => bodyText.includes(marker))) return 'authenticated';
+  if (hasLoginForm || isPddLoginUrl(url) || LOGIN_PAGE_TEXT_MARKERS.some((marker) => bodyText.includes(marker))) return 'login';
+  return 'unknown';
+}
+
 export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
@@ -105,13 +132,17 @@ export class BrowserManager {
       timeout: 30000,
     });
 
-    const isLoginPage = await this.page!.$('input[placeholder*="手机"], .login-form, [class*="login"]');
+    const robustLoginState = await this.isLoginPage();
 
-    if (isLoginPage) {
+    if (robustLoginState) {
       console.log(`Store ${storeId}: Login required, please scan QR code or enter credentials`);
       await this.takeScreenshot(storeId, 'login-required');
 
       if (this.runtimeOptions.headless) return false;
+      if (await this.waitForAuthenticatedPage(180000)) {
+        console.log(`Store ${storeId}: Manual login completed`);
+        return true;
+      }
       try {
         await this.page!.waitForURL(
           (url) => !url.toString().includes('login') && !url.toString().includes('passport'),
@@ -275,6 +306,39 @@ export class BrowserManager {
     this.browser = await chromium.launch(launchOptions);
     this.context = await this.browser.newContext(contextOptions);
     this.page = await this.context.newPage();
+  }
+
+  private async isLoginPage(): Promise<boolean> {
+    if (!this.page) throw new Error('Page not initialized');
+    const hasLoginForm = Boolean(await this.page.$([
+      'input[type="password"]',
+      'input[placeholder*="\u624b\u673a"]',
+      'input[placeholder*="\u8d26\u53f7"]',
+      '.login-form',
+      '[class*="login-form"]',
+    ].join(', ')));
+    const bodyText = await this.page.evaluate(() => document.body.innerText || '').catch(() => '');
+    return inferPddPageLoginState(this.page.url(), bodyText, hasLoginForm) === 'login';
+  }
+
+  private async waitForAuthenticatedPage(timeoutMs: number): Promise<boolean> {
+    if (!this.page) throw new Error('Page not initialized');
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await this.page.waitForTimeout(1000);
+      const hasLoginForm = Boolean(await this.page.$([
+        'input[type="password"]',
+        'input[placeholder*="\u624b\u673a"]',
+        'input[placeholder*="\u8d26\u53f7"]',
+        '.login-form',
+        '[class*="login-form"]',
+      ].join(', ')).catch(() => null));
+      const bodyText = await this.page.evaluate(() => document.body.innerText || '').catch(() => '');
+      const state = inferPddPageLoginState(this.page.url(), bodyText, hasLoginForm);
+      if (state === 'authenticated') return true;
+      if (state === 'unknown' && !isPddLoginUrl(this.page.url())) return true;
+    }
+    return false;
   }
 
   private releaseProfileLock(): void {

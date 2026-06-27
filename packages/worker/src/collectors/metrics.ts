@@ -29,7 +29,8 @@ export async function collectStoreMetrics(
 
 export function parseStoreMetricsText(text: string): Partial<MetricsSnapshot> {
   return {
-    rating: extractNumber(text, '店铺综合体验星级'),
+    rating: extractStoreRating(text),
+    ratingChange: extractStoreRatingChange(text),
     defectRate: extractPercentAsDecimal(text, '严重劣质率'),
     dsrRankChange: extractText(text, '领航员综合分行业排名'),
     pilotIndustryRank: extractPercentAsDecimal(text, '领航员综合分行业排名'),
@@ -136,6 +137,39 @@ function extractPercentAsDecimal(text: string, label: string): number | null {
   const v = parseFloat(m[1]);
   if (m[2] === '%') return v / 100;
   return v > 1 ? v / 100 : v;
+}
+
+function extractStoreRating(text: string): number | null {
+  for (const segment of labeledSegments(text, '店铺综合体验星级', 240)) {
+    if (!segment.includes('较前1天') && !segment.includes('统计时间')) continue;
+    const m = segment.match(/统计时间[\s\S]{0,40}?(\d+\.?\d*)\s*星/) ?? segment.match(/(\d+\.?\d*)\s*星/);
+    if (!m) continue;
+    const value = parseFloat(m[1]);
+    if (value > 0 && value <= 5) return value;
+  }
+  return extractNumber(text, '店铺综合体验星级');
+}
+
+function extractStoreRatingChange(text: string): number | null {
+  for (const segment of labeledSegments(text, '店铺综合体验星级', 240)) {
+    if (!segment.includes('较前1天')) continue;
+    const m = segment.match(/较前1天\s*([↑↓⬆⬇+-])?\s*(\d+\.?\d*)\s*([↑↓⬆⬇+-])?/);
+    if (!m) continue;
+    const value = parseFloat(m[2]);
+    const sign = `${m[1] || ''}${m[3] || ''}`;
+    return /[↓⬇-]/.test(sign) ? -value : value;
+  }
+  return null;
+}
+
+function labeledSegments(text: string, label: string, length: number): string[] {
+  const segments: string[] = [];
+  let idx = text.indexOf(label);
+  while (idx !== -1) {
+    segments.push(text.substring(idx + label.length, idx + label.length + length));
+    idx = text.indexOf(label, idx + label.length);
+  }
+  return segments;
 }
 
 function extractText(text: string, label: string): string | null {

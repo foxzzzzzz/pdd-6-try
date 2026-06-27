@@ -27,13 +27,14 @@ import { parsePilotUnmetItems, parseStoreMetricsText } from '../collectors/metri
 import { parseRefundMetricsText } from '../collectors/refunds';
 import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
 import { parseCommentMetricsText } from '../collectors/comments';
+import { parseCustomerMetricsText } from '../collectors/customer';
 import { buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
 import { clampActionConcurrency, clampInspectionConcurrency, decideStoreStatusForRiskSignal, detectRiskControlSignal, resolveActionDelayMs } from '../action-risk-control';
 import { summarizeRiskEvents } from '../risk-sentinel';
 import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator-session';
 import { evaluateSelectorHealth, isModuleDegradedFromEvents, shouldBlockWriteActionForSelectorHealth } from '../selector-health';
 import { isRuleReviewExpired, shouldBlockActionForRuleReview } from '../rule-review';
-import { buildBrowserRuntimeOptions, parseStoredStorageState, resolveHumanDelayMs, resolveProfileDirectory } from '../browser';
+import { buildBrowserRuntimeOptions, inferPddPageLoginState, isPddLoginUrl, parseStoredStorageState, resolveHumanDelayMs, resolveProfileDirectory } from '../browser';
 import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 
@@ -93,6 +94,12 @@ assert('comment page extracts score rank', nearlyEqual(commentMetrics.commentSco
 assert('comment page extracts signed score rank change', nearlyEqual(commentMetrics.commentScoreRankChange, -0.012));
 assert('comment page extracts comment count', commentMetrics.commentCount === 608);
 assert('comment page extracts signed comment count change', nearlyEqual(commentMetrics.commentCountChange, 0.035));
+
+const customerMetrics = parseCustomerMetricsText(
+  '\u5ba2\u670d\u670d\u52a1\u6570\u636e 3\u5206\u949f\u4eba\u5de5\u56de\u590d\u7387 100.00% \u8f83\u524d\u4e00\u5929 0.00% \u5e73\u5747\u4eba\u5de5\u54cd\u5e94\u65f6\u957f 0.52\u5206\u949f \u8f83\u524d\u4e00\u5929 \u2191 14.81%',
+);
+assert('customer page extracts 3-minute reply rate', nearlyEqual(customerMetrics.customerThreeMinuteReplyRate, 1));
+assert('customer page extracts average response minutes', customerMetrics.customerAvgResponseMinutes === 0.52);
 
 // ========== Test 0c: Pilot unmet assessment rows ==========
 console.log('\nPilot unmet assessment rows');
@@ -195,6 +202,8 @@ const metricValues = buildMetricInsertValues(
     commentScoreRankChange: null,
     commentCount: null,
     commentCountChange: null,
+    customerThreeMinuteReplyRate: null,
+    customerAvgResponseMinutes: null,
     expBasic: null,
     expServiceBasic: null,
     expAttitude: null,
@@ -315,6 +324,9 @@ assert('默认系统 Chrome 缺失时浏览器环境不可用', !getBrowserEnvir
 assert('显式 chromium 可跳过系统 Chrome 检查', getBrowserEnvironmentStatus({ PLAYWRIGHT_CHROME_CHANNEL: 'chromium' }, 'win32', () => false).ok);
 assert('拟人化点击等待范围可配置且带随机抖动', resolveHumanDelayMs([500, 1500], 0.5) === 1000);
 assert('拟人化等待会修正非法范围', resolveHumanDelayMs([1500, 500], 0.5) === 1500);
+assert('PDD login URL is detected as login', isPddLoginUrl('https://mms.pinduoduo.com/login'));
+assert('PDD backend text is authenticated even when URL stays on root', inferPddPageLoginState('https://mms.pinduoduo.com/', '拼多多 商家后台 可申诉订单 未读站内信', false) === 'authenticated');
+assert('PDD scan-login text is detected as login', inferPddPageLoginState('https://mms.pinduoduo.com/', '扫码登录 账号登录 打开拼多多商家版App扫码登录', false) === 'login');
 
 const realRunFromInspectionConfig = resolveActionSafety({
   actionMode: 'real-run',
@@ -458,6 +470,17 @@ const misleadingStoreMetrics = parseStoreMetricsText(
 assert('不把评价得分排名误写为 DSR 描述分', misleadingStoreMetrics.dsrDesc == null);
 assert('不把3分钟回复率误写为 DSR 服务分', misleadingStoreMetrics.dsrService == null);
 assert('不把签收时效误写为 DSR 物流分', misleadingStoreMetrics.dsrLogistics == null);
+
+const pilotNoticeStoreMetrics = parseStoreMetricsText(
+  '即日起，店铺领航员将升级为店铺综合体验星级，以店铺综合体验星级为准。4.5星对应店铺领航员超过30%的商家 店铺综合体验星级 统计时间：2026-06-25 3.5星 较前1天 0.50',
+);
+assert('店铺星级取真实卡片而不是顶部说明文案', pilotNoticeStoreMetrics.rating === 3.5);
+
+const pilotCardStoreMetrics = parseStoreMetricsText(
+  '店铺综合体验星级 统计时间：2026-06-25 4.6星 较前1天 0.00 星级趋势图 统计时间：2026-05-28至2026-06-26',
+);
+assert('店铺星级提取卡片分数', pilotCardStoreMetrics.rating === 4.6);
+assert('店铺星级提取较前1天变化', pilotCardStoreMetrics.ratingChange === 0);
 
 const pilotMallMetrics = parseStoreMetricsText(
   '领航员综合分行业排名 36% 售后服务 近30天平台求助率 2.46% 已达标 近30天3分钟人工回复率 52.17% 未达标 近30天在途订单退款时长 0.02小时 已达标 近30天商家签收消费者退货订单后的平均退款时长 0.67小时 已达标 商品品质 近90天用户评价得分排名 12.60% 未达标 近30天积极评论率 94.12% 未达标 近30天严重劣质率 0.08% 已达标 物流服务 近30天成团-签收时效 2.45天 已达标 近30天物流综合违规处理率 0.83% 已达标 店铺活跃 近30天店铺活跃度 36% 未达标 特色服务 消费者体验提升计划开通状态 未开通去开通 未达标',

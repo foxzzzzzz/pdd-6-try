@@ -18,6 +18,7 @@ import * as path from 'path';
 import { parseStoreMetricsText } from '../collectors/metrics';
 import { parseExperienceMetricsHtml, parseExperienceMetricsText } from '../collectors/experience';
 import { parseRefundMetricsText } from '../collectors/refunds';
+import { parseCustomerMetricsText } from '../collectors/customer';
 import { buildBrowserRuntimeOptions } from '../browser';
 
 const COOKIE_FILE = path.resolve('./data/discovery-cookie.json');
@@ -124,7 +125,7 @@ const TARGETS: Target[] = [
     name: '客服数据',
     url: 'https://mms.pinduoduo.com/sycm/goods_quality/customer',
     snapshotFile: '08b-服务数据-客服数据.txt',
-    parse: parseCustomerMetricsText,
+    parse: parseCustomerMetricsText as (text: string) => Record<string, MetricValue>,
     labels: [
       '3分钟人工回复率',
       '平均人工响应时长',
@@ -287,23 +288,6 @@ function parseCommentMetricsText(text: string): Record<string, MetricValue> {
   };
 }
 
-function parseCustomerMetricsText(text: string): Record<string, MetricValue> {
-  return {
-    customerThreeMinuteReplyRate: extractPercentAsDecimal(text, '3分钟人工回复率'),
-    customerThreeMinuteReplyRateChange: extractPercentAsDecimal(text, '较前一天'),
-    customerAvgResponseMinutes: extractNumber(text, '平均人工响应时长'),
-    customerSalesAmount: extractNumber(text, '客服销售额'),
-  };
-}
-
-function extractNumber(text: string, label: string): number | null {
-  const idx = text.indexOf(label);
-  if (idx === -1) return null;
-  const sub = text.substring(idx + label.length, idx + label.length + 80);
-  const m = sub.match(/(\d+\.?\d*)/);
-  return m ? parseFloat(m[1]) : null;
-}
-
 function extractPercentAsDecimal(text: string, label: string): number | null {
   const idx = text.indexOf(label);
   if (idx === -1) return null;
@@ -374,7 +358,7 @@ function buildMarkdown(results: PageResult[], fromSnapshots: boolean, fromOutput
   lines.push('- `refundRate` 当前映射售后数据页的 `成功退款率`，如后续页面出现更贴近“整体退款率”的标签，需要再调整。');
   lines.push('- `disputeRate` 来自售后数据页的 `纠纷退款率`。');
   lines.push('- 售后数据页红框内重点指标已单独提取：纠纷退款数/率、介入订单数、平台介入率、品质退款率、平均退款时长、成功退款订单数/金额/率、退货退款自主完结时长、退款自主完结时长。');
-  lines.push('- 评价数据页已接入正式指标表；客服数据页结构化提取 `customerThreeMinuteReplyRate` 和 `customerAvgResponseMinutes`，暂不写正式指标表。');
+  lines.push('- 评价数据页与客服数据页已接入正式指标表：店铺评价分排名、评价条数、3分钟人工回复率、平均人工响应时长。');
 
   return lines.join('\n');
 }

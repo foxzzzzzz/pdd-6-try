@@ -112,6 +112,8 @@ export const storeMetrics = sqliteTable('store_metrics', {
   commentScoreRankChange: real('comment_score_rank_change'),
   commentCount: integer('comment_count'),
   commentCountChange: real('comment_count_change'),
+  customerThreeMinuteReplyRate: real('customer_three_minute_reply_rate'),
+  customerAvgResponseMinutes: real('customer_avg_response_minutes'),
 
   createdAt: text('created_at').default(sql`(datetime('now'))`),
 });

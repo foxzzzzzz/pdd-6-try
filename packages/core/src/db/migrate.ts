@@ -177,6 +177,8 @@ async function migrate() {
     ['comment_score_rank_change', 'REAL'],
     ['comment_count', 'INTEGER'],
     ['comment_count_change', 'REAL'],
+    ['customer_three_minute_reply_rate', 'REAL'],
+    ['customer_avg_response_minutes', 'REAL'],
   ] as const) {
     try {
       db.run(sql.raw(`ALTER TABLE store_metrics ADD COLUMN ${column} ${type}`));

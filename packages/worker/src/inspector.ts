@@ -8,6 +8,7 @@ import { collectExperienceMetrics } from './collectors/experience';
 import { collectRefundMetrics } from './collectors/refunds';
 import { collectAppealMetrics } from './collectors/appeals';
 import { collectCommentMetrics } from './collectors/comments';
+import { collectCustomerMetrics } from './collectors/customer';
 import { replyToGoodReviews, reportBadReviews, ReviewActionResult } from './actions/reviews';
 import { handleInteractions, InteractionActionResult } from './actions/interactions';
 import { getLightProvider, getHeavyProvider } from './ai/provider-factory';
@@ -110,7 +111,7 @@ export async function inspectStore(
   });
   log(`[${storeName}] Action safety: mode=${actionSafety.mode} limit=${actionSafety.maxActions ?? 'none'} reply=${actionSafety.enableReply} report=${actionSafety.enableReport} hide=${actionSafety.enableHideInteractions}`);
   const errors: string[] = [];
-  const totalSteps = 8; // 5 data + 3 actions (reply, report, hide)
+  const totalSteps = 9; // 6 data + 3 actions (reply, report, hide)
   let completedSteps = 0;
   let completionRate = 0;
 
@@ -217,6 +218,15 @@ export async function inspectStore(
       log(`[${storeName}] Comment data collected`);
     }
 
+    // Step 6: Customer service data
+    const customerMetrics = shouldSkipModule(db, 'customer', storeName)
+      ? {}
+      : await collectCustomerMetrics(browser, storeId);
+    if (Object.keys(customerMetrics).length > 0) {
+      completedSteps++;
+      log(`[${storeName}] Customer service data collected`);
+    }
+
     // ======== PHASE 2.5: REVIEW ACTIONS ========
     let reviewResult: ReviewActionResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
     let interactionResult: InteractionActionResult = { details: [], hidden: 0, ignored: 0, skipped: 0 };
@@ -303,6 +313,8 @@ export async function inspectStore(
       commentScoreRankChange: null,
       commentCount: null,
       commentCountChange: null,
+      customerThreeMinuteReplyRate: null,
+      customerAvgResponseMinutes: null,
       expBasic: null,
       expServiceBasic: null,
       expAttitude: null,
@@ -337,6 +349,7 @@ export async function inspectStore(
       ...refundMetrics,
       ...appealMetrics,
       ...commentMetrics,
+      ...customerMetrics,
     };
 
     // Calculate change rates from previous inspection
@@ -350,7 +363,7 @@ export async function inspectStore(
 
     if (prevMetrics.length > 0) {
       var pm = prevMetrics[0];
-      if (mergedMetrics.rating != null && pm.rating != null) {
+      if (mergedMetrics.ratingChange == null && mergedMetrics.rating != null && pm.rating != null) {
         mergedMetrics.ratingChange = mergedMetrics.rating - pm.rating;
       }
       if (mergedMetrics.defectRate != null && pm.defectRate != null) {
