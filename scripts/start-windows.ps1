@@ -13,9 +13,21 @@ if (-not (Test-Path ".env")) {
 }
 
 # Ensure Redis is running
-if (Get-Command "docker" -ErrorAction SilentlyContinue) {
+$dockerAvailable = $false
+try {
+  $job = Start-Job -ScriptBlock { docker --version 2>$null }
+  $null = Wait-Job $job -Timeout 3
+  $out = Receive-Job $job -ErrorAction SilentlyContinue
+  Remove-Job $job -Force
+  if ($out) { $dockerAvailable = $true }
+} catch { }
+
+if ($dockerAvailable) {
   Write-Host "Ensuring Redis is running via Docker..." -ForegroundColor Cyan
+  $prevEAP = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
   docker compose up -d redis 2>$null
+  $ErrorActionPreference = $prevEAP
   Write-Host "Redis ready." -ForegroundColor Green
 } elseif (Get-Command "redis-cli" -ErrorAction SilentlyContinue) {
   $ping = & redis-cli ping 2>$null
