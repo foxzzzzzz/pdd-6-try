@@ -8,6 +8,7 @@ export type ReportStoreSummary = {
   latestDefectRate?: number | string | null;
   issueCount?: number;
   latestInspectionSummary?: string | null;
+  anomalyFlags?: string | null;
 };
 
 export type GeneratedReportSummary = {
@@ -17,12 +18,26 @@ export type GeneratedReportSummary = {
   source: 'template';
 };
 
+function shortReason(store: ReportStoreSummary): string {
+  if (store.anomalyFlags) {
+    try {
+      const flags = JSON.parse(store.anomalyFlags);
+      if (Array.isArray(flags) && flags.length > 0) {
+        return `检测到${flags.length}个异常指标`;
+      }
+    } catch { /* ignore */ }
+  }
+  return store.latestInspectionSummary
+    ? store.latestInspectionSummary.substring(0, 60) + '...'
+    : `severity=${store.severity}`;
+}
+
 export function buildReportSummary(period: string, stores: ReportStoreSummary[]): GeneratedReportSummary {
   const attentionStores = stores
     .filter((store) => store.severity && store.severity !== 'normal')
     .map((store) => ({
       name: store.storeName,
-      reason: store.latestInspectionSummary || `severity=${store.severity}`,
+      reason: shortReason(store),
     }));
 
   const totalIssues = stores.reduce((sum, store) => sum + (store.issueCount || 0), 0);
@@ -32,16 +47,26 @@ export function buildReportSummary(period: string, stores: ReportStoreSummary[])
 
   const overviewParts = [
     `${period}巡店覆盖${stores.length}家店`,
-    `需关注${attentionStores.length}家`,
-    `问题${totalIssues}项`,
   ];
-  if (avgRating != null) overviewParts.push(`平均星级${avgRating.toFixed(2)}`);
-  if (avgExperience != null) overviewParts.push(`平均体验分${avgExperience.toFixed(2)}`);
-  if (avgDefectRate != null) overviewParts.push(`平均劣质率${(avgDefectRate * 100).toFixed(2)}%`);
+  if (attentionStores.length > 0) {
+    overviewParts.push(`${attentionStores.length}家需关注`);
+  } else {
+    overviewParts.push('全部正常');
+  }
+  if (avgRating != null) overviewParts.push(`均星${avgRating.toFixed(2)}`);
 
-  const recommendations = attentionStores.length > 0
-    ? attentionStores.slice(0, 3).map((store) => `优先复盘${store.name}：${store.reason}`)
-    : ['本周期暂无异常店铺，保持巡店节奏并关注核心指标波动。'];
+  const recommendations: string[] = [];
+  for (const store of stores.filter(s => s.severity && s.severity !== 'normal').slice(0, 3)) {
+    const flags = store.anomalyFlags ? tryParseFlags(store.anomalyFlags) : [];
+    if (flags.length > 0) {
+      recommendations.push(`${store.storeName}：${flags.slice(0, 2).join('；')}`);
+    } else {
+      recommendations.push(`${store.storeName}：${shortReason(store)}`);
+    }
+  }
+  if (recommendations.length === 0) {
+    recommendations.push('本周期暂无异常店铺');
+  }
 
   return {
     overview: `${overviewParts.join('，')}。`,
@@ -49,6 +74,15 @@ export function buildReportSummary(period: string, stores: ReportStoreSummary[])
     recommendations,
     source: 'template',
   };
+}
+
+function tryParseFlags(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 function average(values: Array<number | string | null | undefined>): number | null {

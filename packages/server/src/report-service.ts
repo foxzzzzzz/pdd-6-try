@@ -27,6 +27,7 @@ type MetricRow = {
   defectRate?: number | null;
   expBasic?: number | null;
   severity?: string | null;
+  anomalyFlags?: string | null;
   createdAt?: string | null;
 };
 
@@ -59,6 +60,7 @@ type StoreReportRow = {
   defectTrend?: string;
   latestExpBasic: number | null;
   latestInspectionSummary: string | null;
+  anomalyFlags?: string | null;
   issueCount: number;
   resolvedIssues?: number;
   severity: string;
@@ -311,6 +313,7 @@ function buildStoreReport(
     latestDefectRate: latestMetric?.defectRate ?? null,
     latestExpBasic: latestMetric?.expBasic ?? null,
     latestInspectionSummary: latestInspection?.summary || null,
+    anomalyFlags: latestMetric?.anomalyFlags ?? null,
     issueCount: storeIssues.length,
     severity: latestMetric?.severity || severityFromStatus(status),
     duration: latestInspection?.duration ?? null,
