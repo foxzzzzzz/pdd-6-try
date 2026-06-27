@@ -1,3 +1,6 @@
+/** Bump this when report generation logic changes — forces re-materialization of archived reports */
+export const REPORT_CODE_VERSION = 2;
+
 export type ReportStoreSummary = {
   storeId?: number;
   storeName: string;

@@ -1,4 +1,4 @@
-import { buildReportSummary } from './report-summary';
+import { buildReportSummary, REPORT_CODE_VERSION } from './report-summary';
 import { createHash } from 'crypto';
 
 type StoreRow = {
@@ -186,7 +186,7 @@ export function buildDailyReportSourceHash(input: DailyReportInput): string {
       .map((issue) => [issue.id, issue.storeId, issue.rectificationStatus ?? null, issue.createdAt ?? null])
       .sort(),
   };
-  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  return createHash('sha256').update(`v${REPORT_CODE_VERSION}:${JSON.stringify(payload)}`).digest('hex');
 }
 
 export function serializeDailyReport(date: string, report: ReportResult): SerializedDailyReport {
