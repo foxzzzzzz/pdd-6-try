@@ -9,7 +9,9 @@ import React from 'react';
 export default function AnomalyText({ text }: { text: string }) {
   if (!text) return null;
 
-  const lines = text.split('\n').filter(Boolean);
+  // Normalize separators: ; and ；→ newline, then split
+  const normalized = text.replace(/；/g, '\n').replace(/;/g, '\n');
+  const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
 
   return (
     <div className="space-y-0.5">
