@@ -106,20 +106,21 @@ packages/
 
 ### Redis
 
-部署脚本按以下优先级自动安装 Redis：
+部署脚本会在执行时检查 Redis：
 
-1. **Docker Compose**（已有 Docker 时优先）
-2. **原生 Redis**（已有 `redis-cli` 时直接使用）
-3. **winget 自动安装**（`winget install Redis.Redis`）
-4. **Chocolatey 自动安装**（`choco install redis-64`）
+- **已有 Docker** → 自动 `docker compose up -d redis`，Docker 未启动时脚本会停止并提示
+- **没有 Docker** → 脚本停止，列出安装选项让用户选择
+- **已有原生 Redis** → 直接使用
 
-手动安装可选：
+手动安装 Redis：
 
-- **Docker Desktop**：`winget install Docker.DockerDesktop`（需重启）
-- **原生 Redis**：`winget install Redis.Redis`（一键装完即用）
-- **跳过 Redis**：`.\scripts\deploy-windows.ps1 -SkipRedis`（需自行配置 `.env` 指向已有 Redis）
+| 方式 | 命令 | 说明 |
+|------|------|------|
+| Docker Desktop | `winget install Docker.DockerDesktop` | 需重启电脑 |
+| 原生 Redis | `winget install Redis.Redis` | 一键装完即用 |
+| 跳过检查 | `.\scripts\deploy-windows.ps1 -SkipRedis` | 需自行确保 Redis 可用 |
 
-以上方案任选其一即可。`.env` 中的 `REDIS_HOST` 和 `REDIS_PORT` 默认指向本地 Redis（`localhost:6379`）。
+`.env` 中的 `REDIS_HOST` 和 `REDIS_PORT` 默认指向 `localhost:6379`。
 
 ### Windows PowerShell
 

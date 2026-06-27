@@ -12,6 +12,24 @@ if (-not (Test-Path ".env")) {
   throw ".env not found. Run .\scripts\deploy-windows.ps1 first."
 }
 
+# Ensure Redis is running
+if (Get-Command "docker" -ErrorAction SilentlyContinue) {
+  Write-Host "Ensuring Redis is running via Docker..." -ForegroundColor Cyan
+  docker compose up -d redis 2>$null
+  Write-Host "Redis ready." -ForegroundColor Green
+} elseif (Get-Command "redis-cli" -ErrorAction SilentlyContinue) {
+  $ping = & redis-cli ping 2>$null
+  if ($ping -ne 'PONG') {
+    Start-Process redis-server -WindowStyle Hidden -PassThru 2>$null
+    Write-Host "Redis started." -ForegroundColor Green
+  } else {
+    Write-Host "Redis already running." -ForegroundColor Green
+  }
+} else {
+  Write-Warning "Redis not found. Task queues (巡店/绑定/写操作) will not work."
+  Write-Warning "Run: winget install Redis.Redis"
+}
+
 function Start-AppProcess {
   param([string]$Title, [string]$Command)
   Write-Host "Starting $Title..." -ForegroundColor Cyan
