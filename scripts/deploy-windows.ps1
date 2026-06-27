@@ -114,7 +114,12 @@ if (-not $SkipRedis) {
     } elseif ($choice -eq '3') {
       throw "Deploy aborted. Run again with: .\scripts\deploy-windows.ps1 -SkipRedis"
     } else {
-      throw "Deploy aborted. Please install Docker Desktop:" + "`n" + "  winget install Docker.DockerDesktop" + "`n" + "  (then restart your PC and open Docker Desktop)"
+      $msg = @"
+Deploy aborted. Please install Docker Desktop:
+  winget install Docker.DockerDesktop
+  (restart your PC, then open Docker Desktop)
+"@
+      throw $msg
     }
   }
 }
