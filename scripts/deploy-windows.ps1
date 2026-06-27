@@ -58,16 +58,24 @@ if (-not (Test-Path ".env")) {
 }
 
 if (-not $SkipRedis) {
-  $dockerAvailable = (Test-Path "$env:ProgramFiles\Docker\Docker\resources\bin\docker.exe") -or (Test-Path "${env:ProgramFiles(x86)}\Docker\Docker\resources\bin\docker.exe")
+  $dockerAvailable = $false
+  try {
+    $job = Start-Job -ScriptBlock { docker --version 2>$null }
+    $null = Wait-Job $job -Timeout 3
+    $out = Receive-Job $job -ErrorAction SilentlyContinue
+    Remove-Job $job -Force
+    if ($out) { $dockerAvailable = $true }
+  } catch {
+    $dockerAvailable = $false
+  }
 
   if ($dockerAvailable) {
-    try {
-      docker compose up -d redis 2>$null
-      Write-Host "Redis started via Docker Compose." -ForegroundColor Green
-    } catch {
-      Write-Warning "Docker Compose failed. Is Docker Desktop running (green icon)?"
-      throw "Docker installed but not running. Start Docker Desktop and retry."
+    docker compose up -d redis 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning "Docker Compose failed (exit code $LASTEXITCODE). Is Docker Desktop running?"
+      throw "Docker installed but docker compose failed. Start Docker Desktop and retry."
     }
+    Write-Host "Redis started via Docker Compose." -ForegroundColor Green
   } else {
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Red
