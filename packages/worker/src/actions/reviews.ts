@@ -30,8 +30,8 @@ export async function replyToGoodReviews(browser: BrowserManager, storeId: numbe
   let submittedCount = 0;
   const result: ReviewActionResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
   try {
-    await browser.navigateWithRetry(REVIEW_URL); await page.waitForTimeout(3000);
-    await filterByStars(page, [4, 5]);
+    await browser.navigateWithRetry(REVIEW_URL);
+    await filterByStars(browser, page, [4, 5]);
     const reviews = (await getReviewRows(page)).filter((review) => review.stars >= 4);
     console.log(`  Found ${reviews.length} good reviews`);
     const pageScreenshot = await browser.takeScreenshot(storeId, 'reviews-reply-scan');
@@ -87,8 +87,8 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
   const safety = resolveActionSafety(safetyInput);
   const result: ReviewActionResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
   try {
-    await browser.navigateWithRetry(REVIEW_URL); await page.waitForTimeout(3000);
-    const reviews = await getReviewRowsForStars(page, [1, 2, 3]);
+    await browser.navigateWithRetry(REVIEW_URL);
+    const reviews = await getReviewRowsForStars(browser, page, [1, 2, 3]);
     const alreadyReportedCount = reviews.filter((review) => review.alreadyReported).length;
     console.log(`  Found ${reviews.length} bad reviews (${alreadyReportedCount} already reported)`);
     const pageScreenshot = await browser.takeScreenshot(storeId, 'reviews-report-scan');
@@ -164,8 +164,7 @@ export async function executeReviewActionCandidate(
   const expectedStars = candidate.reviewStars || (candidate.actionType === 'reply' ? 5 : 1);
 
   await browser.navigateWithRetry(REVIEW_URL);
-  await page.waitForTimeout(3000);
-  await filterByStars(page, candidate.actionType === 'reply' ? [4, 5] : [1, 2, 3]);
+  await filterByStars(browser, page, candidate.actionType === 'reply' ? [4, 5] : [1, 2, 3]);
   await dismissBlockingModal(page);
 
   const pageScreenshot = await browser.takeScreenshot(storeId, `review-${candidate.actionType}-candidate-scan`);
@@ -298,7 +297,7 @@ function normalizeText(value: string): string {
   return value.replace(/\s+/g, '').trim();
 }
 
-async function filterByStars(page: any, stars: number[]): Promise<void> {
+async function filterByStars(browser: BrowserManager, page: any, stars: number[]): Promise<void> {
   const filtered = await page.evaluate((targetStars: number[]) => {
     const isVisible = (el: Element) => {
       const rect = el.getBoundingClientRect();
@@ -345,8 +344,7 @@ async function filterByStars(page: any, stars: number[]): Promise<void> {
   await page.waitForTimeout(1500);
   if (!page.url().includes('/goods/evaluation/')) {
     console.log(`  Review star filter left evaluation page, navigating back: ${page.url()}`);
-    await page.goto(REVIEW_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => undefined);
-    await page.waitForTimeout(3000);
+    await browser.navigateWithRetry(REVIEW_URL).catch(() => undefined);
   }
 }
 
@@ -427,10 +425,10 @@ async function getReviewRows(page: any): Promise<ReviewRow[]> {
   return collectReviewRows(await page.$$('[class*="table"] [class*="row"], [class*="review"], [class*="comment"], [class*="evaluation"], [class*="item"]'));
 }
 
-async function getReviewRowsForStars(page: any, stars: number[]): Promise<ReviewRow[]> {
+async function getReviewRowsForStars(browser: BrowserManager, page: any, stars: number[]): Promise<ReviewRow[]> {
   const rows: ReviewRow[] = [];
   const seen = new Set<string>();
-  await filterByStars(page, stars);
+  await filterByStars(browser, page, stars);
   const reviewRows = await getReviewRows(page);
   const reviews = reviewRows.filter((review) => stars.includes(review.stars));
   if (reviews.length === 0) {

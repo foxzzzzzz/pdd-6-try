@@ -13,8 +13,6 @@ export async function collectRefundMetrics(
 
   try {
     await browser.navigateWithRetry('https://mms.pinduoduo.com/sycm/goods_quality/detail');
-    await page.waitForTimeout(3000);
-
     const pageText: string = await page.evaluate('document.body.innerText || ""');
     Object.assign(metrics, parseRefundMetricsText(pageText));
 

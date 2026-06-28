@@ -25,7 +25,6 @@ export async function handleInteractions(browser: BrowserManager, storeId: numbe
 
   try {
     await browser.navigateWithRetry(INTERACTION_URL);
-    await page.waitForTimeout(2500);
     await selectRecentThirtyDays(browser);
     const pageScreenshot = await browser.takeScreenshot(storeId, 'interactions-scan');
     const interactions = await getInteractionRows(page);
@@ -95,7 +94,6 @@ export async function executeInteractionActionCandidate(
   const reason = candidate.aiJudgment || 'approved-hide';
 
   await browser.navigateWithRetry(INTERACTION_URL);
-  await page.waitForTimeout(2500);
   await selectRecentThirtyDays(browser);
   const pageScreenshot = await browser.takeScreenshot(storeId, 'interaction-hide-candidate-scan');
   const interactions = await getInteractionRows(page);

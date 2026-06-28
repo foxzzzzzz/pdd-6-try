@@ -371,7 +371,9 @@ failed
 - 浏览器默认使用系统 Chrome channel；生产环境要求当前机器安装 Google Chrome。`/api/system/browser` 会返回 Chrome 可用状态，Dashboard 缺 Chrome 时展示提醒并禁用“一键巡店”，后端触发巡店和 Worker 启动浏览器前也会阻止执行。
 - `PLAYWRIGHT_CHROME_CHANNEL=chromium` 仅作为开发/测试回退，不作为生产默认策略。
 - 浏览器固定窗口尺寸 `--window-size=1920,1080` 和 `viewport=1920x1080`，不再硬编码 UA，也不再使用 `--disable-blink-features=AutomationControlled`。
+- 默认不再传入 `--no-sandbox` 或 `--disable-setuid-sandbox`；仅保留 `BROWSER_DISABLE_SANDBOX=true` 作为明确的本地调试兜底，不作为生产默认策略。
 - 对有 `operatorId + storeId` 绑定的巡店和 action 执行，默认使用 persistent `userDataDir`，目录由 `profileKey` 稳定映射生成；同一 profile 打开前会创建 `.profile.lock`，关闭时释放，超过 `BROWSER_PROFILE_LOCK_STALE_MS` 的陈旧锁可自动清理。
+- 只读巡店采集也按真实运营节奏降速：首个数据页前默认等待 `8-20s`，每次直接 URL 导航前等待 `3-8s`、导航后等待 `5-12s`，模块之间等待 `6-15s`；分别可通过 `WORKER_READ_FIRST_PAGE_DELAY_MS`、`WORKER_READ_NAV_BEFORE_DELAY_MS`、`WORKER_READ_NAV_AFTER_DELAY_MS`、`WORKER_READ_MODULE_GAP_MS` 调整。
 
 仍需后续实测/观察：
 
@@ -395,6 +397,7 @@ failed
 
 - 新增 `risk_events` 风控事件表，统一记录登录、二维码/短信/滑块/安全验证、权限不足、操作频繁、处罚/违规/账号安全提醒和写操作失败升高等事件。
 - Worker 新增 `risk-sentinel`：巡店登录失败、action 执行失败、平台风控文案命中时，会写入风控事件并保存截图和 HTML。
+- 巡店主流程会在登录后和关键采集/写操作扫描步骤后检测滑块/验证码/安全验证文案；命中后先暂停当前店铺并保存截图/HTML，非 headless 模式会等待运营手动处理，处理消失后刷新 `operatorId + storeId` 登录态并继续当前巡店，超时则停止该店铺巡店。
 - 店铺级熔断：登录类事件将店铺标记为 `pending_login`；安全验证、操作频繁、权限不足等事件将店铺标记为 `paused`。
 - 写操作失败率升高：同店铺累计 3 条 active `action_failure` 后，哨兵会暂停该店铺。
 - 全局写熔断：多店连续出现同类 `security/rate_limit/permission` active 事件后，哨兵会创建 global 风控事件；action worker 执行前会检查全局写熔断，命中则不再执行真实写操作。

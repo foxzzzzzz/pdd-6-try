@@ -1,5 +1,5 @@
 import { BrowserManager } from './browser';
-import { getDb, saveDb, schema, MetricsSnapshot } from '@pdd-inspector/core';
+import { getDb, saveDb, schema, MetricsSnapshot, quoteSqlString } from '@pdd-inspector/core';
 
 const log = (...args: any[]) => { try { process.stdout.write(args.join(' ') + '\n'); } catch { /* ignore */ } };
 import { eq, and, desc, sql } from 'drizzle-orm';
@@ -129,6 +129,51 @@ export async function inspectStore(
     )!).run();
   }
 
+  async function ensureNoSecurityChallenge(phase: string): Promise<void> {
+    if (!(await browser.hasSecurityChallenge())) return;
+
+    const message = `Security challenge detected during ${phase}; patrol paused for manual handling`;
+    await recordRiskEvent(db, {
+      storeId,
+      operatorId,
+      eventType: 'security',
+      message,
+      browser,
+    });
+    db.update(schema.stores)
+      .set({ status: 'paused', updatedAt: new Date().toISOString() })
+      .where(eq(schema.stores.id, storeId))
+      .run();
+    saveDb(db);
+
+    if (resolvedConfig.headless) {
+      throw new Error(message);
+    }
+
+    const waitMs = resolveSecurityChallengeWaitMs();
+    log(`[${storeName}] Security challenge detected during ${phase}; waiting ${Math.round(waitMs / 1000)}s for manual handling`);
+    if (!(await browser.waitForSecurityChallengeCleared(waitMs))) {
+      throw new Error(`${message}; manual handling timed out`);
+    }
+
+    const refreshedStorageState = await browser.saveStorageState();
+    saveOperatorStoreSession(db, operatorId, storeId, refreshedStorageState, 'active');
+    db.update(schema.stores)
+      .set({ storageState: refreshedStorageState, status: 'active', updatedAt: new Date().toISOString() })
+      .where(eq(schema.stores.id, storeId))
+      .run();
+    db.run(sql.raw(`
+      UPDATE risk_events
+      SET status = 'resolved',
+          resolved_at = ${quoteSqlString(new Date().toISOString())}
+      WHERE store_id = ${storeId}
+        AND event_type = 'security'
+        AND status = 'active'
+    `));
+    saveDb(db);
+    log(`[${storeName}] Security challenge cleared; login state refreshed`);
+  }
+
   // Update inspection record: running
   updateInspectionRecord({ status: 'running', startTime: new Date().toISOString() });
 
@@ -175,41 +220,50 @@ export async function inspectStore(
       .set({ storageState: newStorageState, status: 'active', updatedAt: new Date().toISOString() })
       .where(eq(schema.stores.id, storeId))
       .run();
+    await ensureNoSecurityChallenge('login');
 
     // ======== PHASE 2: DATA COLLECTION ========
     log(`[${storeName}] Starting data collection...`);
+    await browser.pauseBeforeFirstReadPage();
 
     // Step 1: Store health metrics
     const healthMetrics = shouldSkipModule(db, 'pilot_mall', storeName)
       ? {}
       : await collectStoreMetrics(browser, storeId);
+    await ensureNoSecurityChallenge('store health collection');
     if (Object.keys(healthMetrics).length > 0) {
       completedSteps++;
       log(`[${storeName}] Store health collected`);
     }
 
     // Step 2: Consumer experience
+    await browser.pauseBetweenReadModules();
     const expMetrics = shouldSkipModule(db, 'experience', storeName)
       ? {}
       : await collectExperienceMetrics(browser, storeId);
+    await ensureNoSecurityChallenge('consumer experience collection');
     if (Object.keys(expMetrics).length > 0) {
       completedSteps++;
       log(`[${storeName}] Consumer experience collected`);
     }
 
     // Step 3: Refund data
+    await browser.pauseBetweenReadModules();
     const refundMetrics = shouldSkipModule(db, 'refunds', storeName)
       ? {}
       : await collectRefundMetrics(browser, storeId);
+    await ensureNoSecurityChallenge('refund collection');
     if (Object.keys(refundMetrics).length > 0) {
       completedSteps++;
       log(`[${storeName}] Refund data collected`);
     }
 
     // Step 4: Appeal data (optional legacy metric)
+    await browser.pauseBetweenReadModules();
     const appealMetrics = resolvedConfig.enableAppealMetrics
       ? await collectAppealMetrics(browser, storeId)
       : {};
+    await ensureNoSecurityChallenge('appeal collection');
     if (resolvedConfig.enableAppealMetrics) {
       completedSteps++;
       log(`[${storeName}] Appeal data collected`);
@@ -218,18 +272,22 @@ export async function inspectStore(
     }
 
     // Step 5: Comment data
+    await browser.pauseBetweenReadModules();
     const commentMetrics = shouldSkipModule(db, 'comment', storeName)
       ? {}
       : await collectCommentMetrics(browser, storeId);
+    await ensureNoSecurityChallenge('comment collection');
     if (Object.keys(commentMetrics).length > 0) {
       completedSteps++;
       log(`[${storeName}] Comment data collected`);
     }
 
     // Step 6: Customer service data
+    await browser.pauseBetweenReadModules();
     const customerMetrics = shouldSkipModule(db, 'customer', storeName)
       ? {}
       : await collectCustomerMetrics(browser, storeId);
+    await ensureNoSecurityChallenge('customer service collection');
     if (Object.keys(customerMetrics).length > 0) {
       completedSteps++;
       log(`[${storeName}] Customer service data collected`);
@@ -243,9 +301,12 @@ export async function inspectStore(
     const reviewSelectorsDegraded = shouldSkipModule(db, 'reviews', storeName);
     if (resolvedConfig.enableReply && !reviewSelectorsDegraded) {
       try {
+        await browser.pauseBetweenReadModules();
         reviewResult = await replyToGoodReviews(browser, storeId, DEFAULT_REPLY_TEMPLATE, actionSafety);
+        await ensureNoSecurityChallenge('good review reply scan');
         log(`[${storeName}] Reviews: ${reviewResult.replied} replied, ${reviewResult.skipped} skipped`);
       } catch (err) {
+        if (isSecurityChallengeError(err)) throw err;
         errors.push(`Reply failed: ${err}`);
       }
     }
@@ -262,13 +323,16 @@ export async function inspectStore(
             reportTemplateFn = createReportTemplateResolver(aiProvider, ruleBasedReportTemplate);
           } catch { /* AI not available, use rules */ }
         }
+        await browser.pauseBetweenReadModules();
         const reportResult = await reportBadReviews(browser, storeId, reportTemplateFn, actionSafety);
+        await ensureNoSecurityChallenge('bad review report scan');
         reviewResult.reported = reportResult.reported;
         reviewResult.skipped += reportResult.skipped;
         reviewResult.failed += reportResult.failed;
         reviewResult.details.push(...reportResult.details);
         log(`[${storeName}] Reports: ${reportResult.reported} reported, ${reportResult.skipped} skipped`);
       } catch (err) {
+        if (isSecurityChallengeError(err)) throw err;
         errors.push(`Report failed: ${err}`);
       }
     }
@@ -285,9 +349,12 @@ export async function inspectStore(
     const interactionSelectorsDegraded = shouldSkipModule(db, 'interactions', storeName);
     if ((resolvedConfig.enableHideInteractions || actionSafety.approvalRequired.hide) && !interactionSelectorsDegraded) {
       try {
+        await browser.pauseBetweenReadModules();
         interactionResult = await handleInteractions(browser, storeId, interactionJudgeFn, actionSafety);
+        await ensureNoSecurityChallenge('interaction scan');
         log(`[${storeName}] Interactions: ${interactionResult.hidden} hidden, ${interactionResult.ignored} ignored`);
       } catch (err) {
+        if (isSecurityChallengeError(err)) throw err;
         errors.push(`Interactions failed: ${err}`);
       }
     }
@@ -575,4 +642,13 @@ function countActionRows(
       AND submitted_at LIKE '${dayPattern.replace(/'/g, "''")}'
   `)) as { count?: number } | undefined;
   return Number(row?.count || 0);
+}
+
+function resolveSecurityChallengeWaitMs(): number {
+  const value = Number(process.env.WORKER_SECURITY_CHALLENGE_WAIT_MS);
+  return Number.isFinite(value) && value >= 0 ? value : 180000;
+}
+
+function isSecurityChallengeError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('Security challenge detected');
 }

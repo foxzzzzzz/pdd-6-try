@@ -34,7 +34,7 @@ import { summarizeRiskEvents } from '../risk-sentinel';
 import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator-session';
 import { evaluateSelectorHealth, isModuleDegradedFromEvents, shouldBlockWriteActionForSelectorHealth } from '../selector-health';
 import { isRuleReviewExpired, shouldBlockActionForRuleReview } from '../rule-review';
-import { buildBrowserRuntimeOptions, inferPddPageLoginState, isPddLoginUrl, parseStoredStorageState, resolveHumanDelayMs, resolveProfileDirectory } from '../browser';
+import { buildBrowserRuntimeOptions, inferPddPageLoginState, inferPddSecurityChallenge, isPddLoginUrl, parseStoredStorageState, resolveHumanDelayMs, resolveProfileDirectory, resolveReadPacingOptions } from '../browser';
 import { buildPendingReportApprovalDetail, isReviewWithinLastHours, parseReviewBodyRowText, parseReviewGroupedRows, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 import { parseApprovalFlag } from '../worker-env';
@@ -359,6 +359,13 @@ const storedState = parseStoredStorageState(JSON.stringify({ cookies: [{ name: '
 assert('浏览器登录态恢复包含 localStorage origins', storedState?.origins?.[0]?.localStorage?.[0]?.value === 'v');
 assert('非法浏览器登录态返回 undefined', parseStoredStorageState('{bad json') === undefined);
 const browserDefaults = buildBrowserRuntimeOptions();
+assert('browser defaults do not disable Chrome sandbox', !browserDefaults.args.includes('--no-sandbox') && !browserDefaults.args.includes('--disable-setuid-sandbox'));
+const previousDisableSandbox = process.env.BROWSER_DISABLE_SANDBOX;
+process.env.BROWSER_DISABLE_SANDBOX = 'true';
+const sandboxDisabledBrowser = buildBrowserRuntimeOptions();
+if (previousDisableSandbox == null) delete process.env.BROWSER_DISABLE_SANDBOX;
+else process.env.BROWSER_DISABLE_SANDBOX = previousDisableSandbox;
+assert('browser sandbox disable flags require explicit env opt-in', sandboxDisabledBrowser.args.includes('--no-sandbox') && sandboxDisabledBrowser.args.includes('--disable-setuid-sandbox'));
 assert('浏览器默认使用可见模式', browserDefaults.headless === false);
 assert('浏览器默认使用系统 Chrome channel', browserDefaults.channel === 'chrome');
 assert('浏览器启动参数不隐藏 AutomationControlled', !browserDefaults.args.some((arg) => arg.includes('AutomationControlled')));
@@ -369,9 +376,22 @@ assert('默认系统 Chrome 缺失时浏览器环境不可用', !getBrowserEnvir
 assert('显式 chromium 可跳过系统 Chrome 检查', getBrowserEnvironmentStatus({ PLAYWRIGHT_CHROME_CHANNEL: 'chromium' }, 'win32', () => false).ok);
 assert('拟人化点击等待范围可配置且带随机抖动', resolveHumanDelayMs([500, 1500], 0.5) === 1000);
 assert('拟人化等待会修正非法范围', resolveHumanDelayMs([1500, 500], 0.5) === 1500);
+const readPacingDefaults = resolveReadPacingOptions();
+assert('读采集默认导航前等待 3-8 秒', readPacingDefaults.navigationBeforeMs[0] === 3000 && readPacingDefaults.navigationBeforeMs[1] === 8000);
+assert('读采集默认导航后等待 5-12 秒', readPacingDefaults.navigationAfterMs[0] === 5000 && readPacingDefaults.navigationAfterMs[1] === 12000);
+assert('读采集默认模块间等待 6-15 秒', readPacingDefaults.moduleGapMs[0] === 6000 && readPacingDefaults.moduleGapMs[1] === 15000);
+assert('读采集默认首屏等待 8-20 秒', readPacingDefaults.firstPageDelayMs[0] === 8000 && readPacingDefaults.firstPageDelayMs[1] === 20000);
+const previousReadNavBefore = process.env.WORKER_READ_NAV_BEFORE_DELAY_MS;
+process.env.WORKER_READ_NAV_BEFORE_DELAY_MS = '1000-2000';
+const readPacingOverride = resolveReadPacingOptions();
+if (previousReadNavBefore == null) delete process.env.WORKER_READ_NAV_BEFORE_DELAY_MS;
+else process.env.WORKER_READ_NAV_BEFORE_DELAY_MS = previousReadNavBefore;
+assert('读采集导航前等待支持环境变量覆盖', readPacingOverride.navigationBeforeMs[0] === 1000 && readPacingOverride.navigationBeforeMs[1] === 2000);
 assert('PDD login URL is detected as login', isPddLoginUrl('https://mms.pinduoduo.com/login'));
 assert('PDD backend text is authenticated even when URL stays on root', inferPddPageLoginState('https://mms.pinduoduo.com/', '拼多多 商家后台 可申诉订单 未读站内信', false) === 'authenticated');
 assert('PDD scan-login text is detected as login', inferPddPageLoginState('https://mms.pinduoduo.com/', '扫码登录 账号登录 打开拼多多商家版App扫码登录', false) === 'login');
+assert('PDD slider puzzle text is detected as security challenge', inferPddSecurityChallenge('\u8bf7\u5411\u53f3\u6ed1\u5757\u5b8c\u6210\u62fc\u56fe') === true);
+assert('PDD normal backend text is not a security challenge', inferPddSecurityChallenge('\u62fc\u591a\u591a \u5546\u5bb6\u540e\u53f0 \u670d\u52a1\u6570\u636e') === false);
 
 const realRunFromInspectionConfig = resolveActionSafety({
   actionMode: 'real-run',

@@ -15,8 +15,6 @@ export async function collectStoreMetrics(
 
   try {
     await browser.navigateWithRetry('https://mms.pinduoduo.com/sycm/goods_quality/pilot_mall');
-    await page.waitForTimeout(3000);
-
     const pageText: string = await page.evaluate('document.body.innerText || ""');
     Object.assign(metrics, parseStoreMetricsText(pageText));
 

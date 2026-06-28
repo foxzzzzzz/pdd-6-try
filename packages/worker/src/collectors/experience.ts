@@ -24,8 +24,6 @@ export async function collectExperienceMetrics(
 
   try {
     await browser.navigateWithRetry('https://mms.pinduoduo.com/sycm/goods_quality/help');
-    await page.waitForTimeout(3000);
-
     // 只取纯文本，解析逻辑放 Node.js 侧
     const pageText: string = await page.evaluate('document.body.innerText || ""');
     const pageHtml = await page.content();

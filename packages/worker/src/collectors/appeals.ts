@@ -13,8 +13,6 @@ export async function collectAppealMetrics(
 
   try {
     await browser.navigateWithRetry('https://mms.pinduoduo.com/orders/appeals?msfrom=mms_sidenav');
-    await page.waitForTimeout(3000);
-
     const pageText: string = await page.evaluate('document.body.innerText || ""');
 
     const totalMatch = pageText.match(/共有\s*(\d+)\s*条/);

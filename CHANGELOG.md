@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixes
+- Read-only patrol collection now uses configurable human-paced delays: first data page pause, pre/post direct URL navigation waits, and module gaps. Fixed collector-level 2.5-3s waits were replaced by centralized randomized pacing to reduce rapid page-hopping.
+- Browser launch now keeps Chrome sandbox enabled by default and only passes `--window-size=1920,1080`; patrol flow detects PDD slider/captcha/security challenges, pauses the current store with screenshot/HTML evidence, waits for manual handling in visible Chrome, then refreshes the operator-store login state before continuing.
 - Appeal metrics are now opt-in via `WORKER_ENABLE_APPEAL_METRICS=true`; routine inspections skip `/orders/appeals` by default so Chrome no longer jumps to the order appeal page during normal requirement-A patrols.
 - Write-action approval safety: routine inspection scans now create `pending_approval` candidates only for bad-review reports and interaction hides. Real report/hide submission is allowed only from the single-candidate action job created after Web approval.
 

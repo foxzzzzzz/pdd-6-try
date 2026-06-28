@@ -11,6 +11,10 @@ const HUMAN_CLICK_BEFORE_MS: [number, number] = [500, 1500];
 const HUMAN_CLICK_AFTER_MS: [number, number] = [800, 2000];
 const HUMAN_FILL_BEFORE_MS: [number, number] = [500, 1200];
 const HUMAN_FILL_AFTER_MS: [number, number] = [600, 1500];
+const DEFAULT_READ_NAV_BEFORE_MS: [number, number] = [3000, 8000];
+const DEFAULT_READ_NAV_AFTER_MS: [number, number] = [5000, 12000];
+const DEFAULT_READ_MODULE_GAP_MS: [number, number] = [6000, 15000];
+const DEFAULT_READ_FIRST_PAGE_DELAY_MS: [number, number] = [8000, 20000];
 
 export interface BrowserInitOptions {
   headless?: boolean;
@@ -33,6 +37,14 @@ export interface BrowserRuntimeOptions {
     viewport: { width: number; height: number };
     locale: string;
   };
+  readPacing: ReadPacingOptions;
+}
+
+export interface ReadPacingOptions {
+  navigationBeforeMs: [number, number];
+  navigationAfterMs: [number, number];
+  moduleGapMs: [number, number];
+  firstPageDelayMs: [number, number];
 }
 
 interface ProfileLock {
@@ -51,6 +63,16 @@ const AUTHENTICATED_PAGE_TEXT_MARKERS = [
   '\u672a\u8bfb\u7ad9\u5185\u4fe1',
   '\u670d\u52a1\u6570\u636e',
   '\u8bc4\u4ef7\u7ba1\u7406',
+];
+const SECURITY_CHALLENGE_TEXT_MARKERS = [
+  '\u8bf7\u5411\u53f3\u6ed1\u5757\u5b8c\u6210\u62fc\u56fe',
+  '\u6ed1\u5757\u5b8c\u6210\u62fc\u56fe',
+  '\u5b8c\u6210\u62fc\u56fe',
+  '\u62d6\u52a8\u6ed1\u5757',
+  '\u5b89\u5168\u9a8c\u8bc1',
+  '\u9a8c\u8bc1\u7801',
+  'captcha',
+  'verify',
 ];
 
 export function parseStoredStorageState(storageState?: string | null): Record<string, unknown> | undefined {
@@ -74,16 +96,21 @@ export function buildBrowserRuntimeOptions(options: BrowserInitOptions = {}): Br
     profileRootDir: options.profileRootDir || process.env.BROWSER_PROFILE_ROOT || DEFAULT_PROFILE_ROOT,
     lockStaleMs: options.lockStaleMs || parsePositiveNumber(process.env.BROWSER_PROFILE_LOCK_STALE_MS, DEFAULT_PROFILE_LOCK_STALE_MS),
     viewport,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      `--window-size=${viewport.width},${viewport.height}`,
-    ],
+    args: buildBrowserArgs(viewport),
     contextOptions: {
       viewport,
       locale: 'zh-CN',
     },
+    readPacing: resolveReadPacingOptions(),
   };
+}
+
+function buildBrowserArgs(viewport: { width: number; height: number }): string[] {
+  const args = [`--window-size=${viewport.width},${viewport.height}`];
+  if (process.env.BROWSER_DISABLE_SANDBOX === 'true') {
+    args.unshift('--no-sandbox', '--disable-setuid-sandbox');
+  }
+  return args;
 }
 
 export function resolveProfileDirectory(profileKey: string, rootDir = process.env.BROWSER_PROFILE_ROOT || DEFAULT_PROFILE_ROOT): string {
@@ -98,6 +125,15 @@ export function resolveHumanDelayMs(range: [number, number], randomValue = Math.
   return Math.round(min + (max - min) * boundedRandom);
 }
 
+export function resolveReadPacingOptions(env: NodeJS.ProcessEnv = process.env): ReadPacingOptions {
+  return {
+    navigationBeforeMs: parseDelayRange(env.WORKER_READ_NAV_BEFORE_DELAY_MS, DEFAULT_READ_NAV_BEFORE_MS),
+    navigationAfterMs: parseDelayRange(env.WORKER_READ_NAV_AFTER_DELAY_MS, DEFAULT_READ_NAV_AFTER_MS),
+    moduleGapMs: parseDelayRange(env.WORKER_READ_MODULE_GAP_MS, DEFAULT_READ_MODULE_GAP_MS),
+    firstPageDelayMs: parseDelayRange(env.WORKER_READ_FIRST_PAGE_DELAY_MS, DEFAULT_READ_FIRST_PAGE_DELAY_MS),
+  };
+}
+
 export function isPddLoginUrl(url: string): boolean {
   return url.includes('login') || url.includes('passport');
 }
@@ -110,6 +146,11 @@ export function inferPddPageLoginState(
   if (AUTHENTICATED_PAGE_TEXT_MARKERS.some((marker) => bodyText.includes(marker))) return 'authenticated';
   if (hasLoginForm || isPddLoginUrl(url) || LOGIN_PAGE_TEXT_MARKERS.some((marker) => bodyText.includes(marker))) return 'login';
   return 'unknown';
+}
+
+export function inferPddSecurityChallenge(bodyText: string): boolean {
+  const normalized = (bodyText || '').toLowerCase().replace(/\s+/g, '');
+  return SECURITY_CHALLENGE_TEXT_MARKERS.some((marker) => normalized.includes(marker.toLowerCase().replace(/\s+/g, '')));
 }
 
 export class BrowserManager {
@@ -204,16 +245,33 @@ export class BrowserManager {
     return filepath;
   }
 
+  async hasSecurityChallenge(): Promise<boolean> {
+    if (!this.page) throw new Error('Page not initialized');
+    const bodyText = await this.page.evaluate(() => document.body.innerText || '').catch(() => '');
+    return inferPddSecurityChallenge(bodyText);
+  }
+
+  async waitForSecurityChallengeCleared(timeoutMs: number): Promise<boolean> {
+    if (!this.page) throw new Error('Page not initialized');
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (Date.now() < deadline) {
+      if (!(await this.hasSecurityChallenge())) return true;
+      await this.page.waitForTimeout(1000);
+    }
+    return !(await this.hasSecurityChallenge());
+  }
+
   async navigateWithRetry(url: string, retries = 3): Promise<void> {
     if (!this.page) throw new Error('Page not initialized');
 
     for (let i = 0; i < retries; i++) {
       try {
+        await this.humanPause(this.runtimeOptions.readPacing.navigationBeforeMs);
         await this.page.goto(url, {
           waitUntil: 'domcontentloaded',
           timeout: 15000,
         });
-        await this.page.waitForTimeout(500 + Math.random() * 1500);
+        await this.humanPause(this.runtimeOptions.readPacing.navigationAfterMs);
         return;
       } catch {
         if (i === retries - 1) throw new Error(`Failed to navigate to ${url} after ${retries} attempts`);
@@ -246,6 +304,14 @@ export class BrowserManager {
   async humanPause(range: [number, number] = HUMAN_CLICK_AFTER_MS): Promise<void> {
     if (!this.page) throw new Error('Page not initialized');
     await this.page.waitForTimeout(resolveHumanDelayMs(range));
+  }
+
+  async pauseBeforeFirstReadPage(): Promise<void> {
+    await this.humanPause(this.runtimeOptions.readPacing.firstPageDelayMs);
+  }
+
+  async pauseBetweenReadModules(): Promise<void> {
+    await this.humanPause(this.runtimeOptions.readPacing.moduleGapMs);
   }
 
   async humanClick(target: any, options: Record<string, unknown> = {}): Promise<void> {
@@ -379,4 +445,14 @@ function parsePositiveNumber(value: string | undefined, fallback: number): numbe
   if (!value) return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseDelayRange(value: string | undefined, fallback: [number, number]): [number, number] {
+  if (!value) return fallback;
+  const match = value.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!match) return fallback;
+  const min = Number(match[1]);
+  const max = Number(match[2]);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) return fallback;
+  return [Math.floor(min), Math.floor(max)];
 }
