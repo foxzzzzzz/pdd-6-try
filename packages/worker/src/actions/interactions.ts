@@ -3,7 +3,7 @@
  */
 import { BrowserManager } from '../browser';
 import { InteractionActionDetail } from '@pdd-inspector/core';
-import { ActionSafety, buildActionAudit, canSubmitAction, requiresApproval, resolveActionSafety } from '../action-safety';
+import { ActionSafety, buildActionAudit, canSubmitAction, resolveActionSafety } from '../action-safety';
 
 const INTERACTION_URL = 'https://mms.pinduoduo.com/goods/evalution/dynamic';
 
@@ -21,7 +21,6 @@ export interface InteractionActionCandidate {
 export async function handleInteractions(browser: BrowserManager, storeId: number, judgeFunc: InteractionJudge, safetyInput: Partial<ActionSafety> = {}): Promise<InteractionActionResult> {
   const page = browser.getPage();
   const safety = resolveActionSafety(safetyInput);
-  let submittedCount = 0;
   const result: InteractionActionResult = { details: [], hidden: 0, ignored: 0, skipped: 0 };
 
   try {
@@ -63,25 +62,9 @@ export async function handleInteractions(browser: BrowserManager, storeId: numbe
           continue;
         }
 
-        if (!canSubmitAction(safety, 'hide') || (safety.maxActions != null && submittedCount >= safety.maxActions)) {
-          result.skipped++;
-          Object.assign(detail, buildActionAudit(safety, judgment.reason, { screenshotPath: pageScreenshot, approvalRequired: requiresApproval(safety, 'hide') && !safety.approvedActions.hide }));
-          continue;
-        }
-
-        const hideBtn = interaction.row ? await findRowButton(interaction.row, ['隐藏评论']) : null;
-        if (!hideBtn) {
-          result.skipped++;
-          Object.assign(detail, buildActionAudit(safety, judgment.reason, { screenshotPath: pageScreenshot, errorMessage: 'Hide comment button not found in bound row' }));
-          continue;
-        }
-
-        await browser.humanClick(hideBtn);
-        await clickConfirmIfPresent(browser);
-        const screenshotPath = await browser.takeScreenshot(storeId, 'interaction-hide-submitted');
-        submittedCount++;
-        result.hidden++;
-        Object.assign(detail, buildActionAudit(safety, judgment.reason, { submitted: true, screenshotPath }));
+        result.skipped++;
+        Object.assign(detail, buildActionAudit(safety, judgment.reason, { screenshotPath: pageScreenshot, approvalRequired: true }));
+        continue;
       } catch (err) {
         result.skipped++;
         result.details.push({
@@ -225,6 +208,8 @@ async function getInteractionRows(page: any): Promise<InteractionRow[]> {
     const text = await rowHandles[i].innerText().catch(() => '');
     const parsed = parseInteractionRowText(text, `interaction-${i}`);
     if (!parsed) continue;
+    const hideBtn = await revealAndFindHideButton(rowHandles[i]);
+    if (!hideBtn) continue;
     const key = `${parsed.id}|${parsed.content}|${parsed.interactionTime}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -235,12 +220,12 @@ async function getInteractionRows(page: any): Promise<InteractionRow[]> {
 }
 
 export function parseInteractionRowText(text: string, fallbackId = 'interaction-0', now = new Date()): InteractionRow | null {
-  if (!text.includes('隐藏评论')) return null;
-  if (!text.includes('回复') && !text.includes('查看详情')) return null;
+  if (text.includes('公开评论')) return null;
 
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const timeIndex = lines.findIndex((line) => /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(line));
   const timeLine = timeIndex >= 0 ? lines[timeIndex] : null;
+  if (!timeLine) return null;
   let content: string | undefined;
   for (let i = (timeIndex >= 0 ? timeIndex : lines.length) - 1; i >= 0; i--) {
     if (isInteractionMetaLine(lines[i])) continue;
@@ -267,6 +252,12 @@ function isInteractionMetaLine(line: string): boolean {
   if (line === '回复' || line === '隐藏评论' || line === '查看详情') return true;
   if (/^\d{4}-\d{2}-\d{2}/.test(line)) return true;
   return line.length < 2;
+}
+
+async function revealAndFindHideButton(row: any): Promise<any> {
+  await row.hover?.().catch(() => undefined);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  return findRowButton(row, ['隐藏评论']);
 }
 
 export function isWithinLast7Days(value: string, now = new Date()): boolean {

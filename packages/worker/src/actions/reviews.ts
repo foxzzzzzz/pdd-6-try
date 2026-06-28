@@ -4,12 +4,16 @@
 import { BrowserManager } from '../browser';
 import { ReviewActionDetail } from '@pdd-inspector/core';
 import { ActionSafety, buildActionAudit, canSubmitAction, requiresApproval, resolveActionSafety } from '../action-safety';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const REVIEW_URL = 'https://mms.pinduoduo.com/goods/evaluation/index?msfrom=mms_sidenav';
 const REVIEW_ACTION_WINDOW_HOURS = 72;
+const REVIEW_DEBUG_DIR = path.resolve(process.env.REVIEW_DEBUG_DIR || './data/action-debug/reviews');
 
 export interface ReviewActionResult { details: ReviewActionDetail[]; replied: number; reported: number; skipped: number; failed: number; }
-interface ReviewRow { id: string; content: string; stars: number; createdAt: string | null; row?: any; }
+interface ReviewRow { id: string; content: string; stars: number; createdAt: string | null; alreadyReported?: boolean; row?: any; }
+interface ReviewRowInput { text: string; domStars: number | null; row?: any; }
 type ReportTemplateResolver = (r: { content: string; stars: number }) => string | Promise<string>;
 export interface ReviewActionCandidate {
   id: number;
@@ -56,7 +60,7 @@ export async function replyToGoodReviews(browser: BrowserManager, storeId: numbe
             reviewStars: review.stars,
             actionType: 'reply',
             actionContent: replyTemplate,
-            ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot }),
+            ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot, approvalRequired: requiresApproval(safety, 'reply') && !safety.approvedActions.reply }),
           });
           continue;
         }
@@ -81,13 +85,12 @@ export async function replyToGoodReviews(browser: BrowserManager, storeId: numbe
 export async function reportBadReviews(browser: BrowserManager, storeId: number, getReportTemplate: ReportTemplateResolver, safetyInput: Partial<ActionSafety> = {}): Promise<ReviewActionResult> {
   const page = browser.getPage();
   const safety = resolveActionSafety(safetyInput);
-  let submittedCount = 0;
   const result: ReviewActionResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
   try {
     await browser.navigateWithRetry(REVIEW_URL); await page.waitForTimeout(3000);
-    await filterByStars(page, [1, 2, 3]);
-    const reviews = (await getReviewRows(page)).filter((review) => review.stars <= 3);
-    console.log(`  Found ${reviews.length} bad reviews`);
+    const reviews = await getReviewRowsForStars(page, [1, 2, 3]);
+    const alreadyReportedCount = reviews.filter((review) => review.alreadyReported).length;
+    console.log(`  Found ${reviews.length} bad reviews (${alreadyReportedCount} already reported)`);
     const pageScreenshot = await browser.takeScreenshot(storeId, 'reviews-report-scan');
 
     for (var _i = 0; _i < reviews.length; _i++) {
@@ -106,36 +109,47 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
           });
           continue;
         }
-        template = await getReportTemplate(review);
-        if (!canSubmitAction(safety, 'report') || (safety.maxActions != null && submittedCount >= safety.maxActions)) {
+        if (review.alreadyReported) {
           result.skipped++;
           result.details.push({
             reviewId: review.id,
             reviewContent: review.content,
             reviewStars: review.stars,
             actionType: 'report',
-            actionContent: template,
-            ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, approvalRequired: requiresApproval(safety, 'report') && !safety.approvedActions.report }),
+            actionContent: '',
+            ...buildActionAudit(safety, '', { screenshotPath: pageScreenshot, errorMessage: 'Review is already reported and pending platform audit' }),
           });
           continue;
         }
-        var reportBtn = review.row ? await findButton(review.row, ['举报', 'Report']) : null;
-        if (!reportBtn) { result.skipped++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, errorMessage: 'Report button not found' }) }); continue; }
-        await browser.humanClick(reportBtn);
-        var textarea = await page.$('textarea, [contenteditable="true"]');
-        if (textarea) { await browser.humanFill(textarea, template); }
-        var submitBtn = await findButton(page, ['提交', '确认举报', 'Submit']);
-        if (submitBtn) { await browser.humanClick(submitBtn); submittedCount++; const screenshotPath = await browser.takeScreenshot(storeId, 'review-report-submitted'); result.reported++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { submitted: true, screenshotPath }) }); }
-        else { result.failed++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, errorMessage: 'Submit button not found' }) }); }
+        template = await getReportTemplate(review);
+        result.skipped++;
+        result.details.push(buildPendingReportApprovalDetail(review, template, safety, pageScreenshot));
+        continue;
       } catch (err) {
         result.failed++;
         result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, errorMessage: err instanceof Error ? err.message : String(err) }) });
       }
       await page.waitForTimeout(3000 + Math.random() * 5000);
     }
-    await browser.takeScreenshot(storeId, 'reviews-reported');
+    await browser.takeScreenshot(storeId, 'reviews-report-scanned');
   } catch (err) { console.error(`Report error for ${storeId}:`, err); }
   return result;
+}
+
+export function buildPendingReportApprovalDetail(
+  review: Pick<ReviewRow, 'id' | 'content' | 'stars'>,
+  template: string,
+  safety: ActionSafety,
+  screenshotPath?: string,
+): ReviewActionDetail {
+  return {
+    reviewId: review.id,
+    reviewContent: review.content,
+    reviewStars: review.stars,
+    actionType: 'report',
+    actionContent: template,
+    ...buildActionAudit(safety, template, { screenshotPath, approvalRequired: true }),
+  };
 }
 
 export async function executeReviewActionCandidate(
@@ -285,10 +299,55 @@ function normalizeText(value: string): string {
 }
 
 async function filterByStars(page: any, stars: number[]): Promise<void> {
-  for (var _i = 0; _i < stars.length; _i++) {
-    try { var btn = await page.$(`[class*="star"]:has-text("${stars[_i]}"), button:has-text("${stars[_i]}星")`); if (btn) await btn.click(); } catch { /* */ }
+  const filtered = await page.evaluate((targetStars: number[]) => {
+    const isVisible = (el: Element) => {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+    const textOf = (el: Element) => ((el as HTMLElement).innerText || el.textContent || '').replace(/\s+/g, '');
+    const scoreSection = Array.from(document.querySelectorAll('[class*="evaluation_search_content"]'))
+      .filter((el) => isVisible(el))
+      .find((el) => {
+        const text = textOf(el);
+        return text.includes('用户评价得分') && text.includes('1星') && text.includes('5星');
+      });
+    const searchRoot = scoreSection?.closest('[class*="evaluation_search_mainContent"]');
+    if (!scoreSection || !searchRoot) return { clicked: 0, queried: false, url: location.href };
+
+    let clicked = 0;
+    for (const star of targetStars) {
+      const starText = `${star}星`;
+      const target = Array.from(scoreSection.querySelectorAll('button, a, label, span, div'))
+        .filter((el) => isVisible(el))
+        .filter((el) => textOf(el) === starText)
+        .sort((a, b) => {
+          const ar = a.getBoundingClientRect();
+          const br = b.getBoundingClientRect();
+          return (ar.width * ar.height) - (br.width * br.height);
+        })[0] as HTMLElement | undefined;
+      if (target) {
+        target.click();
+        clicked++;
+      }
+    }
+
+    const query = Array.from(searchRoot.querySelectorAll('button, a, [role="button"]'))
+      .filter((el) => isVisible(el))
+      .find((el) => textOf(el) === '查询') as HTMLElement | undefined;
+    if (!query) return { clicked, queried: false, url: location.href };
+    query.click();
+    return { clicked, queried: true, url: location.href };
+  }, stars).catch(() => ({ clicked: 0, queried: false, url: page.url() }));
+  if (!filtered.clicked || !filtered.queried) {
+    console.log(`  Review star filter did not find scoped controls: clicked=${filtered.clicked} queried=${filtered.queried} url=${filtered.url}`);
   }
   await page.waitForTimeout(1500);
+  if (!page.url().includes('/goods/evaluation/')) {
+    console.log(`  Review star filter left evaluation page, navigating back: ${page.url()}`);
+    await page.goto(REVIEW_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => undefined);
+    await page.waitForTimeout(3000);
+  }
 }
 
 async function dismissBlockingModal(page: any): Promise<void> {
@@ -368,33 +427,128 @@ async function getReviewRows(page: any): Promise<ReviewRow[]> {
   return collectReviewRows(await page.$$('[class*="table"] [class*="row"], [class*="review"], [class*="comment"], [class*="evaluation"], [class*="item"]'));
 }
 
-async function collectReviewRows(rowHandles: any[]): Promise<ReviewRow[]> {
-  const reviews: ReviewRow[] = [];
+async function getReviewRowsForStars(page: any, stars: number[]): Promise<ReviewRow[]> {
+  const rows: ReviewRow[] = [];
   const seen = new Set<string>();
+  await filterByStars(page, stars);
+  const reviewRows = await getReviewRows(page);
+  const reviews = reviewRows.filter((review) => stars.includes(review.stars));
+  if (reviews.length === 0) {
+    const debugPath = await writeReviewScanDebug(page, stars[0] || 0, reviewRows);
+    if (debugPath) console.log(`  Review scan debug for ${stars.join('/')} stars: ${debugPath}`);
+  }
+  for (const review of reviews) {
+    const key = `${review.id}|${review.content}|${review.stars}|${review.createdAt || ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push(review);
+  }
+  return rows;
+}
+
+async function writeReviewScanDebug(page: any, star: number, parsedRows: ReviewRow[]): Promise<string | null> {
+  try {
+    fs.mkdirSync(REVIEW_DEBUG_DIR, { recursive: true });
+    const timestamp = Date.now();
+    const rowHandles = await page.$$('tr, [class*="table"] [class*="row"], [class*="review"], [class*="comment"], [class*="evaluation"], [class*="item"]');
+    const rows = [];
+    for (let i = 0; i < Math.min(rowHandles.length, 80); i++) {
+      const text = await rowHandles[i].innerText().catch(() => '');
+      const domStars = await extractReviewStarsFromRow(rowHandles[i]);
+      const parsed = parseReviewRowText(text, `debug-${i}`, domStars) || parseReviewBodyRowText(text, `debug-${i}`, domStars);
+      rows.push({
+        index: i,
+        domStars,
+        parsed: parsed ? {
+          id: parsed.id,
+          stars: parsed.stars,
+          createdAt: parsed.createdAt,
+          content: parsed.content,
+        } : null,
+        text: text.slice(0, 1200),
+      });
+    }
+    const controls = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('button, a, label, span, div'))
+        .map((el) => ((el as HTMLElement).innerText || el.textContent || '').replace(/\s+/g, ' ').trim())
+        .filter((text) => /[1-5]\s*星|评价|举报|回复/.test(text))
+        .slice(0, 120);
+    }).catch(() => []);
+    const report = {
+      star,
+      url: page.url(),
+      generatedAt: new Date().toISOString(),
+      parsedRowsForAllStars: parsedRows.map((row) => ({
+        id: row.id,
+        stars: row.stars,
+        createdAt: row.createdAt,
+        content: row.content,
+      })),
+      controls,
+      rows,
+    };
+    const jsonPath = path.join(REVIEW_DEBUG_DIR, `bad-review-star-${star}-${timestamp}.json`);
+    const htmlPath = path.join(REVIEW_DEBUG_DIR, `bad-review-star-${star}-${timestamp}.html`);
+    const screenshotPath = path.join(REVIEW_DEBUG_DIR, `bad-review-star-${star}-${timestamp}.png`);
+    fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
+    fs.writeFileSync(htmlPath, await page.content(), 'utf8');
+    await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => undefined);
+    return jsonPath;
+  } catch (err) {
+    console.log(`  Review scan debug failed for ${star} star: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+async function collectReviewRows(rowHandles: any[]): Promise<ReviewRow[]> {
+  const inputs: ReviewRowInput[] = [];
   for (let i = 0; i < rowHandles.length; i++) {
     const text = await rowHandles[i].innerText().catch(() => '');
-    const review = parseReviewRowText(text, `r-${i}`) || parseReviewBodyRowText(text, `r-${i}`);
+    const domStars = await extractReviewStarsFromRow(rowHandles[i]);
+    inputs.push({ text, domStars, row: rowHandles[i] });
+  }
+  return parseReviewGroupedRows(inputs);
+}
+
+export function parseReviewGroupedRows(inputs: ReviewRowInput[]): ReviewRow[] {
+  const reviews: ReviewRow[] = [];
+  const seen = new Set<string>();
+  let pendingStars: number | null = null;
+  let pendingAlreadyReported = false;
+  for (let i = 0; i < inputs.length; i++) {
+    const { text, domStars, row } = inputs[i];
+    const starsForRow = domStars || pendingStars;
+    const review = parseReviewRowText(text, `r-${i}`, starsForRow) || parseReviewBodyRowText(text, `r-${i}`, starsForRow);
+    if (!review && domStars && text.includes('\u7528\u6237\u8bc4\u4ef7\u5206')) {
+      pendingStars = domStars;
+      pendingAlreadyReported = text.includes('\u5df2\u4e3e\u62a5');
+      continue;
+    }
     if (!review) continue;
     const key = `${review.id}|${review.content}|${review.stars}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    reviews.push({ ...review, row: rowHandles[i] });
+    reviews.push({ ...review, alreadyReported: review.alreadyReported || pendingAlreadyReported || text.includes('\u5df2\u4e3e\u62a5'), row });
+    pendingStars = null;
+    pendingAlreadyReported = false;
   }
   return reviews;
 }
 
-export function parseReviewRowText(text: string, fallbackId = 'r-0'): ReviewRow | null {
+export function parseReviewRowText(text: string, fallbackId = 'r-0', domStars: number | null = null): ReviewRow | null {
   if (!text.includes('用户评价分')) return null;
   const scoreLine = text.split(/\r?\n/).find((line) => line.includes('用户评价分')) || text;
   const starChars = scoreLine.match(/[★]+/)?.[0] || '';
   const numericStars = scoreLine.match(/([1-5])\s*星/);
-  const stars = starChars.length > 0 ? Math.min(starChars.length, 5) : numericStars ? parseInt(numericStars[1], 10) : 0;
+  const stars = starChars.length > 0 ? Math.min(starChars.length, 5) : numericStars ? parseInt(numericStars[1], 10) : domStars || 0;
   if (stars < 1 || stars > 5) return null;
 
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const content = lines.find((line) => {
     if (line.includes('用户评价分')) return false;
     if (/^\d{4}-\d{2}-\d{2}/.test(line)) return false;
+    if (/^\u5df2\u8fd4.*\u73b0\u91d1/.test(line)) return false;
+    if (/^\u5df2\u4e3e\u62a5/.test(line)) return false;
     if (/^(查看订单|举报|回复\/互动|回复|订单编号|买家昵称|ID:|被点赞数|互动数)/.test(line)) return false;
     return line.length >= 4;
   });
@@ -402,24 +556,77 @@ export function parseReviewRowText(text: string, fallbackId = 'r-0'): ReviewRow 
 
   const orderIdMatch = text.match(/订单编号[:：]\s*([0-9-]+)/);
   const idMatch = orderIdMatch?.[1].replace(/\D/g, '') || text.match(/\d{15,}/)?.[0];
-  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text) };
+  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text), alreadyReported: text.includes('\u5df2\u4e3e\u62a5') };
 }
 
-export function parseReviewBodyRowText(text: string, fallbackId = 'r-0'): ReviewRow | null {
+export function parseReviewBodyRowText(text: string, fallbackId = 'r-0', domStars: number | null = null): ReviewRow | null {
   if (!text.includes('订单编号') || !text.includes('回复/互动')) return null;
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const content = lines.find((line) => {
     if (/^\d{4}-\d{2}-\d{2}/.test(line)) return false;
+    if (/^\u5df2\u8fd4.*\u73b0\u91d1/.test(line)) return false;
+    if (/^\u5df2\u4e3e\u62a5/.test(line)) return false;
     if (/^(查看订单|举报|回复\/互动|回复|订单编号|买家昵称|ID:)/.test(line)) return false;
     return line.length >= 4;
   });
   if (!content) return null;
 
-  const stars = inferReviewStars(content);
+  const stars = domStars || inferReviewStars(content);
   if (stars == null) return null;
   const orderIdMatch = text.match(/订单编号[:：]\s*([0-9-]+)/);
   const idMatch = orderIdMatch?.[1].replace(/\D/g, '') || text.match(/\d{15,}/)?.[0];
-  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text) };
+  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text), alreadyReported: text.includes('\u5df2\u4e3e\u62a5') };
+}
+
+async function extractReviewStarsFromRow(row: any): Promise<number | null> {
+  return row.evaluate((el: HTMLElement) => {
+    const isVisible = (node: Element) => {
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+    const isRedLike = (value: string) => {
+      const m = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!m) return /#f|red|rgb/i.test(value);
+      const [, r, g, b] = m.map(Number);
+      return r >= 150 && g <= 120 && b <= 120;
+    };
+    const filledStars = Array.from(el.querySelectorAll('[data-testid*="star_filled"], [class*="star_filled"]'))
+      .filter((node) => {
+        const style = window.getComputedStyle(node);
+        const color = style.color || style.fill || style.stroke || '';
+        return isRedLike(color) || /star_filled/i.test([
+          node.getAttribute('data-testid') || '',
+          typeof (node as HTMLElement).className === 'string' ? (node as HTMLElement).className : '',
+        ].join(' '));
+      }).length;
+    if (filledStars > 0) return Math.min(filledStars, 5);
+
+    let textStars = 0;
+    for (const node of Array.from(el.querySelectorAll('*'))) {
+      const text = (node.textContent || '').trim();
+      if (/^[★☆]+$/.test(text)) {
+        const redStars = Array.from(text).filter((char) => char === '★').length;
+        textStars = Math.max(textStars, Math.min(redStars || text.length, 5));
+      }
+    }
+    if (textStars > 0) return textStars;
+
+    const candidates = Array.from(el.querySelectorAll('*')).filter((node) => {
+      if (!isVisible(node)) return false;
+      const meta = [
+        typeof node.className === 'string' ? node.className : '',
+        node.getAttribute('aria-label') || '',
+        node.getAttribute('title') || '',
+        node.getAttribute('data-testid') || '',
+      ].join(' ');
+      if (!/(star|rate|score|评价分|星)/i.test(meta)) return false;
+      const style = window.getComputedStyle(node);
+      const color = style.color || style.fill || style.stroke || '';
+      return isRedLike(color);
+    });
+    return candidates.length > 0 ? Math.min(candidates.length, 5) : null;
+  }).catch(() => null);
 }
 
 function extractReviewTimestampText(text: string): string | null {

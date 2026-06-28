@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+- Appeal metrics are now opt-in via `WORKER_ENABLE_APPEAL_METRICS=true`; routine inspections skip `/orders/appeals` by default so Chrome no longer jumps to the order appeal page during normal requirement-A patrols.
+- Write-action approval safety: routine inspection scans now create `pending_approval` candidates only for bad-review reports and interaction hides. Real report/hide submission is allowed only from the single-candidate action job created after Web approval.
+
 ### 新增
 - 多店铺登录绑定闭环：新增 `pdd-login-bind` 独立队列、`/api/stores/:id/login-bind` 接口和 Worker 登录绑定消费者；店铺配置页支持按 `operatorId + storeId` 触发“登录绑定 / 重新登录 / 测试登录态”，成功后保存到 `operator_store_sessions` 和店铺状态，未完成绑定的店铺不能直接巡店。
 - 浏览器运行策略按低风险运营辅助模式收敛：默认 `headless=false`、默认使用系统 Chrome channel、固定 `1920x1080` 窗口；移除硬编码 UA 和 `--disable-blink-features=AutomationControlled`，并为 `operatorId + storeId` 启用 persistent `userDataDir` 与 `.profile.lock`，避免同一浏览器 profile 被并发打开。

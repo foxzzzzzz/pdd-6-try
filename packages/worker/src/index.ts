@@ -5,6 +5,7 @@ import { ACTION_QUEUE, ActionJobData, INSPECTION_QUEUE, InspectionJobData, LOGIN
 import { executeApprovedAction } from './action-executor';
 import { clampActionConcurrency, clampInspectionConcurrency } from './action-risk-control';
 import { executeLoginBind } from './login-bind';
+import { parseApprovalFlag } from './worker-env';
 
 loadWorkspaceEnv();
 
@@ -22,9 +23,10 @@ const ENABLE_REPLY = process.env.WORKER_ENABLE_REPLY === 'true';
 const ENABLE_REPORT = process.env.WORKER_ENABLE_REPORT === 'true';
 const ENABLE_HIDE = process.env.WORKER_ENABLE_HIDE_INTERACTIONS === 'true';
 const ENABLE_AI = process.env.WORKER_ENABLE_AI === 'true';
-const APPROVAL_REPLY = process.env.ACTION_APPROVAL_REQUIRED_REPLY === 'true';
-const APPROVAL_REPORT = process.env.ACTION_APPROVAL_REQUIRED_REPORT !== 'false';
-const APPROVAL_HIDE = process.env.ACTION_APPROVAL_REQUIRED_HIDE !== 'false';
+const ENABLE_APPEAL_METRICS = process.env.WORKER_ENABLE_APPEAL_METRICS === 'true';
+const APPROVAL_REPLY = parseApprovalFlag(process.env.WORKER_REPLY_APPROVAL_REQUIRED, process.env.ACTION_APPROVAL_REQUIRED_REPLY, false);
+const APPROVAL_REPORT = parseApprovalFlag(process.env.WORKER_REPORT_APPROVAL_REQUIRED, process.env.ACTION_APPROVAL_REQUIRED_REPORT, true);
+const APPROVAL_HIDE = parseApprovalFlag(process.env.WORKER_HIDE_APPROVAL_REQUIRED, process.env.ACTION_APPROVAL_REQUIRED_HIDE, true);
 const DAILY_LIMIT_REPLY = parseOptionalInt(process.env.ACTION_DAILY_LIMIT_REPLY, 20);
 const DAILY_LIMIT_REPORT = parseOptionalInt(process.env.ACTION_DAILY_LIMIT_REPORT, 5);
 const DAILY_LIMIT_HIDE = parseOptionalInt(process.env.ACTION_DAILY_LIMIT_HIDE, 5);
@@ -41,7 +43,7 @@ const connection = {
 log('Starting PDD Inspection Worker...');
 log(`  Redis: ${REDIS_HOST}:${REDIS_PORT}`);
 log(`  Concurrency: inspection=${CONCURRENCY} action=${ACTION_CONCURRENCY} login-bind=1 | Headless: ${HEADLESS}`);
-log(`  Ops: mode=${ACTION_MODE} limit=${ACTION_LIMIT ?? 'none'} reply=${ENABLE_REPLY} report=${ENABLE_REPORT} hide=${ENABLE_HIDE} ai=${ENABLE_AI}`);
+log(`  Ops: mode=${ACTION_MODE} limit=${ACTION_LIMIT ?? 'none'} reply=${ENABLE_REPLY} report=${ENABLE_REPORT} hide=${ENABLE_HIDE} appealMetrics=${ENABLE_APPEAL_METRICS} ai=${ENABLE_AI}`);
 log(`  Approval: reply=${APPROVAL_REPLY} report=${APPROVAL_REPORT} hide=${APPROVAL_HIDE} dailyLimits=${DAILY_LIMIT_REPLY}/${DAILY_LIMIT_REPORT}/${DAILY_LIMIT_HIDE}`);
 log(`  Action pacing: reply=${ACTION_DELAY_REPLY_MS || '8000-20000'}ms report=${ACTION_DELAY_REPORT_MS || '20000-60000'}ms hide=${ACTION_DELAY_HIDE_MS || '20000-60000'}ms`);
 
@@ -62,6 +64,7 @@ const worker = new Worker<InspectionJobData>(
       enableReply: ENABLE_REPLY,
       enableReport: ENABLE_REPORT,
       enableHideInteractions: ENABLE_HIDE,
+      enableAppealMetrics: ENABLE_APPEAL_METRICS,
       useAI: ENABLE_AI,
       actionMode: ACTION_MODE,
       actionLimit: ACTION_LIMIT,

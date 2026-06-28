@@ -29,9 +29,25 @@ export function parseCommentMetricsText(text: string): Partial<MetricsSnapshot> 
   return {
     commentScoreRank: extractPercentAsDecimal(text, '店铺评价分排名'),
     commentScoreRankChange: extractSignedPercentAfterLabel(text, '店铺评价分排名'),
-    commentCount: extractInteger(text, '近30天评价数') ?? extractInteger(text, '评价数'),
-    commentCountChange: extractSignedPercentAfterLabel(text, '近30天评价数') ?? extractSignedPercentAfterLabel(text, '评价数'),
+    commentCount: extractFirstInteger(text, ['评价条数', '近30天评价数', '近90天评价数', '评价数']),
+    commentCountChange: extractFirstSignedPercentAfterLabel(text, ['评价条数', '近30天评价数', '近90天评价数', '评价数']),
   };
+}
+
+function extractFirstInteger(text: string, labels: string[]): number | null {
+  for (const label of labels) {
+    const value = extractInteger(text, label);
+    if (value != null) return value;
+  }
+  return null;
+}
+
+function extractFirstSignedPercentAfterLabel(text: string, labels: string[]): number | null {
+  for (const label of labels) {
+    const value = extractSignedPercentAfterLabel(text, label);
+    if (value != null) return value;
+  }
+  return null;
 }
 
 function extractInteger(text: string, label: string): number | null {
@@ -57,8 +73,11 @@ function extractSignedPercentAfterLabel(text: string, label: string): number | n
   const changeIdx = sub.indexOf('较前');
   if (changeIdx === -1) return null;
   const changeText = sub.substring(changeIdx, changeIdx + 60);
-  const m = changeText.match(/([↑⬆+]|[↓⬇-])?\s*(\d+\.?\d*)\s*%/);
+  const m = changeText.match(/([↑⬆+]|[↓⬇-])?\s*(\d+\.?\d*)\s*%\s*([↑⬆+]|[↓⬇-])?/);
   if (!m) return null;
-  const sign = m[1] && /[↓⬇-]/.test(m[1]) ? -1 : 1;
-  return sign * parseFloat(m[2]) / 100;
+  const value = parseFloat(m[2]) / 100;
+  const signToken = m[1] || m[3] || '';
+  if (!signToken) return value === 0 ? 0 : null;
+  const sign = /[↓⬇-]/.test(signToken) ? -1 : 1;
+  return sign * value;
 }

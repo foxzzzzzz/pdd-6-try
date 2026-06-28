@@ -1,8 +1,8 @@
 # Phase 2 单元测试报告
 
-**日期**: 2026-06-27
+**日期**: 2026-06-28
 **版本**: v0.2.0
-**结果**: 183/183 通过 (100%)
+**结果**: 198/198 通过 (100%)
 
 ## 测试结果
 
@@ -10,6 +10,11 @@
 |--------|------|------|
 | review row extracts createdAt | ✅ |  |
 | review body row extracts createdAt | ✅ |  |
+| review body row uses DOM star count when innerText has icon-only stars | ✅ |  |
+| grouped review rows inherit icon-only stars from score header row | ✅ |  |
+| grouped review rows keep bad review content row | ✅ |  |
+| grouped review rows skip refund tag before bad review content | ✅ |  |
+| grouped review rows inherit already reported status | ✅ |  |
 | review timestamp parses as CST | ✅ |  |
 | review exactly inside 72 hour window is actionable | ✅ |  |
 | review older than 72 hours is skipped | ✅ |  |
@@ -18,6 +23,8 @@
 | comment page extracts signed score rank change | ✅ |  |
 | comment page extracts comment count | ✅ |  |
 | comment page extracts signed comment count change | ✅ |  |
+| comment page extracts trailing down arrow as negative change | ✅ |  |
+| comment page does not treat 近90天 as comment count | ✅ |  |
 | customer page extracts 3-minute reply rate | ✅ |  |
 | customer page extracts average response minutes | ✅ |  |
 | pilot unmet parser keeps only unmet rows | ✅ |  |
@@ -68,6 +75,7 @@
 | real-run 隐藏默认需要审批不直接提交 | ✅ |  |
 | real-run 支持限制最大写操作数 | ✅ |  |
 | 举报审批通过后可以提交 | ✅ |  |
+| inspection scan creates report approval candidate only | ✅ |  |
 | 隐藏审批通过后可以提交 | ✅ |  |
 | 好评回复达到每日上限后不提交 | ✅ |  |
 | 真实写操作 worker 并发强制不超过 1 | ✅ |  |
@@ -101,6 +109,10 @@
 | PDD backend text is authenticated even when URL stays on root | ✅ |  |
 | PDD scan-login text is detected as login | ✅ |  |
 | inspection config actionMode=real-run enables reply | ✅ |  |
+| WORKER_REPLY_APPROVAL_REQUIRED=true enables reply approval | ✅ |  |
+| legacy reply approval flag remains supported | ✅ |  |
+| worker approval flag overrides legacy flag | ✅ |  |
+| resolved safety keeps reply approval requirement when passed through again | ✅ |  |
 | dry-run 审计状态为 skipped | ✅ |  |
 | dry-run 审计记录 actionMode | ✅ |  |
 | dry-run 审计记录截图路径 | ✅ |  |
@@ -124,6 +136,7 @@
 | 互动隐藏候选识别近7日 | ✅ |  |
 | 近7日边界判断为 true | ✅ |  |
 | 超过7日互动候选会被跳过 | ✅ |  |
+| 互动行不依赖 innerText 直接包含隐藏评论 | ✅ |  |
 | 已隐藏评论不进入隐藏候选 | ✅ |  |
 | 广告识别 | ✅ | 匹配广告话术 |
 | 辱骂识别 | ✅ | 匹配辱骂话术 |
@@ -172,6 +185,8 @@
 | 从 HTML 箭头提取商品服务变化 | ✅ |  |
 | 从 HTML 箭头提取发货服务变化 | ✅ |  |
 | 从 HTML 箭头提取物流服务变化 | ✅ |  |
+| 服务态度 0.00% 变化不串到基础服务变化 | ✅ |  |
+| 基础服务变化仍从自身卡片提取 | ✅ |  |
 | 不把服务态度体验分误写为 DSR 服务分 | ✅ |  |
 | 不把物流服务体验分误写为 DSR 物流分 | ✅ |  |
 | 提取真实 DSR 描述相符分 | ✅ |  |
@@ -193,6 +208,6 @@
 | 多变量填充 | ✅ |  |
 
 ## 汇总
-- ✅ 通过: 183
+- ✅ 通过: 198
 - ❌ 失败: 0
 - 📊 通过率: 100%

@@ -24,6 +24,11 @@ function formatSignedPercent(value: unknown, digits = 2): string {
   return `${percent > 0 ? '+' : ''}${percent.toFixed(digits)}%`;
 }
 
+function changeTone(value: unknown): 'up' | 'down' | 'neutral' {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) return 'neutral';
+  return value > 0 ? 'up' : 'down';
+}
+
 function formatScore(value: unknown, suffix: string): string {
   return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} ${suffix}` : '-';
 }
@@ -165,7 +170,7 @@ export default function StoreDetail() {
 
       <Section title="评价数据 & 客服数据" icon={MessageSquare}>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <MetricBox label="店铺评价分排名" value={evaluationRank != null ? `前 ${formatPercent(evaluationRank)}` : '-'} detail={`较前一天 ${formatSignedPercent(metrics.commentScoreRankChange)}`} icon={MessageSquare} color="blue" trend={trends.commentScoreRank} />
+          <MetricBox label="店铺评价分排名" value={evaluationRank != null ? `前 ${formatPercent(evaluationRank)}` : '-'} detail={`较前一天 ${formatSignedPercent(metrics.commentScoreRankChange)}`} detailTone={changeTone(metrics.commentScoreRankChange)} icon={MessageSquare} color="blue" trend={trends.commentScoreRank} />
           <MetricBox label="评价条数" value={formatInteger(metrics.commentCount)} icon={BarChart3} color="slate" trend={trends.commentCount} />
           <MetricBox label="3分钟人工回复率" value={formatPercent(metrics.customerThreeMinuteReplyRate)} icon={Clock} color="blue" />
           <MetricBox label="平均人工响应时长" value={formatMinutes(metrics.customerAvgResponseMinutes)} icon={Clock} color="slate" />
@@ -241,12 +246,17 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.C
   );
 }
 
-function MetricBox({ label, value, icon: Icon, color, trend, detail }: { label: string; value: string; icon: React.ComponentType<{size?:number; className?:string}>; color: string; trend?: string | null; detail?: string | null }) {
+function MetricBox({ label, value, icon: Icon, color, trend, detail, detailTone = 'neutral' }: { label: string; value: string; icon: React.ComponentType<{size?:number; className?:string}>; color: string; trend?: string | null; detail?: string | null; detailTone?: 'up' | 'down' | 'neutral' }) {
   const colors: Record<string, string> = {
     blue: 'text-blue-500 bg-blue-50', amber: 'text-amber-500 bg-amber-50',
     red: 'text-red-500 bg-red-50', slate: 'text-slate-500 bg-slate-100',
     green: 'text-emerald-600 bg-emerald-50',
   };
+  const detailColor = detailTone === 'up'
+    ? 'text-red-600'
+    : detailTone === 'down'
+      ? 'text-emerald-700'
+      : 'text-slate-500';
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-sm transition-shadow duration-150">
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -259,7 +269,7 @@ function MetricBox({ label, value, icon: Icon, color, trend, detail }: { label: 
         {trend && <TrendBadge trend={trend} />}
       </div>
       <div className="text-lg font-bold text-slate-900">{value}</div>
-      {detail && <div className="mt-1 text-xs text-slate-500">{detail}</div>}
+      {detail && <div className={`mt-1 text-xs ${detailColor}`}>{detail}</div>}
     </div>
   );
 }

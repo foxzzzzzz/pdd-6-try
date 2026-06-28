@@ -25,6 +25,7 @@ export interface ActionSafetyInput {
   replyApprovalRequired?: boolean;
   reportApprovalRequired?: boolean;
   hideApprovalRequired?: boolean;
+  approvalRequired?: Partial<Record<WriteActionKind, boolean>>;
   approvedActions?: Partial<Record<WriteActionKind, boolean>>;
   dailyLimits?: Partial<Record<WriteActionKind, number | null>>;
   dailyUsage?: Partial<Record<WriteActionKind, number>>;
@@ -50,9 +51,9 @@ export function resolveActionSafety(input: ActionSafetyInput): ActionSafety {
     enableHideInteractions: input.enableHideInteractions === true,
     maxActions: typeof input.maxActions === 'number' && input.maxActions > 0 ? Math.floor(input.maxActions) : null,
     approvalRequired: {
-      reply: input.replyApprovalRequired === true,
-      report: input.reportApprovalRequired !== false,
-      hide: input.hideApprovalRequired !== false,
+      reply: input.replyApprovalRequired ?? input.approvalRequired?.reply ?? false,
+      report: input.reportApprovalRequired ?? input.approvalRequired?.report ?? true,
+      hide: input.hideApprovalRequired ?? input.approvalRequired?.hide ?? true,
     },
     approvedActions: {
       reply: input.approvedActions?.reply === true,

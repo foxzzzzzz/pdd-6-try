@@ -146,7 +146,7 @@ export default function ActionReview() {
                   </div>
                   {candidate.failureReason ? <p className="mt-2 text-xs text-red-600">{candidate.failureReason}</p> : null}
                   {candidate.screenshotPath ? (
-                    <a href={candidate.screenshotPath} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700">
+                    <a href={screenshotUrl(candidate.screenshotPath)} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700">
                       <ExternalLink size={12} /> 查看截图
                     </a>
                   ) : null}
@@ -209,4 +209,8 @@ function requireOperatorId(value: string): string | null {
     return null;
   }
   return operatorId;
+}
+
+function screenshotUrl(filePath: string): string {
+  return `/api/action-candidates/screenshot?path=${encodeURIComponent(filePath)}`;
 }

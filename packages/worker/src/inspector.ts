@@ -31,6 +31,7 @@ export interface InspectionConfig {
   enableReply: boolean;
   enableReport: boolean;
   enableHideInteractions: boolean;
+  enableAppealMetrics: boolean;
   useAI: boolean;
   actionMode: ActionMode;
   actionLimit: number | null;
@@ -48,6 +49,7 @@ const DEFAULT_CONFIG: InspectionConfig = {
   enableReply: false,
   enableReport: false,
   enableHideInteractions: false,
+  enableAppealMetrics: false,
   useAI: true,
   actionMode: 'dry-run',
   actionLimit: null,
@@ -111,7 +113,7 @@ export async function inspectStore(
   });
   log(`[${storeName}] Action safety: mode=${actionSafety.mode} limit=${actionSafety.maxActions ?? 'none'} reply=${actionSafety.enableReply} report=${actionSafety.enableReport} hide=${actionSafety.enableHideInteractions}`);
   const errors: string[] = [];
-  const totalSteps = 9; // 6 data + 3 actions (reply, report, hide)
+  const totalSteps = resolvedConfig.enableAppealMetrics ? 9 : 8; // data + 3 action scan steps
   let completedSteps = 0;
   let completionRate = 0;
 
@@ -204,10 +206,16 @@ export async function inspectStore(
       log(`[${storeName}] Refund data collected`);
     }
 
-    // Step 4: Appeal data
-    const appealMetrics = await collectAppealMetrics(browser, storeId);
-    completedSteps++;
-    log(`[${storeName}] Appeal data collected`);
+    // Step 4: Appeal data (optional legacy metric)
+    const appealMetrics = resolvedConfig.enableAppealMetrics
+      ? await collectAppealMetrics(browser, storeId)
+      : {};
+    if (resolvedConfig.enableAppealMetrics) {
+      completedSteps++;
+      log(`[${storeName}] Appeal data collected`);
+    } else {
+      log(`[${storeName}] Appeal data skipped`);
+    }
 
     // Step 5: Comment data
     const commentMetrics = shouldSkipModule(db, 'comment', storeName)

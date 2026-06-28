@@ -35,8 +35,9 @@ import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator
 import { evaluateSelectorHealth, isModuleDegradedFromEvents, shouldBlockWriteActionForSelectorHealth } from '../selector-health';
 import { isRuleReviewExpired, shouldBlockActionForRuleReview } from '../rule-review';
 import { buildBrowserRuntimeOptions, inferPddPageLoginState, isPddLoginUrl, parseStoredStorageState, resolveHumanDelayMs, resolveProfileDirectory } from '../browser';
-import { isReviewWithinLastHours, parseReviewBodyRowText, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
+import { buildPendingReportApprovalDetail, isReviewWithinLastHours, parseReviewBodyRowText, parseReviewGroupedRows, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
+import { parseApprovalFlag } from '../worker-env';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
 
@@ -76,8 +77,38 @@ const timedReviewBodyRow = parseReviewBodyRowText(`\u8be5\u7528\u6237\u89c9\u5f9
 \u67e5\u770b\u8ba2\u5355
 \u4e3e\u62a5
 \u56de\u590d/\u4e92\u52a8`);
+const iconOnlyBadReviewRow = parseReviewBodyRowText(`\u8be5\u7528\u6237\u672a\u586b\u5199\u6587\u5b57\u8bc4\u4ef7
+2026-06-26 18:24:52
+\u8ba2\u5355\u7f16\u53f7\uff1a260624-128974886461218
+\u67e5\u770b\u8ba2\u5355
+\u4e3e\u62a5
+\u56de\u590d/\u4e92\u52a8`, 'bad-icon-row', 3);
+const groupedIconBadReviewRows = parseReviewGroupedRows([
+  { text: `\u7528\u6237\u8bc4\u4ef7\u5206\uff1a\n\u88ab\u70b9\u8d5e\u6570\uff1a0\n\u4e92\u52a8\u6570\uff1a0`, domStars: 1 },
+  { text: `\u8be5\u7528\u6237\u672a\u586b\u5199\u6587\u5b57\u8bc4\u4ef7
+2026-06-28 09:10:06
+\u8ba2\u5355\u7f16\u53f7\uff1a260622-175500183142268
+\u67e5\u770b\u8ba2\u5355
+\u4e3e\u62a5
+\u56de\u590d/\u4e92\u52a8`, domStars: null },
+]);
+const groupedRefundTagBadReviewRows = parseReviewGroupedRows([
+  { text: `\u7528\u6237\u8bc4\u4ef7\u5206\uff1a\n\u88ab\u70b9\u8d5e\u6570\uff1a0\n\u4e92\u52a8\u6570\uff1a0\n\u5df2\u4e3e\u62a5\uff0c\u5f85\u5ba1\u6838`, domStars: 1 },
+  { text: `\u5df2\u8fd40.5\u5143\u73b0\u91d1
+\u4e00\u4e2a\u5c0f\u9e2d\u5b50\uff0c\u548c\u56fe\u7247\u4e0a\u4e0d\u4e00\u6837
+2026-06-28 08:08:58
+\u8ba2\u5355\u7f16\u53f7\uff1a260623-666831459914013
+\u67e5\u770b\u8ba2\u5355
+\u4e3e\u62a5
+\u56de\u590d/\u4e92\u52a8`, domStars: null },
+]);
 assert('review row extracts createdAt', timedReviewRow?.createdAt === '2026-06-17 16:59:53');
 assert('review body row extracts createdAt', timedReviewBodyRow?.createdAt === '2026-06-17 16:59:53');
+assert('review body row uses DOM star count when innerText has icon-only stars', iconOnlyBadReviewRow?.stars === 3);
+assert('grouped review rows inherit icon-only stars from score header row', groupedIconBadReviewRows[0]?.stars === 1);
+assert('grouped review rows keep bad review content row', groupedIconBadReviewRows[0]?.content === '\u8be5\u7528\u6237\u672a\u586b\u5199\u6587\u5b57\u8bc4\u4ef7');
+assert('grouped review rows skip refund tag before bad review content', groupedRefundTagBadReviewRows[0]?.content === '\u4e00\u4e2a\u5c0f\u9e2d\u5b50\uff0c\u548c\u56fe\u7247\u4e0a\u4e0d\u4e00\u6837');
+assert('grouped review rows inherit already reported status', groupedRefundTagBadReviewRows[0]?.alreadyReported === true);
 assert('review timestamp parses as CST', parseReviewTimestamp('2026-06-17 16:59:53')?.toISOString() === '2026-06-17T08:59:53.000Z');
 const reviewWindowNow = new Date('2026-06-20T16:59:53+08:00');
 assert('review exactly inside 72 hour window is actionable', isReviewWithinLastHours('2026-06-17 16:59:53', reviewWindowNow, 72));
@@ -94,6 +125,12 @@ assert('comment page extracts score rank', nearlyEqual(commentMetrics.commentSco
 assert('comment page extracts signed score rank change', nearlyEqual(commentMetrics.commentScoreRankChange, -0.012));
 assert('comment page extracts comment count', commentMetrics.commentCount === 608);
 assert('comment page extracts signed comment count change', nearlyEqual(commentMetrics.commentCountChange, 0.035));
+
+const commentMetricsWithTrailingArrow = parseCommentMetricsText(
+  '近90天评价总览 店铺评价分排名 15.71% 较前一天 2.54% ↓ 评价条数 792',
+);
+assert('comment page extracts trailing down arrow as negative change', nearlyEqual(commentMetricsWithTrailingArrow.commentScoreRankChange, -0.0254));
+assert('comment page does not treat 近90天 as comment count', commentMetricsWithTrailingArrow.commentCount === 792);
 
 const customerMetrics = parseCustomerMetricsText(
   '\u5ba2\u670d\u670d\u52a1\u6570\u636e 3\u5206\u949f\u4eba\u5de5\u56de\u590d\u7387 100.00% \u8f83\u524d\u4e00\u5929 0.00% \u5e73\u5747\u4eba\u5de5\u54cd\u5e94\u65f6\u957f 0.52\u5206\u949f \u8f83\u524d\u4e00\u5929 \u2191 14.81%',
@@ -271,6 +308,14 @@ const approvedReportSafety = resolveActionSafety({
 });
 assert('举报审批通过后可以提交', canSubmitAction(approvedReportSafety, 'report'));
 
+const scanReportDetail = buildPendingReportApprovalDetail(
+  { id: 'review-1', content: 'bad review', stars: 1 },
+  'report template',
+  approvedReportSafety,
+  'report-scan.png',
+);
+assert('inspection scan creates report approval candidate only', scanReportDetail.status === 'pending_approval');
+
 const approvedHideSafety = resolveActionSafety({
   mode: 'real-run',
   enableHideInteractions: true,
@@ -333,6 +378,15 @@ const realRunFromInspectionConfig = resolveActionSafety({
   enableReply: true,
 } as Parameters<typeof resolveActionSafety>[0]);
 assert('inspection config actionMode=real-run enables reply', canSubmitAction(realRunFromInspectionConfig, 'reply'));
+assert('WORKER_REPLY_APPROVAL_REQUIRED=true enables reply approval', parseApprovalFlag('true', undefined, false) === true);
+assert('legacy reply approval flag remains supported', parseApprovalFlag(undefined, 'true', false) === true);
+assert('worker approval flag overrides legacy flag', parseApprovalFlag('false', 'true', true) === false);
+const alreadyResolvedReplyApproval = resolveActionSafety(resolveActionSafety({
+  actionMode: 'real-run',
+  enableReply: true,
+  replyApprovalRequired: true,
+}));
+assert('resolved safety keeps reply approval requirement when passed through again', canSubmitAction(alreadyResolvedReplyApproval, 'reply') === false);
 
 const dryRunAudit = buildActionAudit(defaultSafety, 'would reply', { screenshotPath: 'a.png' });
 assert('dry-run 审计状态为 skipped', dryRunAudit.status === 'skipped');
@@ -417,6 +471,11 @@ const oldInteraction = parseInteractionRowText(`周文明
 隐藏评论
 查看详情`, 'interaction-old', interactionNow);
 assert('超过7日互动候选会被跳过', oldInteraction?.withinLast7Days === false);
+
+const hiddenButtonNotInTextInteraction = parseInteractionRowText(`花🌸 满洒走一生
+只要你摸着良心说实话，不好吃大家都说好吃，是他们的托吗？
+2026-06-17 13:16`, 'interaction-hover', interactionNow);
+assert('互动行不依赖 innerText 直接包含隐藏评论', hiddenButtonNotInTextInteraction?.content === '只要你摸着良心说实话，不好吃大家都说好吃，是他们的托吗？');
 
 const alreadyHiddenInteraction = parseInteractionRowText(`小黑哥
 这么多添加剂吓死宝宝了
@@ -534,6 +593,15 @@ assert('从 HTML 箭头提取基础服务变化', nearlyEqual(experienceHtmlMetr
 assert('从 HTML 箭头提取商品服务变化', nearlyEqual(experienceHtmlMetrics.expProductChange, -0.006));
 assert('从 HTML 箭头提取发货服务变化', nearlyEqual(experienceHtmlMetrics.expShippingChange, 0.1282));
 assert('从 HTML 箭头提取物流服务变化', nearlyEqual(experienceHtmlMetrics.expLogisticsChange, 0.0364));
+
+const zeroAttitudeExperienceHtmlMetrics = parseExperienceMetricsHtml(`
+  <section>
+    <div>服务态度体验分</div><span>4.9分</span><span>较前7日</span><span>0.00%</span>
+    <div>基础服务体验分</div><span>3.3分</span><span class="arrow-down_filled"></span><span>11.17%</span>
+  </section>
+`);
+assert('服务态度 0.00% 变化不串到基础服务变化', zeroAttitudeExperienceHtmlMetrics.expAttitudeChange === 0);
+assert('基础服务变化仍从自身卡片提取', nearlyEqual(zeroAttitudeExperienceHtmlMetrics.expServiceBasicChange, -0.1117));
 
 const attitudeExperienceText = parseStoreMetricsText('服务态度体验分 0.1 分 物流服务体验分 3.4 分');
 assert('不把服务态度体验分误写为 DSR 服务分', attitudeExperienceText.dsrService == null);

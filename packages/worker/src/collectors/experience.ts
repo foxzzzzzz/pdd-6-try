@@ -6,6 +6,15 @@
 import { BrowserManager } from '../browser';
 import { MetricsSnapshot } from '@pdd-inspector/core';
 
+const EXPERIENCE_LABELS = [
+  '消费者服务体验分',
+  '服务态度体验分',
+  '基础服务体验分',
+  '商品服务体验分',
+  '发货服务体验分',
+  '物流服务体验分',
+];
+
 export async function collectExperienceMetrics(
   browser: BrowserManager,
   storeId: number,
@@ -97,13 +106,13 @@ function extractScore(text: string, label: string): number | null {
 function extractChange(text: string, label: string): number | null {
   const idx = findLastIndex(text, label);
   if (idx === -1) return null;
-  const sub = text.substring(idx + label.length, idx + label.length + 160);
-  const m = sub.match(/较前7日\s*([↑↓+-]|上升|下降)?\s*(\d+\.?\d*)\s*%/);
+  const sub = getMetricSegment(text, idx, label, 160);
+  const m = sub.match(/较前7日\s*([↑↓+-]|上升|下降)?\s*(\d+\.?\d*)\s*%\s*([↑↓+-])?/);
   if (!m) return null;
 
-  const signToken = m[1] || '';
-  if (!signToken) return null;
+  const signToken = m[1] || m[3] || '';
   const value = parseFloat(m[2]) / 100;
+  if (!signToken) return value === 0 ? 0 : null;
   if (signToken === '↓' || signToken === '-' || signToken === '下降') return -value;
   return value;
 }
@@ -111,15 +120,28 @@ function extractChange(text: string, label: string): number | null {
 function extractSignedChangeFromHtml(html: string, label: string): number | null {
   let idx = html.indexOf(label);
   while (idx !== -1) {
-    const sub = html.substring(idx, idx + 4000);
+    const sub = getMetricSegment(html, idx, label, 4000);
     const m = sub.match(/arrow-(up|down)_filled[\s\S]*?>(\d+\.?\d*)\s*%/);
     if (m) {
       const value = parseFloat(m[2]) / 100;
       return m[1] === 'down' ? -value : value;
     }
+    const zero = sub.match(/较前7日[\s\S]{0,300}?(\d+\.?\d*)\s*%/);
+    if (zero && parseFloat(zero[1]) === 0) return 0;
     idx = html.indexOf(label, idx + label.length);
   }
   return null;
+}
+
+function getMetricSegment(source: string, startIdx: number, label: string, fallbackLength: number): string {
+  const from = startIdx + label.length;
+  let end = from + fallbackLength;
+  for (const nextLabel of EXPERIENCE_LABELS) {
+    if (nextLabel === label) continue;
+    const nextIdx = source.indexOf(nextLabel, from);
+    if (nextIdx !== -1 && nextIdx < end) end = nextIdx;
+  }
+  return source.substring(from, end);
 }
 
 function extractIndustryRankRange(text: string): string | null {

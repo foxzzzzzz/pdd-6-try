@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { getDb, quoteSqlString, saveDb, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 import { addActionJob } from '../queue';
+import * as fs from 'fs';
+import * as path from 'path';
 
 type CandidateStatus = 'pending_approval' | 'approved' | 'queued' | 'skipped';
 type CandidateKind = 'review' | 'interaction';
@@ -14,6 +16,15 @@ type ActionJobCandidateRow = {
 };
 
 export async function actionCandidateRoutes(app: FastifyInstance) {
+  app.get<{ Querystring: { path?: string } }>('/api/action-candidates/screenshot', async (req, reply) => {
+    const filePath = resolveScreenshotPath(req.query.path);
+    if (!filePath) throw { statusCode: 400, message: 'Invalid screenshot path' };
+    if (!fs.existsSync(filePath)) throw { statusCode: 404, message: 'Screenshot not found' };
+    const ext = path.extname(filePath).toLowerCase();
+    reply.type(ext === '.html' ? 'text/html; charset=utf-8' : 'image/png');
+    return reply.send(fs.createReadStream(filePath));
+  });
+
   app.get<{ Querystring: { status?: string; storeId?: string; type?: string } }>('/api/action-candidates', async (req) => {
     const db = await getDb();
     ensureApprovalColumns(db);
@@ -199,4 +210,21 @@ function requireOperatorId(value?: string | null): string {
   const operatorId = value?.trim();
   if (!operatorId) throw { statusCode: 400, message: 'operatorId is required' };
   return operatorId;
+}
+
+function resolveScreenshotPath(input?: string): string | null {
+  if (!input) return null;
+  const filePath = path.resolve(input);
+  const ext = path.extname(filePath).toLowerCase();
+  if (!['.png', '.html'].includes(ext)) return null;
+  const roots = [
+    process.env.SCREENSHOTS_DIR ? path.resolve(process.env.SCREENSHOTS_DIR) : null,
+    path.resolve(process.cwd(), '../worker/data/screenshots'),
+  ].filter(Boolean) as string[];
+  return roots.some((root) => isInsideDirectory(filePath, root)) ? filePath : null;
+}
+
+function isInsideDirectory(filePath: string, root: string): boolean {
+  const relative = path.relative(root, filePath);
+  return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
