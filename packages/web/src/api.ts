@@ -2,6 +2,42 @@
 
 const BASE = '/api';
 
+export type RuleReviewStatus = 'pending' | 'approved' | 'expired' | 'paused';
+
+export type RuleReviewUpdateInput = {
+  status?: RuleReviewStatus;
+  lastReviewedAt?: string;
+  nextReviewAt?: string;
+  conclusion?: string;
+  evidencePath?: string;
+  owner?: string;
+};
+
+export type RiskEvent = {
+  id: number;
+  storeId: number | null;
+  operatorId: string | null;
+  storeName: string | null;
+  scope: string;
+  eventType: string;
+  severity: string;
+  message: string;
+  actionType: string | null;
+  sourceType: string | null;
+  sourceId: string | null;
+  screenshotPath: string | null;
+  htmlPath: string | null;
+  status: string;
+  createdAt: string | null;
+};
+
+export type RiskStatus = {
+  globalWritePaused: boolean;
+  globalReasons: string[];
+  pausedStoreIds: number[];
+  activeEvents: RiskEvent[];
+};
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const hasBody = options?.body != null;
   const res = await fetch(`${BASE}${url}`, {
@@ -46,9 +82,14 @@ export const api = {
     { method: 'POST', body: JSON.stringify(operatorId ? { operatorId } : {}) },
   ),
   getQueueStatus: () => request<any>('/queue/status'),
-  getRiskStatus: () => request<any>('/risk/status'),
+  getRiskStatus: () => request<RiskStatus>('/risk/status'),
+  resolveRiskEvent: (id: number) => request<any>(`/risk/events/${id}/resolve`, { method: 'POST' }),
   getSelectorHealthStatus: () => request<any>('/selector-health/status'),
   getRuleReviewStatus: () => request<any>('/rule-reviews/status'),
+  updateRuleReview: (category: string, data: RuleReviewUpdateInput) => request<any>(
+    `/rule-reviews/${encodeURIComponent(category)}`,
+    { method: 'PUT', body: JSON.stringify(data) },
+  ),
   getSystemBrowserStatus: () => request<any>('/system/browser'),
   getOperatorSessions: (params?: { operatorId?: string; storeId?: number }) => {
     const qs = new URLSearchParams();

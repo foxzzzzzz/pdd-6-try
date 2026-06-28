@@ -148,8 +148,18 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <div className="text-xs text-slate-500">
-              受影响店铺 {riskStatus.pausedStoreIds?.length || 0} 家
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">受影响店铺 {riskStatus.pausedStoreIds?.length || 0} 家</span>
+              <Link
+                to="/risk-events"
+                className={`inline-flex items-center justify-center rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors duration-150 focus:outline-none focus:ring-2 ${
+                  riskStatus.globalWritePaused
+                    ? 'border-red-200 text-red-700 hover:bg-red-100 focus:ring-red-500'
+                    : 'border-amber-200 text-amber-700 hover:bg-amber-100 focus:ring-amber-500'
+                }`}
+              >
+                查看处理
+              </Link>
             </div>
           </div>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -202,7 +212,12 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <div className="text-xs text-red-700">请完成月度复核并更新复核结论。</div>
+            <Link
+              to="/rule-reviews"
+              className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition-colors duration-150 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+            >
+              去复核
+            </Link>
           </div>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
             {ruleReviewStatus.reviews?.filter((item: any) => item.status !== 'approved' || !item.nextReviewAt || new Date(item.nextReviewAt).getTime() < Date.now()).slice(0, 4).map((item: any) => (
