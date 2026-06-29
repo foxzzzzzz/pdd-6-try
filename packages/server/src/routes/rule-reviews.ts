@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { getDb, quoteSqlString, saveDb, type AppDb } from '@pdd-inspector/core';
 import { sql } from 'drizzle-orm';
 
-type RuleReviewStatus = 'pending' | 'approved' | 'expired' | 'paused';
+type RuleReviewStatus = 'pending' | 'approved';
 type RuleReviewRow = {
   id: number;
   category: string;
@@ -132,7 +132,7 @@ function sanitizeCategory(value: string): string | null {
 }
 
 function sanitizeStatus(value: string): RuleReviewStatus {
-  return ['pending', 'approved', 'expired', 'paused'].includes(value) ? value as RuleReviewStatus : 'approved';
+  return ['pending', 'approved'].includes(value) ? value as RuleReviewStatus : 'pending';
 }
 
 function addDaysIso(days: number): string {

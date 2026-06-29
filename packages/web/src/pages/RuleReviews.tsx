@@ -6,7 +6,7 @@ type RuleReview = {
   id: number;
   category: string;
   title: string;
-  status: RuleReviewStatus;
+  status: string;
   lastReviewedAt: string | null;
   nextReviewAt: string | null;
   conclusion: string | null;
@@ -106,7 +106,7 @@ export default function RuleReviews() {
           <p className="text-sm text-slate-500">风控复核</p>
           <h2 className="text-2xl font-bold text-slate-900">规则复核</h2>
           <p className="mt-1 text-sm text-slate-500">
-            月度确认高风险写操作相关规则；任一项未通过或过期时，举报/隐藏 real-run 会保持暂停。
+            人工确认高风险写操作相关规则；仅全部复核项“已通过”且未过期时，举报/隐藏 real-run 才会放行。
           </p>
         </div>
         <button
@@ -130,7 +130,7 @@ export default function RuleReviews() {
             <div>
               <h3 className="font-semibold text-red-800">举报/隐藏真实执行已被规则复核 gate 暂停</h3>
               <p className="mt-1 text-sm text-red-700">
-                请逐项完成人工复核，并将状态更新为“已通过”且填写未来的下次复核日期。
+                请逐项完成人工复核，并将人工 Gate 更新为“已通过”且填写未来的下次复核日期。
               </p>
             </div>
           </div>
@@ -192,11 +192,12 @@ export default function RuleReviews() {
                         onChange={(event) => updateForm(review.category, { status: event.target.value as RuleReviewStatus })}
                         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="approved">已通过</option>
-                        <option value="pending">待复核</option>
-                        <option value="expired">已过期</option>
-                        <option value="paused">暂停</option>
+                        <option value="approved">已通过，允许举报/隐藏 real-run</option>
+                        <option value="pending">未通过/待复核，暂停举报/隐藏 real-run</option>
                       </select>
+                      <span className="mt-1 block text-xs leading-5 text-slate-400">
+                        这是人工 Gate：只有“已通过”且下次复核日期未过期时才会放行。
+                      </span>
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-xs font-medium text-slate-500">下次复核日期</span>
@@ -277,7 +278,7 @@ function SummaryCard({ label, value, tone = 'slate' }: { label: string; value: n
 
 function buildForm(review: RuleReview): RuleReviewForm {
   return {
-    status: review.status,
+    status: normalizeReviewStatus(review.status),
     owner: review.owner || '',
     conclusion: review.conclusion || '',
     evidencePath: review.evidencePath || '',
@@ -292,18 +293,20 @@ function isReviewOverdue(review: Pick<RuleReview, 'status' | 'nextReviewAt'>): b
   return !Number.isFinite(next) || next < Date.now();
 }
 
-function statusLabel(status: RuleReviewStatus, overdue: boolean): string {
-  if (overdue && status === 'approved') return '已过期';
+function statusLabel(status: string, overdue: boolean): string {
+  if (overdue && status === 'approved') return '已通过但已过期';
   if (status === 'approved') return '已通过';
-  if (status === 'pending') return '待复核';
-  if (status === 'expired') return '已过期';
-  return '暂停';
+  return '未通过/待复核';
 }
 
-function statusBadgeClass(status: RuleReviewStatus, overdue: boolean): string {
+function statusBadgeClass(status: string, overdue: boolean): string {
   if (status === 'approved' && !overdue) return 'bg-emerald-50 text-emerald-700';
-  if (status === 'pending') return 'bg-amber-50 text-amber-700';
-  return 'bg-red-50 text-red-700';
+  if (status === 'approved' && overdue) return 'bg-red-50 text-red-700';
+  return 'bg-amber-50 text-amber-700';
+}
+
+function normalizeReviewStatus(status: string): RuleReviewStatus {
+  return status === 'approved' ? 'approved' : 'pending';
 }
 
 function isoToDateInput(value?: string | null): string {

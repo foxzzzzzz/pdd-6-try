@@ -8,7 +8,7 @@ export type RuleReviewCategory =
   | 'automation_tools'
   | 'service_agreements';
 
-export type RuleReviewStatus = 'pending' | 'approved' | 'expired' | 'paused';
+export type RuleReviewStatus = 'pending' | 'approved';
 
 export interface RuleReviewLike {
   category?: string | null;

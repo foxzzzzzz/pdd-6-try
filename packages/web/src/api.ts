@@ -2,7 +2,7 @@
 
 const BASE = '/api';
 
-export type RuleReviewStatus = 'pending' | 'approved' | 'expired' | 'paused';
+export type RuleReviewStatus = 'pending' | 'approved';
 
 export type RuleReviewUpdateInput = {
   status?: RuleReviewStatus;
