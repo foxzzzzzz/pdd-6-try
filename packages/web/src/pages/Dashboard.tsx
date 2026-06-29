@@ -93,12 +93,12 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <a href="/api/reports/weekly" className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <Link to="/reports/weekly" className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500">
             <TrendingUp size={16} /> 周报
-          </a>
-          <a href="/api/reports/monthly" className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </Link>
+          <Link to="/reports/monthly" className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500">
             <FileSpreadsheet size={16} /> 月报
-          </a>
+          </Link>
           <a href="/api/issues/export" className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500">
             <Download size={16} /> 导出
           </a>
@@ -240,8 +240,8 @@ export default function Dashboard() {
       {/* Report Summaries */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <ReportSummaryCard title="日报" report={reports.daily?.summary} href="/reports/daily" />
-        <ReportSummaryCard title="周报" report={reports.weekly?.summary} href="/api/reports/weekly" />
-        <ReportSummaryCard title="月报" report={reports.monthly?.summary} href="/api/reports/monthly" />
+        <ReportSummaryCard title="周报" report={reports.weekly?.summary} href="/reports/weekly" />
+        <ReportSummaryCard title="月报" report={reports.monthly?.summary} href="/reports/monthly" />
       </div>
 
       {/* Store Cards */}

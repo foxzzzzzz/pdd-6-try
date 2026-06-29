@@ -38,7 +38,7 @@ export const navigationSections: NavItem[] = [
       { path: '/rule-reviews', label: '规则复核', icon: ShieldCheck },
     ],
   },
-  { path: '/stores', label: '店铺配置', icon: Store },
+  { path: '/stores', label: '店铺详情', icon: Store },
 ];
 
 export default function Layout() {
@@ -107,6 +107,7 @@ function NavLink({ item, active, child = false }: { item: NavItem; active: boole
 
 function isActive(path: string, pathname: string): boolean {
   if (path === '/') return pathname === '/';
+  if (path === '/reports/daily') return pathname.startsWith('/reports/');
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 

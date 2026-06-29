@@ -24,6 +24,12 @@
 - Web 新增完整日报总览页 `/reports/daily`：支持日期选择、归档/动态生成状态展示、总体摘要、关注店铺、建议事项和店铺明细；Dashboard 日报摘要卡改为整卡跳转到日报页，不再只打开 API JSON。
 - `docs/spec.md` 同步需求边界：当前阶段优先对齐需求A，需求B仅保留商品体检、店铺违规和商品推广的后续数据模型/UI设计预留。
 - 自定义 favicon：蓝盾+放大镜+绿色勾 SVG 图标，替换默认 Vite 图标。
+- Web 新增周报/月报页面 `/reports/weekly`、`/reports/monthly`：复用日报 UI 结构（统计卡片 + 总体摘要 + 关注店铺 + 建议事项 + 店铺明细表），不再展示原始 JSON。
+- Web 新增规则复核页面 `/rule-reviews`、风控事件页面 `/risk-events`：运营可在 Web 直接完成月度复核和风控事件处理；Dashboard 顶部风控/规则过期警告增加跳转按钮。
+- 侧边栏重构为分组结构（巡店总览/风控管理/店铺详情），「日报总览」active 覆盖 `/reports/*` 全部子页面，「店铺配置」更名为「店铺详情」。
+
+### 修复
+- 规则复核日期保存时的时区偏移 bug：`dateToIso` 缺少 `Z` 后缀，导致日期差 8 小时。
 
 ### 优化
 - Web 前端 UI 全面升级：引入 `lucide-react` SVG 图标库替代全部 Emoji 图标；统一 slate/emerald/amber/red 语义色板；所有交互元素添加 focus ring 和 150ms 过渡动画；卡片 hover 阴影和 border 过渡；加载态使用 spinner 替代空白文本；消费者体验指标新增 6 项卡片式展示；店铺状态使用彩色圆点+文字标签；表单输入框统一 focus 样式。
