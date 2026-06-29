@@ -373,7 +373,7 @@ failed
 - 浏览器固定窗口尺寸 `--window-size=1920,1080` 和 `viewport=1920x1080`，不再硬编码 UA，也不再使用 `--disable-blink-features=AutomationControlled`。
 - 默认不再传入 `--no-sandbox` 或 `--disable-setuid-sandbox`；仅保留 `BROWSER_DISABLE_SANDBOX=true` 作为明确的本地调试兜底，不作为生产默认策略。
 - 对有 `operatorId + storeId` 绑定的巡店和 action 执行，默认使用 persistent `userDataDir`，目录由 `profileKey` 稳定映射生成；同一 profile 打开前会创建 `.profile.lock`，关闭时释放，超过 `BROWSER_PROFILE_LOCK_STALE_MS` 的陈旧锁可自动清理。
-- 只读巡店采集也按真实运营节奏降速：首个数据页前默认等待 `8-20s`，每次直接 URL 导航前等待 `3-8s`、导航后等待 `5-12s`，模块之间等待 `6-15s`；分别可通过 `WORKER_READ_FIRST_PAGE_DELAY_MS`、`WORKER_READ_NAV_BEFORE_DELAY_MS`、`WORKER_READ_NAV_AFTER_DELAY_MS`、`WORKER_READ_MODULE_GAP_MS` 调整。
+- 只读巡店采集也按真实运营节奏降速，但会结合实测耗时控制总巡店时长：首个数据页前默认等待 `3-6s`，每次直接 URL 导航前等待 `1-2.5s`、导航后等待 `2.5-5.5s`，模块之间等待 `1.5-4s`；分别可通过 `WORKER_READ_FIRST_PAGE_DELAY_MS`、`WORKER_READ_NAV_BEFORE_DELAY_MS`、`WORKER_READ_NAV_AFTER_DELAY_MS`、`WORKER_READ_MODULE_GAP_MS` 调整。按 8 个页面估算，默认人工延时均值约 70s，目标是让单店巡店尽量控制在 120s 内。
 
 仍需后续实测/观察：
 

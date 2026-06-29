@@ -11,10 +11,10 @@ const HUMAN_CLICK_BEFORE_MS: [number, number] = [500, 1500];
 const HUMAN_CLICK_AFTER_MS: [number, number] = [800, 2000];
 const HUMAN_FILL_BEFORE_MS: [number, number] = [500, 1200];
 const HUMAN_FILL_AFTER_MS: [number, number] = [600, 1500];
-const DEFAULT_READ_NAV_BEFORE_MS: [number, number] = [3000, 8000];
-const DEFAULT_READ_NAV_AFTER_MS: [number, number] = [5000, 12000];
-const DEFAULT_READ_MODULE_GAP_MS: [number, number] = [6000, 15000];
-const DEFAULT_READ_FIRST_PAGE_DELAY_MS: [number, number] = [8000, 20000];
+const DEFAULT_READ_NAV_BEFORE_MS: [number, number] = [1000, 2500];
+const DEFAULT_READ_NAV_AFTER_MS: [number, number] = [2500, 5500];
+const DEFAULT_READ_MODULE_GAP_MS: [number, number] = [1500, 4000];
+const DEFAULT_READ_FIRST_PAGE_DELAY_MS: [number, number] = [3000, 6000];
 
 export interface BrowserInitOptions {
   headless?: boolean;
@@ -37,6 +37,7 @@ export interface BrowserRuntimeOptions {
     viewport: { width: number; height: number };
     locale: string;
   };
+  ignoreDefaultArgs: string[];
   readPacing: ReadPacingOptions;
 }
 
@@ -101,6 +102,7 @@ export function buildBrowserRuntimeOptions(options: BrowserInitOptions = {}): Br
       viewport,
       locale: 'zh-CN',
     },
+    ignoreDefaultArgs: ['--no-sandbox'],
     readPacing: resolveReadPacingOptions(),
   };
 }
@@ -346,6 +348,7 @@ export class BrowserManager {
     const launchOptions = {
       headless: options.headless,
       args: options.args,
+      ignoreDefaultArgs: options.ignoreDefaultArgs,
       ...(options.channel ? { channel: options.channel } : {}),
     };
     const contextOptions = {

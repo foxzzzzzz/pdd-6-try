@@ -1,8 +1,8 @@
 # Phase 2 单元测试报告
 
-**日期**: 2026-06-28
+**日期**: 2026-06-29
 **版本**: v0.2.0
-**结果**: 207/207 通过 (100%)
+**结果**: 208/208 通过 (100%)
 
 ## 测试结果
 
@@ -96,6 +96,7 @@
 | 浏览器登录态恢复包含 localStorage origins | ✅ |  |
 | 非法浏览器登录态返回 undefined | ✅ |  |
 | browser defaults do not disable Chrome sandbox | ✅ |  |
+| browser defaults remove Playwright no-sandbox default arg | ✅ |  |
 | browser sandbox disable flags require explicit env opt-in | ✅ |  |
 | 浏览器默认使用可见模式 | ✅ |  |
 | 浏览器默认使用系统 Chrome channel | ✅ |  |
@@ -107,10 +108,10 @@
 | 显式 chromium 可跳过系统 Chrome 检查 | ✅ |  |
 | 拟人化点击等待范围可配置且带随机抖动 | ✅ |  |
 | 拟人化等待会修正非法范围 | ✅ |  |
-| 读采集默认导航前等待 3-8 秒 | ✅ |  |
-| 读采集默认导航后等待 5-12 秒 | ✅ |  |
-| 读采集默认模块间等待 6-15 秒 | ✅ |  |
-| 读采集默认首屏等待 8-20 秒 | ✅ |  |
+| 读采集默认导航前等待 1-2.5 秒 | ✅ |  |
+| 读采集默认导航后等待 2.5-5.5 秒 | ✅ |  |
+| 读采集默认模块间等待 1.5-4 秒 | ✅ |  |
+| 读采集默认首屏等待 3-6 秒 | ✅ |  |
 | 读采集导航前等待支持环境变量覆盖 | ✅ |  |
 | PDD login URL is detected as login | ✅ |  |
 | PDD backend text is authenticated even when URL stays on root | ✅ |  |
@@ -217,6 +218,6 @@
 | 多变量填充 | ✅ |  |
 
 ## 汇总
-- ✅ 通过: 207
+- ✅ 通过: 208
 - ❌ 失败: 0
 - 📊 通过率: 100%

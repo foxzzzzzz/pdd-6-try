@@ -360,6 +360,7 @@ assert('浏览器登录态恢复包含 localStorage origins', storedState?.origi
 assert('非法浏览器登录态返回 undefined', parseStoredStorageState('{bad json') === undefined);
 const browserDefaults = buildBrowserRuntimeOptions();
 assert('browser defaults do not disable Chrome sandbox', !browserDefaults.args.includes('--no-sandbox') && !browserDefaults.args.includes('--disable-setuid-sandbox'));
+assert('browser defaults remove Playwright no-sandbox default arg', browserDefaults.ignoreDefaultArgs.includes('--no-sandbox'));
 const previousDisableSandbox = process.env.BROWSER_DISABLE_SANDBOX;
 process.env.BROWSER_DISABLE_SANDBOX = 'true';
 const sandboxDisabledBrowser = buildBrowserRuntimeOptions();
@@ -377,10 +378,10 @@ assert('显式 chromium 可跳过系统 Chrome 检查', getBrowserEnvironmentSta
 assert('拟人化点击等待范围可配置且带随机抖动', resolveHumanDelayMs([500, 1500], 0.5) === 1000);
 assert('拟人化等待会修正非法范围', resolveHumanDelayMs([1500, 500], 0.5) === 1500);
 const readPacingDefaults = resolveReadPacingOptions();
-assert('读采集默认导航前等待 3-8 秒', readPacingDefaults.navigationBeforeMs[0] === 3000 && readPacingDefaults.navigationBeforeMs[1] === 8000);
-assert('读采集默认导航后等待 5-12 秒', readPacingDefaults.navigationAfterMs[0] === 5000 && readPacingDefaults.navigationAfterMs[1] === 12000);
-assert('读采集默认模块间等待 6-15 秒', readPacingDefaults.moduleGapMs[0] === 6000 && readPacingDefaults.moduleGapMs[1] === 15000);
-assert('读采集默认首屏等待 8-20 秒', readPacingDefaults.firstPageDelayMs[0] === 8000 && readPacingDefaults.firstPageDelayMs[1] === 20000);
+assert('读采集默认导航前等待 1-2.5 秒', readPacingDefaults.navigationBeforeMs[0] === 1000 && readPacingDefaults.navigationBeforeMs[1] === 2500);
+assert('读采集默认导航后等待 2.5-5.5 秒', readPacingDefaults.navigationAfterMs[0] === 2500 && readPacingDefaults.navigationAfterMs[1] === 5500);
+assert('读采集默认模块间等待 1.5-4 秒', readPacingDefaults.moduleGapMs[0] === 1500 && readPacingDefaults.moduleGapMs[1] === 4000);
+assert('读采集默认首屏等待 3-6 秒', readPacingDefaults.firstPageDelayMs[0] === 3000 && readPacingDefaults.firstPageDelayMs[1] === 6000);
 const previousReadNavBefore = process.env.WORKER_READ_NAV_BEFORE_DELAY_MS;
 process.env.WORKER_READ_NAV_BEFORE_DELAY_MS = '1000-2000';
 const readPacingOverride = resolveReadPacingOptions();
