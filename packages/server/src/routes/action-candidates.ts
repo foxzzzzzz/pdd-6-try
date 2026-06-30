@@ -7,7 +7,7 @@ import * as path from 'path';
 
 type CandidateStatus = 'pending_approval' | 'approved' | 'queued' | 'skipped';
 type CandidateKind = 'review' | 'interaction';
-type ActionCandidateRow = Record<string, unknown> & { createdAt?: string | null };
+type ActionCandidateRow = Record<string, unknown> & { createdAt?: string | null; reviewCreatedAt?: string | null };
 type ActionJobCandidateRow = {
   id: number;
   storeId: number;
@@ -35,7 +35,7 @@ export async function actionCandidateRoutes(app: FastifyInstance) {
       ...listReviewCandidates(db, status, storeId, type),
       ...listInteractionCandidates(db, status, storeId, type),
     ];
-    return rows.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    return sortActionCandidates(rows);
   });
 
   app.post<{
@@ -51,6 +51,48 @@ export async function actionCandidateRoutes(app: FastifyInstance) {
   }>('/api/action-candidates/:kind/:id/skip', async (req) => {
     return updateCandidate(req.params.kind, parseInt(req.params.id, 10), 'skipped', requireOperatorId(req.body?.operatorId));
   });
+}
+
+export function sortActionCandidates(rows: ActionCandidateRow[]): ActionCandidateRow[] {
+  return dedupeActionCandidates(rows).sort((a, b) => {
+    const aHasReviewTime = Boolean(a.reviewCreatedAt);
+    const bHasReviewTime = Boolean(b.reviewCreatedAt);
+    if (aHasReviewTime !== bHasReviewTime) return aHasReviewTime ? -1 : 1;
+    const primary = candidateSortTime(b).localeCompare(candidateSortTime(a));
+    if (primary !== 0) return primary;
+    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+  });
+}
+
+function candidateSortTime(row: ActionCandidateRow): string {
+  return String(row.reviewCreatedAt || '').replace(' ', 'T');
+}
+
+function dedupeActionCandidates(rows: ActionCandidateRow[]): ActionCandidateRow[] {
+  const byKey = new Map<string, ActionCandidateRow>();
+  const result: ActionCandidateRow[] = [];
+  for (const row of rows) {
+    const key = actionCandidateDedupeKey(row);
+    if (!key) {
+      result.push(row);
+      continue;
+    }
+    const current = byKey.get(key);
+    if (!current || candidateCreatedAt(row) > candidateCreatedAt(current)) {
+      byKey.set(key, row);
+    }
+  }
+  return result.concat(Array.from(byKey.values()));
+}
+
+function actionCandidateDedupeKey(row: ActionCandidateRow): string | null {
+  const sourceId = row.sourceId;
+  if (!sourceId) return null;
+  return [row.kind, row.storeId, row.actionType, sourceId].map((value) => String(value || '')).join('|');
+}
+
+function candidateCreatedAt(row: ActionCandidateRow): string {
+  return String(row.createdAt || '');
 }
 
 function listReviewCandidates(db: AppDb, status: string, storeId: number | null, type: string | null): ActionCandidateRow[] {

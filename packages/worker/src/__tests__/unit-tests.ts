@@ -35,9 +35,10 @@ import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator
 import { evaluateSelectorHealth, isModuleDegradedFromEvents, shouldBlockWriteActionForSelectorHealth } from '../selector-health';
 import { isRuleReviewExpired, shouldBlockActionForRuleReview } from '../rule-review';
 import { buildBrowserRuntimeOptions, inferPddPageLoginState, inferPddSecurityChallenge, isPddLoginUrl, parseStoredStorageState, resolveHumanDelayMs, resolveProfileDirectory, resolveReadPacingOptions } from '../browser';
-import { buildPendingReportApprovalDetail, isReviewWithinLastHours, parseReviewBodyRowText, parseReviewGroupedRows, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
+import { buildPendingReportApprovalDetail, isReviewWithinLastHours, parseReviewBodyGroupText, parseReviewBodyRowText, parseReviewGroupedRows, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 import { parseApprovalFlag } from '../worker-env';
+import { shouldInsertReviewActionDetail } from '../inspector';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
 
@@ -64,6 +65,12 @@ function nearlyEqual(actual: number | null | undefined, expected: number): boole
 // ========== Test 0a: Review action time window ==========
 console.log('\nReview action time window');
 
+const filterStarBadReviewRow = parseReviewBodyRowText(`\u53c8\u54b8\u53c8\u96be\u5403
+2026-06-30 07:52:05
+\u8ba2\u5355\u7f16\u53f7\uff1a260620-137887772253633
+\u67e5\u770b\u8ba2\u5355
+\u4e3e\u62a5
+\u56de\u590d/\u4e92\u52a8`, 'filter-star-bad-row', null, 1);
 const timedReviewRow = parseReviewRowText(`\u7528\u6237\u8bc4\u4ef7\u5206\uff1a \u2605\u2605\u2605\u2605\u2605    \u88ab\u70b9\u8d5e\u6570\uff1a0    \u4e92\u52a8\u6570\uff1a0
 \u8be5\u7528\u6237\u89c9\u5f97\u5546\u54c1\u5f88\u597d\uff0c\u7ed9\u51fa\u4e865\u661f\u597d\u8bc4
 2026-06-17 16:59:53
@@ -102,6 +109,29 @@ const groupedRefundTagBadReviewRows = parseReviewGroupedRows([
 \u4e3e\u62a5
 \u56de\u590d/\u4e92\u52a8`, domStars: null },
 ]);
+const realPddBodyGroupReview = parseReviewBodyGroupText(`用户评价分：
+被点赞数：0
+互动数：0
+又咸又难吃
+2026-06-30 07:52:05
+订单编号：260620-137887772253633
+买家昵称：优***
+查看订单
+举报
+回复/互动`, 'real-pdd-body-group', 1);
+const reportedSuccessReviewRow = parseReviewBodyRowText(`\u4e3e\u62a5\u6210\u529f\uff0c\u4e0d\u8ba1\u5165\u5e97\u94fa\u8003\u6838
+\u8be5\u7528\u6237\u672a\u586b\u5199\u6587\u5b57\u8bc4\u4ef7
+2026-06-28 09:10:06
+\u8ba2\u5355\u7f16\u53f7\uff1a260622-175500183142268
+\u67e5\u770b\u8ba2\u5355
+\u56de\u590d/\u4e92\u52a8`, 'reported-success-row', null, 1);
+const reportedFailedReviewRow = parseReviewBodyRowText(`\u5df2\u8fd40.5\u5143\u73b0\u91d1
+\u4e3e\u62a5\u5931\u8d25\uff0c\u7ecf\u5e73\u53f0\u5ba1\u6838\u4e0d\u7b26\u5408\u4e3e\u62a5\u8981\u6c42
+\u4e00\u4e2a\u5c0f\u9e2d\u5b50\uff0c\u548c\u56fe\u7247\u4e0a\u4e0d\u4e00\u6837
+2026-06-28 08:08:58
+\u8ba2\u5355\u7f16\u53f7\uff1a260623-666831459914013
+\u67e5\u770b\u8ba2\u5355
+\u56de\u590d/\u4e92\u52a8`, 'reported-failed-row', null, 1);
 assert('review row extracts createdAt', timedReviewRow?.createdAt === '2026-06-17 16:59:53');
 assert('review body row extracts createdAt', timedReviewBodyRow?.createdAt === '2026-06-17 16:59:53');
 const reportApprovalWithReviewTime = buildPendingReportApprovalDetail(
@@ -109,12 +139,16 @@ const reportApprovalWithReviewTime = buildPendingReportApprovalDetail(
   'report template',
   { mode: 'dry-run', approvalRequired: { report: true, hide: true, reply: true }, approvedActions: { report: false, hide: false, reply: false } },
 );
+assert('review body row uses filter star when DOM stars are missing', filterStarBadReviewRow?.stars === 1 && filterStarBadReviewRow.content === '\u53c8\u54b8\u53c8\u96be\u5403');
 assert('pending review action keeps platform review time', reportApprovalWithReviewTime.reviewCreatedAt === '2026-06-17 16:59:53');
 assert('review body row uses DOM star count when innerText has icon-only stars', iconOnlyBadReviewRow?.stars === 3);
 assert('grouped review rows inherit icon-only stars from score header row', groupedIconBadReviewRows[0]?.stars === 1);
 assert('grouped review rows keep bad review content row', groupedIconBadReviewRows[0]?.content === '\u8be5\u7528\u6237\u672a\u586b\u5199\u6587\u5b57\u8bc4\u4ef7');
 assert('grouped review rows skip refund tag before bad review content', groupedRefundTagBadReviewRows[0]?.content === '\u4e00\u4e2a\u5c0f\u9e2d\u5b50\uff0c\u548c\u56fe\u7247\u4e0a\u4e0d\u4e00\u6837');
 assert('grouped review rows inherit already reported status', groupedRefundTagBadReviewRows[0]?.alreadyReported === true);
+assert('real PDD body group extracts one-star bad review', realPddBodyGroupReview?.stars === 1 && realPddBodyGroupReview.content === '又咸又难吃');
+assert('review row treats report success result as already reported', reportedSuccessReviewRow?.alreadyReported === true);
+assert('review row treats report failed result as already reported', reportedFailedReviewRow?.alreadyReported === true);
 assert('review timestamp parses as CST', parseReviewTimestamp('2026-06-17 16:59:53')?.toISOString() === '2026-06-17T08:59:53.000Z');
 const reviewWindowNow = new Date('2026-06-20T16:59:53+08:00');
 assert('review exactly inside 72 hour window is actionable', isReviewWithinLastHours('2026-06-17 16:59:53', reviewWindowNow, 72));
@@ -321,6 +355,9 @@ const scanReportDetail = buildPendingReportApprovalDetail(
   'report-scan.png',
 );
 assert('inspection scan creates report approval candidate only', scanReportDetail.status === 'pending_approval');
+assert('inspection scan skips duplicate pending review action', !shouldInsertReviewActionDetail([
+  { storeId: 7, reviewId: 'review-1', actionType: 'report', status: 'pending_approval' },
+], 7, scanReportDetail));
 
 const approvedHideSafety = resolveActionSafety({
   mode: 'real-run',

@@ -14,7 +14,7 @@ export function formatAuditTime(value?: string | null): string {
 }
 
 export function formatPlatformLocalTime(value?: string | null): string {
-  return value || '评价时间缺失';
+  return value || '?';
 }
 
 export function todayShanghaiDate(now = new Date()): string {

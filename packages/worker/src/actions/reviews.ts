@@ -14,6 +14,7 @@ const REVIEW_DEBUG_DIR = path.resolve(process.env.REVIEW_DEBUG_DIR || './data/ac
 export interface ReviewActionResult { details: ReviewActionDetail[]; replied: number; reported: number; skipped: number; failed: number; }
 interface ReviewRow { id: string; content: string; stars: number; createdAt: string | null; alreadyReported?: boolean; row?: any; }
 interface ReviewRowInput { text: string; domStars: number | null; row?: any; }
+interface ReviewBodyGroupDiagnostic { index: number; domStars: number | null; parsed: ReviewRow | null; textPreview: string; }
 type ReportTemplateResolver = (r: { content: string; stars: number }) => string | Promise<string>;
 export interface ReviewActionCandidate {
   id: number;
@@ -90,7 +91,10 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
   const result: ReviewActionResult = { details: [], replied: 0, reported: 0, skipped: 0, failed: 0 };
   try {
     await browser.navigateWithRetry(REVIEW_URL);
-    const reviews = await getReviewRowsForStars(browser, page, [1, 2, 3]);
+    const reviews: ReviewRow[] = [];
+    for (const star of [1, 2, 3]) {
+      reviews.push(...await getReviewRowsForStars(browser, page, [star]));
+    }
     const alreadyReportedCount = reviews.filter((review) => review.alreadyReported).length;
     console.log(`  Found ${reviews.length} bad reviews (${alreadyReportedCount} already reported)`);
     const pageScreenshot = await browser.takeScreenshot(storeId, 'reviews-report-scan');
@@ -169,11 +173,12 @@ export async function executeReviewActionCandidate(
   const expectedStars = candidate.reviewStars || (candidate.actionType === 'reply' ? 5 : 1);
 
   await browser.navigateWithRetry(REVIEW_URL);
-  await filterByStars(browser, page, candidate.actionType === 'reply' ? [4, 5] : [1, 2, 3]);
+  const candidateStars = candidate.actionType === 'reply' ? [4, 5] : [expectedStars];
+  await filterByStars(browser, page, candidateStars);
   await dismissBlockingModal(page);
 
   const pageScreenshot = await browser.takeScreenshot(storeId, `review-${candidate.actionType}-candidate-scan`);
-  const reviews = (await getReviewRows(page)).filter((review) =>
+  const reviews = (await getReviewRows(page, candidate.actionType === 'reply' ? null : expectedStars)).filter((review) =>
     candidate.actionType === 'reply' ? review.stars >= 4 : review.stars <= 3,
   );
   const review = findReviewCandidateRow(reviews, candidate);
@@ -311,54 +316,99 @@ function normalizeText(value: string): string {
 }
 
 async function filterByStars(browser: BrowserManager, page: any, stars: number[]): Promise<void> {
-  const filtered = await page.evaluate((targetStars: number[]) => {
-    const isVisible = (el: Element) => {
-      const rect = el.getBoundingClientRect();
-      const style = window.getComputedStyle(el);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-    };
-    const textOf = (el: Element) => ((el as HTMLElement).innerText || el.textContent || '').replace(/\s+/g, '');
-    const scoreSection = Array.from(document.querySelectorAll('[class*="evaluation_search_content"]'))
-      .filter((el) => isVisible(el))
-      .find((el) => {
-        const text = textOf(el);
-        return text.includes('用户评价得分') && text.includes('1星') && text.includes('5星');
-      });
-    const searchRoot = scoreSection?.closest('[class*="evaluation_search_mainContent"]');
-    if (!scoreSection || !searchRoot) return { clicked: 0, queried: false, url: location.href };
+  let clicked = 0;
+  const targetLabels = stars.map((star) => `${star}星`);
+  const selectedBefore = await getSelectedReviewScoreFilters(page);
+  for (const selected of selectedBefore) {
+    if (targetLabels.includes(selected)) continue;
+    const option = await findReviewSearchOption(page, '用户评价得分', selected);
+    if (!option) continue;
+    await browser.humanClick(option, { force: true });
+    clicked++;
+  }
+  const selectedAfterClear = await getSelectedReviewScoreFilters(page);
+  for (const label of targetLabels) {
+    if (selectedAfterClear.includes(label)) continue;
+    const option = await findReviewSearchOption(page, '用户评价得分', label);
+    if (!option) continue;
+    await browser.humanClick(option, { force: true });
+    clicked++;
+  }
 
-    let clicked = 0;
-    for (const star of targetStars) {
-      const starText = `${star}星`;
-      const target = Array.from(scoreSection.querySelectorAll('button, a, label, span, div'))
-        .filter((el) => isVisible(el))
-        .filter((el) => textOf(el) === starText)
-        .sort((a, b) => {
-          const ar = a.getBoundingClientRect();
-          const br = b.getBoundingClientRect();
-          return (ar.width * ar.height) - (br.width * br.height);
-        })[0] as HTMLElement | undefined;
-      if (target) {
-        target.click();
-        clicked++;
-      }
-    }
-
-    const query = Array.from(searchRoot.querySelectorAll('button, a, [role="button"]'))
-      .filter((el) => isVisible(el))
-      .find((el) => textOf(el) === '查询') as HTMLElement | undefined;
-    if (!query) return { clicked, queried: false, url: location.href };
-    query.click();
-    return { clicked, queried: true, url: location.href };
-  }, stars).catch(() => ({ clicked: 0, queried: false, url: page.url() }));
+  const selected = await getSelectedReviewScoreFilters(page);
+  const query = await findReviewSearchButton(page);
+  if (query) {
+    await browser.humanClick(query, { force: true });
+  }
+  const filtered = {
+    clicked,
+    queried: Boolean(query),
+    selected,
+    url: page.url(),
+  };
   if (!filtered.clicked || !filtered.queried) {
     console.log(`  Review star filter did not find scoped controls: clicked=${filtered.clicked} queried=${filtered.queried} url=${filtered.url}`);
+  }
+  const missingSelected = stars.filter((star) => !filtered.selected.includes(`${star}星`));
+  if (missingSelected.length > 0) {
+    console.log(`  Review star filter did not confirm selected controls: missing=${missingSelected.join('/')} selected=${filtered.selected.join('/') || 'none'} url=${filtered.url}`);
   }
   await page.waitForTimeout(1500);
   if (!page.url().includes('/goods/evaluation/')) {
     console.log(`  Review star filter left evaluation page, navigating back: ${page.url()}`);
     await browser.navigateWithRetry(REVIEW_URL).catch(() => undefined);
   }
+}
+
+async function findReviewSearchOption(page: any, sectionTitle: string, optionText: string): Promise<any | null> {
+  const sections = await page.$$('[class*="evaluation_search_content"]');
+  for (const section of sections) {
+    const title = await section.$eval('[class*="evaluation_search_firstTitle"]', (el: HTMLElement) =>
+      ((el.innerText || el.textContent || '').replace(/\s+/g, '')),
+    ).catch(() => '');
+    if (title !== sectionTitle) continue;
+    const options = await section.$$('[class*="evaluation_search_btn"]');
+    for (const option of options) {
+      const text = await option.innerText().catch(() => '');
+      if (text.replace(/\s+/g, '') === optionText) return option;
+    }
+  }
+  return null;
+}
+
+async function findReviewSearchButton(page: any): Promise<any | null> {
+  const root = await page.$('[class*="evaluation_search_mainContent"]');
+  const buttons = root ? await root.$$('button, a, [role="button"]') : await page.$$('button, a, [role="button"]');
+  for (const button of buttons) {
+    const text = await button.innerText().catch(() => '');
+    if (text.replace(/\s+/g, '') === '查询') return button;
+  }
+  return null;
+}
+
+async function getSelectedReviewScoreFilters(page: any): Promise<string[]> {
+  const selected: string[] = [];
+  const section = await findReviewSearchSection(page, '用户评价得分');
+  if (!section) return selected;
+  const options = await section.$$('[class*="evaluation_search_btn"]');
+  for (const option of options) {
+    const className = await option.getAttribute('class').catch(() => '') || '';
+    if (!className.includes('checked')) continue;
+    const text = await option.innerText().catch(() => '');
+    selected.push(text.replace(/\s+/g, ''));
+  }
+  return selected;
+}
+
+async function findReviewSearchSection(page: any, sectionTitle: string): Promise<any | null> {
+  const sections = await page.$$('[class*="evaluation_search_content"]');
+  for (const section of sections) {
+    const title = await section.$eval('[class*="evaluation_search_firstTitle"]', (el: HTMLElement) =>
+      ((el.innerText || el.textContent || '').replace(/\s+/g, '')),
+    ).catch(() => '');
+    if (title === sectionTitle) return section;
+  }
+  return null;
 }
 
 async function dismissBlockingModal(page: any): Promise<void> {
@@ -432,20 +482,27 @@ async function hasQuickReplyModal(page: any): Promise<boolean> {
   }).catch(() => false);
 }
 
-async function getReviewRows(page: any): Promise<ReviewRow[]> {
-  const tableRows = await collectReviewRows(await page.$$('tr'));
+async function getReviewRows(page: any, filterStar: number | null = null): Promise<ReviewRow[]> {
+  const bodyGroupHandles = await page.$$('[data-testid="beast-core-table-middle-body"], [class*="TB_bodyGroup"]');
+  const bodyGroups = await collectReviewBodyGroups(bodyGroupHandles, filterStar);
+  if (bodyGroupHandles.length > 0) {
+    console.log(`  Review body groups parsed: ${bodyGroups.length}/${bodyGroupHandles.length}`);
+  }
+  if (bodyGroups.length > 0) return bodyGroups;
+  const tableRows = await collectReviewRows(await page.$$('tr'), filterStar);
   if (tableRows.length > 0) return tableRows;
-  return collectReviewRows(await page.$$('[class*="table"] [class*="row"], [class*="review"], [class*="comment"], [class*="evaluation"], [class*="item"]'));
+  return collectReviewRows(await page.$$('[class*="table"] [class*="row"], [class*="review"], [class*="comment"], [class*="evaluation"], [class*="item"]'), filterStar);
 }
 
 async function getReviewRowsForStars(browser: BrowserManager, page: any, stars: number[]): Promise<ReviewRow[]> {
   const rows: ReviewRow[] = [];
   const seen = new Set<string>();
   await filterByStars(browser, page, stars);
-  const reviewRows = await getReviewRows(page);
+  const filterStar = stars.length === 1 ? stars[0] : null;
+  const reviewRows = await getReviewRows(page, filterStar);
   const reviews = reviewRows.filter((review) => stars.includes(review.stars));
   if (reviews.length === 0) {
-    const debugPath = await writeReviewScanDebug(page, stars[0] || 0, reviewRows);
+    const debugPath = await writeReviewScanDebug(page, stars[0] || 0, reviewRows, filterStar);
     if (debugPath) console.log(`  Review scan debug for ${stars.join('/')} stars: ${debugPath}`);
   }
   for (const review of reviews) {
@@ -457,16 +514,18 @@ async function getReviewRowsForStars(browser: BrowserManager, page: any, stars: 
   return rows;
 }
 
-async function writeReviewScanDebug(page: any, star: number, parsedRows: ReviewRow[]): Promise<string | null> {
+async function writeReviewScanDebug(page: any, star: number, parsedRows: ReviewRow[], filterStar: number | null = null): Promise<string | null> {
   try {
     fs.mkdirSync(REVIEW_DEBUG_DIR, { recursive: true });
     const timestamp = Date.now();
+    const bodyGroupHandles = await page.$$('[data-testid="beast-core-table-middle-body"], [class*="TB_bodyGroup"]');
+    const bodyGroupDiagnostics = await collectReviewBodyGroupDiagnostics(bodyGroupHandles, 80, filterStar);
     const rowHandles = await page.$$('tr, [class*="table"] [class*="row"], [class*="review"], [class*="comment"], [class*="evaluation"], [class*="item"]');
     const rows = [];
     for (let i = 0; i < Math.min(rowHandles.length, 80); i++) {
       const text = await rowHandles[i].innerText().catch(() => '');
       const domStars = await extractReviewStarsFromRow(rowHandles[i]);
-      const parsed = parseReviewRowText(text, `debug-${i}`, domStars) || parseReviewBodyRowText(text, `debug-${i}`, domStars);
+      const parsed = parseReviewRowText(text, `debug-${i}`, domStars, filterStar) || parseReviewBodyRowText(text, `debug-${i}`, domStars, filterStar);
       rows.push({
         index: i,
         domStars,
@@ -495,6 +554,13 @@ async function writeReviewScanDebug(page: any, star: number, parsedRows: ReviewR
         createdAt: row.createdAt,
         content: row.content,
       })),
+      bodyGroupCount: bodyGroupHandles.length,
+      bodyGroups: bodyGroupDiagnostics.map((item) => ({
+        index: item.index,
+        domStars: item.domStars,
+        parsed: item.parsed ? toReviewDebugRow(item.parsed) : null,
+        textPreview: item.textPreview,
+      })),
       controls,
       rows,
     };
@@ -511,25 +577,80 @@ async function writeReviewScanDebug(page: any, star: number, parsedRows: ReviewR
   }
 }
 
-async function collectReviewRows(rowHandles: any[]): Promise<ReviewRow[]> {
+async function collectReviewRows(rowHandles: any[], filterStar: number | null = null): Promise<ReviewRow[]> {
   const inputs: ReviewRowInput[] = [];
   for (let i = 0; i < rowHandles.length; i++) {
     const text = await rowHandles[i].innerText().catch(() => '');
     const domStars = await extractReviewStarsFromRow(rowHandles[i]);
     inputs.push({ text, domStars, row: rowHandles[i] });
   }
-  return parseReviewGroupedRows(inputs);
+  return parseReviewGroupedRows(inputs, filterStar);
 }
 
-export function parseReviewGroupedRows(inputs: ReviewRowInput[]): ReviewRow[] {
+async function collectReviewBodyGroups(groupHandles: any[], filterStar: number | null = null): Promise<ReviewRow[]> {
+  const reviews: ReviewRow[] = [];
+  const seen = new Set<string>();
+  const diagnostics = await collectReviewBodyGroupDiagnostics(groupHandles, groupHandles.length, filterStar);
+  console.log(`  Review TB_bodyGroup count: ${groupHandles.length}`);
+  for (const diagnostic of diagnostics) {
+    const review = diagnostic.parsed;
+    console.log(`  Review TB_bodyGroup #${diagnostic.index}: star_filled=${diagnostic.domStars ?? 'null'} parsed=${formatReviewDiagnostic(review)} text="${diagnostic.textPreview}"`);
+    if (!review) continue;
+    const key = `${review.id}|${review.content}|${review.stars}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    reviews.push({ ...review, row: groupHandles[diagnostic.index] });
+  }
+  return reviews;
+}
+
+async function collectReviewBodyGroupDiagnostics(groupHandles: any[], limit: number, filterStar: number | null = null): Promise<ReviewBodyGroupDiagnostic[]> {
+  const diagnostics: ReviewBodyGroupDiagnostic[] = [];
+  for (let i = 0; i < Math.min(groupHandles.length, limit); i++) {
+    const text = await groupHandles[i].innerText().catch(() => '');
+    const domStars = await extractReviewStarsFromRow(groupHandles[i]);
+    const parsed = parseReviewBodyGroupText(text, `g-${i}`, domStars, filterStar);
+    diagnostics.push({
+      index: i,
+      domStars,
+      parsed,
+      textPreview: previewText(text),
+    });
+  }
+  return diagnostics;
+}
+
+function toReviewDebugRow(row: ReviewRow) {
+  return {
+    id: row.id,
+    stars: row.stars,
+    createdAt: row.createdAt,
+    content: row.content,
+  };
+}
+
+function formatReviewDiagnostic(row: ReviewRow | null): string {
+  if (!row) return 'null';
+  return `${row.stars}star time=${row.createdAt || 'null'} order=${row.id} content="${previewText(row.content)}"`;
+}
+
+function previewText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().slice(0, 240);
+}
+
+export function parseReviewBodyGroupText(text: string, fallbackId = 'g-0', domStars: number | null = null, filterStar: number | null = null): ReviewRow | null {
+  return parseReviewRowText(text, fallbackId, domStars, filterStar) || parseReviewBodyRowText(text, fallbackId, domStars, filterStar);
+}
+
+export function parseReviewGroupedRows(inputs: ReviewRowInput[], filterStar: number | null = null): ReviewRow[] {
   const reviews: ReviewRow[] = [];
   const seen = new Set<string>();
   let pendingStars: number | null = null;
   let pendingAlreadyReported = false;
   for (let i = 0; i < inputs.length; i++) {
     const { text, domStars, row } = inputs[i];
-    const starsForRow = domStars || pendingStars;
-    const review = parseReviewRowText(text, `r-${i}`, starsForRow) || parseReviewBodyRowText(text, `r-${i}`, starsForRow);
+    const starsForRow = domStars || pendingStars || filterStar;
+    const review = parseReviewRowText(text, `r-${i}`, starsForRow, filterStar) || parseReviewBodyRowText(text, `r-${i}`, starsForRow, filterStar);
     if (!review && domStars && text.includes('\u7528\u6237\u8bc4\u4ef7\u5206')) {
       pendingStars = domStars;
       pendingAlreadyReported = text.includes('\u5df2\u4e3e\u62a5');
@@ -539,19 +660,19 @@ export function parseReviewGroupedRows(inputs: ReviewRowInput[]): ReviewRow[] {
     const key = `${review.id}|${review.content}|${review.stars}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    reviews.push({ ...review, alreadyReported: review.alreadyReported || pendingAlreadyReported || text.includes('\u5df2\u4e3e\u62a5'), row });
+    reviews.push({ ...review, alreadyReported: review.alreadyReported || pendingAlreadyReported || hasReviewReportResult(text), row });
     pendingStars = null;
     pendingAlreadyReported = false;
   }
   return reviews;
 }
 
-export function parseReviewRowText(text: string, fallbackId = 'r-0', domStars: number | null = null): ReviewRow | null {
+export function parseReviewRowText(text: string, fallbackId = 'r-0', domStars: number | null = null, filterStar: number | null = null): ReviewRow | null {
   if (!text.includes('用户评价分')) return null;
   const scoreLine = text.split(/\r?\n/).find((line) => line.includes('用户评价分')) || text;
   const starChars = scoreLine.match(/[★]+/)?.[0] || '';
   const numericStars = scoreLine.match(/([1-5])\s*星/);
-  const stars = starChars.length > 0 ? Math.min(starChars.length, 5) : numericStars ? parseInt(numericStars[1], 10) : domStars || 0;
+  const stars = starChars.length > 0 ? Math.min(starChars.length, 5) : numericStars ? parseInt(numericStars[1], 10) : domStars || filterStar || 0;
   if (stars < 1 || stars > 5) return null;
 
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -559,7 +680,7 @@ export function parseReviewRowText(text: string, fallbackId = 'r-0', domStars: n
     if (line.includes('用户评价分')) return false;
     if (/^\d{4}-\d{2}-\d{2}/.test(line)) return false;
     if (/^\u5df2\u8fd4.*\u73b0\u91d1/.test(line)) return false;
-    if (/^\u5df2\u4e3e\u62a5/.test(line)) return false;
+    if (hasReviewReportResult(line)) return false;
     if (/^(查看订单|举报|回复\/互动|回复|订单编号|买家昵称|ID:|被点赞数|互动数)/.test(line)) return false;
     return line.length >= 4;
   });
@@ -567,26 +688,32 @@ export function parseReviewRowText(text: string, fallbackId = 'r-0', domStars: n
 
   const orderIdMatch = text.match(/订单编号[:：]\s*([0-9-]+)/);
   const idMatch = orderIdMatch?.[1].replace(/\D/g, '') || text.match(/\d{15,}/)?.[0];
-  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text), alreadyReported: text.includes('\u5df2\u4e3e\u62a5') };
+  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text), alreadyReported: hasReviewReportResult(text) };
 }
 
-export function parseReviewBodyRowText(text: string, fallbackId = 'r-0', domStars: number | null = null): ReviewRow | null {
+export function parseReviewBodyRowText(text: string, fallbackId = 'r-0', domStars: number | null = null, filterStar: number | null = null): ReviewRow | null {
   if (!text.includes('订单编号') || !text.includes('回复/互动')) return null;
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const content = lines.find((line) => {
     if (/^\d{4}-\d{2}-\d{2}/.test(line)) return false;
     if (/^\u5df2\u8fd4.*\u73b0\u91d1/.test(line)) return false;
-    if (/^\u5df2\u4e3e\u62a5/.test(line)) return false;
+    if (hasReviewReportResult(line)) return false;
     if (/^(查看订单|举报|回复\/互动|回复|订单编号|买家昵称|ID:)/.test(line)) return false;
     return line.length >= 4;
   });
   if (!content) return null;
 
-  const stars = domStars || inferReviewStars(content);
+  const stars = domStars || inferReviewStars(content) || filterStar;
   if (stars == null) return null;
   const orderIdMatch = text.match(/订单编号[:：]\s*([0-9-]+)/);
   const idMatch = orderIdMatch?.[1].replace(/\D/g, '') || text.match(/\d{15,}/)?.[0];
-  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text), alreadyReported: text.includes('\u5df2\u4e3e\u62a5') };
+  return { id: idMatch || fallbackId, content, stars, createdAt: extractReviewTimestampText(text), alreadyReported: hasReviewReportResult(text) };
+}
+
+function hasReviewReportResult(text: string): boolean {
+  return text.includes('\u5df2\u4e3e\u62a5')
+    || text.includes('\u4e3e\u62a5\u6210\u529f')
+    || text.includes('\u4e3e\u62a5\u5931\u8d25');
 }
 
 async function extractReviewStarsFromRow(row: any): Promise<number | null> {

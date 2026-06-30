@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-30
 **版本**: v0.2.0
-**结果**: 209/209 通过 (100%)
+**结果**: 214/214 通过 (100%)
 
 ## 测试结果
 
@@ -10,12 +10,16 @@
 |--------|------|------|
 | review row extracts createdAt | ✅ |  |
 | review body row extracts createdAt | ✅ |  |
+| review body row uses filter star when DOM stars are missing | ✅ |  |
 | pending review action keeps platform review time | ✅ |  |
 | review body row uses DOM star count when innerText has icon-only stars | ✅ |  |
 | grouped review rows inherit icon-only stars from score header row | ✅ |  |
 | grouped review rows keep bad review content row | ✅ |  |
 | grouped review rows skip refund tag before bad review content | ✅ |  |
 | grouped review rows inherit already reported status | ✅ |  |
+| real PDD body group extracts one-star bad review | ✅ |  |
+| review row treats report success result as already reported | ✅ |  |
+| review row treats report failed result as already reported | ✅ |  |
 | review timestamp parses as CST | ✅ |  |
 | review exactly inside 72 hour window is actionable | ✅ |  |
 | review older than 72 hours is skipped | ✅ |  |
@@ -77,6 +81,7 @@
 | real-run 支持限制最大写操作数 | ✅ |  |
 | 举报审批通过后可以提交 | ✅ |  |
 | inspection scan creates report approval candidate only | ✅ |  |
+| inspection scan skips duplicate pending review action | ✅ |  |
 | 隐藏审批通过后可以提交 | ✅ |  |
 | 好评回复达到每日上限后不提交 | ✅ |  |
 | 真实写操作 worker 并发强制不超过 1 | ✅ |  |
@@ -219,6 +224,6 @@
 | 多变量填充 | ✅ |  |
 
 ## 汇总
-- ✅ 通过: 209
+- ✅ 通过: 214
 - ❌ 失败: 0
 - 📊 通过率: 100%

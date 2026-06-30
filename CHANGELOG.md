@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Fixes
+- Review report candidates now exclude reviews that already show platform report results such as report success or report failure, and action candidates sort review items by platform review time newest first.
+- Action candidates now dedupe the same review/action across patrol runs, and inspection persistence skips creating another active review action when one already exists for the same store/review/action.
+- Review action candidates with missing platform review time now keep the missing value visible as `?` and sort after timed review candidates instead of falling back to action creation time.
+- Review bad-report scan now collects 1/2/3-star pages separately and uses the active filter star as the parsing context when the row text has no explicit star text and the DOM star icon is unavailable, matching the good-review fallback path.
+- 评价管理差评扫描改用真实 Playwright 点击筛选控件，并校验 1/2/3 星选中态；评价列表优先按平台 `TB_bodyGroup` 评价块解析 SVG 星级，避免页面筛选失效或 `innerText` 缺少星号时漏掉 1 星差评候选。
 - Tune read-only patrol pacing from the 2026-06-29 227s patrol run: default first-page, navigation, and module-gap delays are reduced while preserving jitter, targeting single-store patrols near 120s.
 - Read-only patrol collection now uses configurable human-paced delays: first data page pause, pre/post direct URL navigation waits, and module gaps. Fixed collector-level 2.5-3s waits were replaced by centralized randomized pacing to reduce rapid page-hopping.
 - Browser launch now keeps Chrome sandbox enabled by default and only passes `--window-size=1920,1080`; patrol flow detects PDD slider/captcha/security challenges, pauses the current store with screenshot/HTML evidence, waits for manual handling in visible Chrome, then refreshes the operator-store login state before continuing.

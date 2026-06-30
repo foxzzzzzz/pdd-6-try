@@ -1,5 +1,5 @@
 import { BrowserManager } from './browser';
-import { getDb, saveDb, schema, MetricsSnapshot, quoteSqlString } from '@pdd-inspector/core';
+import { getDb, saveDb, schema, MetricsSnapshot, quoteSqlString, type AppDb } from '@pdd-inspector/core';
 
 const log = (...args: any[]) => { try { process.stdout.write(args.join(' ') + '\n'); } catch { /* ignore */ } };
 import { eq, and, desc, sql } from 'drizzle-orm';
@@ -509,7 +509,9 @@ export async function inspectStore(
       .run();
 
     // Save review actions
+    const existingReviewActions = listExistingReviewActionKeys(db);
     for (const detail of reviewResult.details) {
+      if (!shouldInsertReviewActionDetail(existingReviewActions, storeId, detail)) continue;
       db.insert(schema.reviewActions)
         .values({
           storeId,
@@ -530,6 +532,12 @@ export async function inspectStore(
           operatorId: detail.operatorId || operatorId || null,
         })
         .run();
+      existingReviewActions.push({
+        storeId,
+        reviewId: detail.reviewId,
+        actionType: detail.actionType,
+        status: detail.status,
+      });
     }
 
     // Save interaction actions
@@ -611,6 +619,40 @@ export async function inspectStore(
   }
 
   return { success: errors.length === 0, completionRate, errors };
+}
+
+type ExistingReviewActionKey = {
+  storeId: number;
+  reviewId: string | null;
+  actionType: string;
+  status: string;
+};
+
+export function shouldInsertReviewActionDetail(
+  existing: ExistingReviewActionKey[],
+  storeId: number,
+  detail: { reviewId?: string | null; actionType: string; status: string },
+): boolean {
+  if (!detail.reviewId) return true;
+  return !existing.some((row) =>
+    row.storeId === storeId
+    && row.reviewId === detail.reviewId
+    && row.actionType === detail.actionType
+    && isDuplicateBlockingReviewActionStatus(row.status),
+  );
+}
+
+function listExistingReviewActionKeys(db: AppDb): ExistingReviewActionKey[] {
+  return db.all(sql.raw(`
+    SELECT store_id AS storeId, review_id AS reviewId, action_type AS actionType, status
+    FROM review_actions
+    WHERE review_id IS NOT NULL
+      AND status IN ('pending_approval', 'approved', 'queued', 'running', 'skipped', 'success')
+  `)) as ExistingReviewActionKey[];
+}
+
+function isDuplicateBlockingReviewActionStatus(status: string): boolean {
+  return ['pending_approval', 'approved', 'queued', 'running', 'skipped', 'success'].includes(status);
 }
 
 function shouldSkipModule(db: Awaited<ReturnType<typeof getDb>>, moduleKey: SelectorModuleKey, storeName: string): boolean {
