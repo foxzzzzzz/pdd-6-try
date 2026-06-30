@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Link } from 'react-router-dom';
 import { Play, TrendingUp, FileSpreadsheet, Download, CheckCircle2, AlertTriangle, AlertCircle, Star, Package, ChevronRight, ShieldAlert } from 'lucide-react';
+import { formatAuditTime } from '../time';
 
 interface StoreStatus {
   id: number; name: string; status: string; severity: string;
@@ -369,6 +370,5 @@ function SeverityBadge({ severity }: { severity: string }) {
 }
 
 function formatDateTime(value?: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString();
+  return formatAuditTime(value);
 }

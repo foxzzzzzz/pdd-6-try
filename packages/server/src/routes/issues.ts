@@ -2,7 +2,7 @@
  * 问题管理 API — CRUD + 工厂分享链接 + Excel 导出
  */
 import { FastifyInstance } from 'fastify';
-import { getDb, saveDb, schema } from '@pdd-inspector/core';
+import { getDb, saveDb, schema, todayShanghaiDate } from '@pdd-inspector/core';
 import { eq, desc } from 'drizzle-orm';
 import * as crypto from 'crypto';
 
@@ -132,7 +132,7 @@ export async function issueRoutes(app: FastifyInstance) {
 
     const csv = [header, ...rows].join('\n');
     reply.header('Content-Type', 'text/csv; charset=utf-8');
-    reply.header('Content-Disposition', `attachment; filename=issues-${new Date().toISOString().split('T')[0]}.csv`);
+    reply.header('Content-Disposition', `attachment; filename=issues-${todayShanghaiDate()}.csv`);
     return csv;
   });
 }

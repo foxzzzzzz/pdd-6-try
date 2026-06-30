@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { eq, sql } from 'drizzle-orm';
-import { getDb, saveDb, schema } from '@pdd-inspector/core';
+import { getDb, saveDb, schema, todayShanghaiDate } from '@pdd-inspector/core';
 import {
   buildDailyReport,
   buildMonthlyReport,
@@ -82,12 +82,12 @@ function ensureDailyReportsTable(db: Awaited<ReturnType<typeof getDb>>) {
       generated_at TEXT NOT NULL,
       reviewed_at TEXT,
       published_at TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 }
 
 function todayDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayShanghaiDate();
 }

@@ -1,5 +1,6 @@
 import { buildReportSummary, REPORT_CODE_VERSION } from './report-summary';
 import { createHash } from 'crypto';
+import { auditDateKeyShanghai } from '@pdd-inspector/core';
 
 type StoreRow = {
   id: number;
@@ -347,7 +348,7 @@ function inDateRange(date: string | null | undefined, start: string, endExclusiv
 }
 
 function inDateTimeRange(dateTime: string | null | undefined, start: string, endExclusive: string): boolean {
-  const date = dateTime?.slice(0, 10);
+  const date = auditDateKeyShanghai(dateTime) || dateTime?.slice(0, 10);
   return inDateRange(date, start, endExclusive);
 }
 

@@ -3,10 +3,10 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Star, ShieldAlert, TrendingUp, Clock, BarChart3, MessageSquare, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { api } from '../api';
 import MetricsChart from '../components/MetricsChart';
+import { formatAuditTime } from '../time';
 
 function formatCST(utcStr: string): string {
-  if (!utcStr) return '-';
-  return new Date(utcStr + 'Z').toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
+  return formatAuditTime(utcStr);
 }
 
 function parsePilotUnmetItems(value: unknown): any[] {

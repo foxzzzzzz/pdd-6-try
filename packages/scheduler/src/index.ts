@@ -11,6 +11,7 @@ import {
   getDb,
   saveDb,
   schema,
+  todayShanghaiDate,
 } from '@pdd-inspector/core';
 import { eq } from 'drizzle-orm';
 
@@ -89,7 +90,7 @@ async function triggerAllStores(queue: Queue<InspectionJobData>) {
     .where(eq(schema.stores.status, 'active'))
     .all();
 
-  const date = new Date().toISOString().split('T')[0];
+  const date = todayShanghaiDate();
   const staggerPlan = createInspectionStaggerPlan(activeStores.length, getInspectionStaggerConfig());
 
   console.log(

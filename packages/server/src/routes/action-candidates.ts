@@ -72,6 +72,7 @@ function listReviewCandidates(db: AppDb, status: string, storeId: number | null,
       ra.review_id AS sourceId,
       ra.review_content AS content,
       ra.review_stars AS reviewStars,
+      ra.review_created_at AS reviewCreatedAt,
       ra.action_type AS actionType,
       ra.action_content AS suggestedPayload,
       ra.status,
@@ -195,6 +196,11 @@ function ensureApprovalColumns(db: AppDb) {
         // Column already exists.
       }
     }
+  }
+  try {
+    db.run(sql.raw('ALTER TABLE review_actions ADD COLUMN review_created_at TEXT'));
+  } catch {
+    // Column already exists.
   }
 }
 

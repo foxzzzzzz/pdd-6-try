@@ -12,6 +12,7 @@ export * from './queue';
 
 // Browser environment
 export * from './browser-environment';
+export * from './time';
 
 // AI
 export * from './ai/types';

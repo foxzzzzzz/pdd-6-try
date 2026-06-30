@@ -136,6 +136,7 @@ export interface ReviewActionDetail {
   reviewId: string;
   reviewContent: string;
   reviewStars: number;
+  reviewCreatedAt?: string | null;
   actionType: ReviewActionType;
   actionContent: string;
   status: ActionStatus;

@@ -1,6 +1,8 @@
 import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
+const nowIsoSql = sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`;
+
 // ============================================================
 // 1. stores — 店铺基本信息 & 登录凭证
 // ============================================================
@@ -14,8 +16,8 @@ export const stores = sqliteTable('stores', {
   owner: text('owner'),                                   // 负责人
   factory: text('factory'),                               // 关联工厂
   aiConfig: text('ai_config'),                            // AI 配置 (JSON): {provider, model}
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
+  updatedAt: text('updated_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -32,7 +34,7 @@ export const inspectionRecords = sqliteTable('inspection_records', {
   workerId: text('worker_id'),                            // Worker 编号
   completionRate: real('completion_rate'),                // 完成率 0-1
   summary: text('summary'),                               // AI 生成的巡店摘要
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -115,7 +117,7 @@ export const storeMetrics = sqliteTable('store_metrics', {
   customerThreeMinuteReplyRate: real('customer_three_minute_reply_rate'),
   customerAvgResponseMinutes: real('customer_avg_response_minutes'),
 
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -128,6 +130,7 @@ export const reviewActions = sqliteTable('review_actions', {
   reviewId: text('review_id'),                            // PDD 评价ID
   reviewContent: text('review_content'),                  // 评价原文
   reviewStars: integer('review_stars'),                   // 评价星级
+  reviewCreatedAt: text('review_created_at'),
   actionType: text('action_type').notNull(),              // reply | report
   actionContent: text('action_content'),                  // 操作内容 (回复/举报话术)
   templateId: integer('template_id'),                     // 使用的话术模板ID
@@ -140,7 +143,7 @@ export const reviewActions = sqliteTable('review_actions', {
   executedAt: text('executed_at'),
   approvedAt: text('approved_at'),
   operatorId: text('operator_id'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -163,7 +166,7 @@ export const interactionActions = sqliteTable('interaction_actions', {
   executedAt: text('executed_at'),
   approvedAt: text('approved_at'),
   operatorId: text('operator_id'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -178,8 +181,8 @@ export const replyTemplates = sqliteTable('reply_templates', {
   storeId: integer('store_id').references(() => stores.id), // NULL=全局共用, 非NULL=店铺专属
   enabled: integer('enabled').notNull().default(1),       // 0=禁用 1=启用
   usageCount: integer('usage_count').default(0),          // 使用次数
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
+  updatedAt: text('updated_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -194,8 +197,8 @@ export const reportTemplates = sqliteTable('report_templates', {
   enabled: integer('enabled').notNull().default(1),
   usageCount: integer('usage_count').default(0),
   successCount: integer('success_count').default(0),      // 举报成功次数
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
+  updatedAt: text('updated_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -213,8 +216,8 @@ export const issues = sqliteTable('issues', {
   rectificationStatus: text('rectification_status').default('pending'), // pending | in_progress | resolved | closed
   handler: text('handler'),                               // 处理人
   shareToken: text('share_token'),                        // 工厂分享链接 token
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
+  updatedAt: text('updated_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -228,7 +231,7 @@ export const users = sqliteTable('users', {
   storeIds: text('store_ids'),                            // 关联店铺ID列表 (JSON)
   factoryIds: text('factory_ids'),                        // 关联工厂列表 (JSON)
   enabled: integer('enabled').notNull().default(1),
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -238,8 +241,8 @@ export const operators = sqliteTable('operators', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   status: text('status').notNull().default('active'),     // active | disabled
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
+  updatedAt: text('updated_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -254,8 +257,8 @@ export const operatorStoreSessions = sqliteTable('operator_store_sessions', {
   status: text('status').notNull().default('pending_login'), // active | pending_login | paused
   lastLoginAt: text('last_login_at'),
   lastUsedAt: text('last_used_at'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
+  updatedAt: text('updated_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -271,8 +274,8 @@ export const dailyReports = sqliteTable('daily_reports', {
   generatedAt: text('generated_at').notNull(),
   reviewedAt: text('reviewed_at'),
   publishedAt: text('published_at'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
+  updatedAt: text('updated_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -288,8 +291,8 @@ export const ruleReviews = sqliteTable('rule_reviews', {
   conclusion: text('conclusion'),
   evidencePath: text('evidence_path'),
   owner: text('owner'),
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
-  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
+  updatedAt: text('updated_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -306,7 +309,7 @@ export const selectorHealthEvents = sqliteTable('selector_health_events', {
   screenshotPath: text('screenshot_path'),
   htmlPath: text('html_path'),
   details: text('details'),                               // JSON check results
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
 });
 
 // ============================================================
@@ -326,6 +329,6 @@ export const riskEvents = sqliteTable('risk_events', {
   screenshotPath: text('screenshot_path'),
   htmlPath: text('html_path'),
   status: text('status').notNull().default('active'),     // active | resolved
-  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  createdAt: text('created_at').default(nowIsoSql),
   resolvedAt: text('resolved_at'),
 });

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ExternalLink, Filter, SkipForward } from 'lucide-react';
 import { api } from '../api';
+import { formatPlatformLocalTime } from '../time';
 
 type Candidate = {
   id: number;
@@ -10,6 +11,7 @@ type Candidate = {
   sourceId?: string | null;
   content?: string | null;
   reviewStars?: number | null;
+  reviewCreatedAt?: string | null;
   actionType: 'reply' | 'report' | 'hide';
   suggestedPayload?: string | null;
   status: string;
@@ -137,7 +139,7 @@ export default function ActionReview() {
                     <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{candidate.storeName || `店铺 ${candidate.storeId}`}</span>
                     <span className={`rounded px-2 py-1 text-xs font-medium ${typeBadgeClass(candidate.actionType)}`}>{typeLabels[candidate.actionType] || candidate.actionType}</span>
                     {candidate.reviewStars ? <span className="text-xs text-amber-600">{candidate.reviewStars} 星</span> : null}
-                    <span className="text-xs text-slate-400">{formatDateTime(candidate.createdAt)}</span>
+                    <span className="text-xs text-slate-400">{formatReviewDisplayTime(candidate)}</span>
                   </div>
                   <p className="line-clamp-3 text-sm leading-6 text-slate-700">{candidate.content || '-'}</p>
                   <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-500">
@@ -197,9 +199,8 @@ function typeBadgeClass(type: string) {
   return 'bg-emerald-50 text-emerald-700';
 }
 
-function formatDateTime(value?: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString();
+export function formatReviewDisplayTime(candidate: Pick<Candidate, 'reviewCreatedAt' | 'createdAt'>) {
+  return formatPlatformLocalTime(candidate.reviewCreatedAt);
 }
 
 function requireOperatorId(value: string): string | null {

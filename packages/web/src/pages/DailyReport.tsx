@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import AnomalyText from '../components/AnomalyText';
+import { formatAuditTime, todayShanghaiDate } from '../time';
 
 type AttentionStore = {
   name: string;
@@ -283,14 +284,11 @@ function EmptyState({ text }: { text: string }) {
 }
 
 function todayLocalDate(): string {
-  const now = new Date();
-  const offset = now.getTimezoneOffset();
-  return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
+  return todayShanghaiDate();
 }
 
 function formatDateTime(value?: string | null): string {
-  if (!value) return '-';
-  return new Date(value).toLocaleString();
+  return formatAuditTime(value);
 }
 
 function formatNumber(value?: number | null): string {

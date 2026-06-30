@@ -104,6 +104,12 @@ const groupedRefundTagBadReviewRows = parseReviewGroupedRows([
 ]);
 assert('review row extracts createdAt', timedReviewRow?.createdAt === '2026-06-17 16:59:53');
 assert('review body row extracts createdAt', timedReviewBodyRow?.createdAt === '2026-06-17 16:59:53');
+const reportApprovalWithReviewTime = buildPendingReportApprovalDetail(
+  { id: 'review-with-time', content: 'bad review', stars: 1, createdAt: '2026-06-17 16:59:53' },
+  'report template',
+  { mode: 'dry-run', approvalRequired: { report: true, hide: true, reply: true }, approvedActions: { report: false, hide: false, reply: false } },
+);
+assert('pending review action keeps platform review time', reportApprovalWithReviewTime.reviewCreatedAt === '2026-06-17 16:59:53');
 assert('review body row uses DOM star count when innerText has icon-only stars', iconOnlyBadReviewRow?.stars === 3);
 assert('grouped review rows inherit icon-only stars from score header row', groupedIconBadReviewRows[0]?.stars === 1);
 assert('grouped review rows keep bad review content row', groupedIconBadReviewRows[0]?.content === '\u8be5\u7528\u6237\u672a\u586b\u5199\u6587\u5b57\u8bc4\u4ef7');

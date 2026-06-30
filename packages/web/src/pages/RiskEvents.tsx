@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ExternalLink, RefreshCw, ShieldAlert, Store, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api, type RiskEvent, type RiskStatus } from '../api';
+import { formatAuditTime } from '../time';
 
 export default function RiskEvents() {
   const [riskStatus, setRiskStatus] = useState<RiskStatus | null>(null);
@@ -223,6 +224,5 @@ function evidenceUrl(filePath: string): string {
 }
 
 function formatDateTime(value?: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString();
+  return formatAuditTime(value);
 }

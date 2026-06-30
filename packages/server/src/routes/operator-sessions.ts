@@ -40,8 +40,8 @@ function ensureOperatorSessionTables(db: AppDb): void {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `));
   db.run(sql.raw(`
@@ -54,8 +54,8 @@ function ensureOperatorSessionTables(db: AppDb): void {
       status TEXT NOT NULL DEFAULT 'pending_login',
       last_login_at TEXT,
       last_used_at TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
       UNIQUE(operator_id, store_id)
     )
   `));

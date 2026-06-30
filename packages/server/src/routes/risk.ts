@@ -130,7 +130,7 @@ function ensureRiskEventTable(db: AppDb) {
       screenshot_path TEXT,
       html_path TEXT,
       status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
       resolved_at TEXT
     )
   `));

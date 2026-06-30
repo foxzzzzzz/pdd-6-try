@@ -10,12 +10,12 @@
     "discover": "tsx src/discover.ts",
     "test:selectors": "tsx src/__tests__/selector-validator.ts",
     "test:selector-health": "tsx src/__tests__/selector-health-smoke.ts",
-    "test:unit": "tsx src/__tests__/unit-tests.ts",
+    "test:unit": "tsx src/__tests__/unit-tests.ts && tsx src/__tests__/time-unit-tests.ts",
     "test:e2e": "tsx src/__tests__/phase2-e2e-dryrun.ts",
     "test:metrics": "tsx src/__tests__/metrics-only-dryrun.ts",
     "test:interactions": "tsx src/__tests__/interaction-hide-dryrun.ts",
     "test:ai": "tsx src/__tests__/ai-unit-tests.ts",
-    "test": "tsx src/__tests__/unit-tests.ts"
+    "test": "tsx src/__tests__/unit-tests.ts && tsx src/__tests__/time-unit-tests.ts"
   },
   "dependencies": {
     "@pdd-inspector/core": "workspace:*",

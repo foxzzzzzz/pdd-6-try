@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Factory, Globe, KeyRound, Pencil, Play, Plus, RefreshCw, Store, Trash2, User } from 'lucide-react';
 import { api } from '../api';
+import { formatAuditTime } from '../time';
 
 type StoreRow = {
   id: number;
@@ -235,7 +236,6 @@ function renderSessionText(session: OperatorSession): string {
 }
 
 function formatTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('zh-CN', { hour12: false });
+  const formatted = formatAuditTime(value);
+  return formatted === '-' ? value : formatted;
 }

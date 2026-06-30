@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { createInspectionStaggerPlan, getBrowserEnvironmentStatus, getDb, saveDb, schema } from '@pdd-inspector/core';
+import { createInspectionStaggerPlan, getBrowserEnvironmentStatus, getDb, saveDb, schema, todayShanghaiDate } from '@pdd-inspector/core';
 import { eq, desc, and } from 'drizzle-orm';
 import { addInspectionJob, getInspectionQueue } from '../queue';
 import { mergeInspectionMetrics } from '../inspection-summary';
@@ -23,7 +23,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
       throw { statusCode: 400, message: `Store is not active (status: ${store.status})` };
     }
 
-    const date = new Date().toISOString().split('T')[0];
+    const date = todayShanghaiDate();
 
     // Create inspection record
     const record = db
@@ -65,7 +65,7 @@ export async function inspectionRoutes(app: FastifyInstance) {
       throw { statusCode: 400, message: 'No active stores found' };
     }
 
-    const date = new Date().toISOString().split('T')[0];
+    const date = todayShanghaiDate();
     const results = [];
     const staggerPlan = createInspectionStaggerPlan(activeStores.length, getInspectionStaggerConfig());
 

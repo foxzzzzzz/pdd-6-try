@@ -46,6 +46,7 @@ export async function replyToGoodReviews(browser: BrowserManager, storeId: numbe
             reviewId: review.id,
             reviewContent: review.content,
             reviewStars: review.stars,
+            reviewCreatedAt: review.createdAt,
             actionType: 'reply',
             actionContent: replyTemplate,
             ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot, errorMessage: 'Review is outside the last 72 hours or missing review time' }),
@@ -58,6 +59,7 @@ export async function replyToGoodReviews(browser: BrowserManager, storeId: numbe
             reviewId: review.id,
             reviewContent: review.content,
             reviewStars: review.stars,
+            reviewCreatedAt: review.createdAt,
             actionType: 'reply',
             actionContent: replyTemplate,
             ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot, approvalRequired: requiresApproval(safety, 'reply') && !safety.approvedActions.reply }),
@@ -65,15 +67,15 @@ export async function replyToGoodReviews(browser: BrowserManager, storeId: numbe
           continue;
         }
         var replyBtn = review.row ? await findButton(review.row, ['回复/互动', '回复', 'Reply']) : null;
-        if (!replyBtn) { result.skipped++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'reply', actionContent: '', ...buildActionAudit(safety, '', { screenshotPath: pageScreenshot, errorMessage: 'Reply button not found' }) }); continue; }
+        if (!replyBtn) { result.skipped++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, reviewCreatedAt: review.createdAt, actionType: 'reply', actionContent: '', ...buildActionAudit(safety, '', { screenshotPath: pageScreenshot, errorMessage: 'Reply button not found' }) }); continue; }
         await openQuickReplyModal(browser, replyBtn);
         await fillQuickReplyModal(browser, replyTemplate);
         const submitBtn = await findQuickReplySubmitButton(page);
-        if (submitBtn) { await browser.humanClick(submitBtn); submittedCount++; const screenshotPath = await browser.takeScreenshot(storeId, 'review-reply-submitted'); result.replied++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'reply', actionContent: replyTemplate, ...buildActionAudit(safety, replyTemplate, { submitted: true, screenshotPath }) }); }
-        else { result.failed++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'reply', actionContent: replyTemplate, ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot, errorMessage: 'Quick reply submit button not found' }) }); }
+        if (submitBtn) { await browser.humanClick(submitBtn); submittedCount++; const screenshotPath = await browser.takeScreenshot(storeId, 'review-reply-submitted'); result.replied++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, reviewCreatedAt: review.createdAt, actionType: 'reply', actionContent: replyTemplate, ...buildActionAudit(safety, replyTemplate, { submitted: true, screenshotPath }) }); }
+        else { result.failed++; result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, reviewCreatedAt: review.createdAt, actionType: 'reply', actionContent: replyTemplate, ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot, errorMessage: 'Quick reply submit button not found' }) }); }
       } catch (err) {
         result.failed++;
-        result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'reply', actionContent: replyTemplate, ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot, errorMessage: err instanceof Error ? err.message : String(err) }) });
+        result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, reviewCreatedAt: review.createdAt, actionType: 'reply', actionContent: replyTemplate, ...buildActionAudit(safety, replyTemplate, { screenshotPath: pageScreenshot, errorMessage: err instanceof Error ? err.message : String(err) }) });
       }
       await page.waitForTimeout(1500 + Math.random() * 3000);
     }
@@ -103,6 +105,7 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
             reviewId: review.id,
             reviewContent: review.content,
             reviewStars: review.stars,
+            reviewCreatedAt: review.createdAt,
             actionType: 'report',
             actionContent: '',
             ...buildActionAudit(safety, '', { screenshotPath: pageScreenshot, errorMessage: 'Review is outside the last 72 hours or missing review time' }),
@@ -115,6 +118,7 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
             reviewId: review.id,
             reviewContent: review.content,
             reviewStars: review.stars,
+            reviewCreatedAt: review.createdAt,
             actionType: 'report',
             actionContent: '',
             ...buildActionAudit(safety, '', { screenshotPath: pageScreenshot, errorMessage: 'Review is already reported and pending platform audit' }),
@@ -127,7 +131,7 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
         continue;
       } catch (err) {
         result.failed++;
-        result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, errorMessage: err instanceof Error ? err.message : String(err) }) });
+        result.details.push({ reviewId: review.id, reviewContent: review.content, reviewStars: review.stars, reviewCreatedAt: review.createdAt, actionType: 'report', actionContent: template, ...buildActionAudit(safety, template, { screenshotPath: pageScreenshot, errorMessage: err instanceof Error ? err.message : String(err) }) });
       }
       await page.waitForTimeout(3000 + Math.random() * 5000);
     }
@@ -137,7 +141,7 @@ export async function reportBadReviews(browser: BrowserManager, storeId: number,
 }
 
 export function buildPendingReportApprovalDetail(
-  review: Pick<ReviewRow, 'id' | 'content' | 'stars'>,
+  review: Pick<ReviewRow, 'id' | 'content' | 'stars' | 'createdAt'>,
   template: string,
   safety: ActionSafety,
   screenshotPath?: string,
@@ -146,6 +150,7 @@ export function buildPendingReportApprovalDetail(
     reviewId: review.id,
     reviewContent: review.content,
     reviewStars: review.stars,
+    reviewCreatedAt: review.createdAt,
     actionType: 'report',
     actionContent: template,
     ...buildActionAudit(safety, template, { screenshotPath, approvalRequired: true }),
@@ -191,6 +196,7 @@ export async function executeReviewActionCandidate(
       reviewId: review.id,
       reviewContent: review.content,
       reviewStars: review.stars,
+      reviewCreatedAt: review.createdAt,
       actionType: candidate.actionType,
       actionContent,
       ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Approved review is outside the last 72 hours or missing review time' }),
@@ -201,6 +207,7 @@ export async function executeReviewActionCandidate(
       reviewId: review.id,
       reviewContent: review.content,
       reviewStars: review.stars,
+      reviewCreatedAt: review.createdAt,
       actionType: candidate.actionType,
       actionContent,
       ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot }),
@@ -214,6 +221,7 @@ export async function executeReviewActionCandidate(
         reviewId: review.id,
         reviewContent: review.content,
         reviewStars: review.stars,
+        reviewCreatedAt: review.createdAt,
         actionType: 'reply',
         actionContent,
         ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Reply button not found in approved candidate row' }),
@@ -227,6 +235,7 @@ export async function executeReviewActionCandidate(
         reviewId: review.id,
         reviewContent: review.content,
         reviewStars: review.stars,
+        reviewCreatedAt: review.createdAt,
         actionType: 'reply',
         actionContent,
         ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Quick reply submit button not found' }),
@@ -238,6 +247,7 @@ export async function executeReviewActionCandidate(
       reviewId: review.id,
       reviewContent: review.content,
       reviewStars: review.stars,
+      reviewCreatedAt: review.createdAt,
       actionType: 'reply',
       actionContent,
       ...buildActionAudit(safety, actionContent, { submitted: true, screenshotPath }),
@@ -250,6 +260,7 @@ export async function executeReviewActionCandidate(
       reviewId: review.id,
       reviewContent: review.content,
       reviewStars: review.stars,
+      reviewCreatedAt: review.createdAt,
       actionType: 'report',
       actionContent,
       ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Report button not found in approved candidate row' }),
@@ -266,6 +277,7 @@ export async function executeReviewActionCandidate(
       reviewId: review.id,
       reviewContent: review.content,
       reviewStars: review.stars,
+      reviewCreatedAt: review.createdAt,
       actionType: 'report',
       actionContent,
       ...buildActionAudit(safety, actionContent, { screenshotPath: pageScreenshot, errorMessage: 'Report submit button not found' }),
@@ -277,6 +289,7 @@ export async function executeReviewActionCandidate(
     reviewId: review.id,
     reviewContent: review.content,
     reviewStars: review.stars,
+    reviewCreatedAt: review.createdAt,
     actionType: 'report',
     actionContent,
     ...buildActionAudit(safety, actionContent, { submitted: true, screenshotPath }),

@@ -517,6 +517,7 @@ export async function inspectStore(
           reviewId: detail.reviewId,
           reviewContent: detail.reviewContent,
           reviewStars: detail.reviewStars,
+          reviewCreatedAt: detail.reviewCreatedAt || null,
           actionType: detail.actionType,
           actionContent: detail.actionContent,
           status: detail.status,

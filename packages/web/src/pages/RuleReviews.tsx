@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, CheckCircle2, RefreshCw, Save, ShieldAlert } from 'lucide-react';
 import { api, type RuleReviewStatus, type RuleReviewUpdateInput } from '../api';
+import { formatAuditTime, todayShanghaiDate } from '../time';
 
 type RuleReview = {
   id: number;
@@ -322,12 +323,15 @@ function dateToIso(value: string): string | undefined {
 }
 
 function defaultNextReviewDate(): string {
-  const date = new Date();
-  date.setDate(date.getDate() + 30);
-  return date.toISOString().slice(0, 10);
+  return addDateDays(todayShanghaiDate(), 30);
 }
 
 function formatDateTime(value?: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString();
+  return formatAuditTime(value);
+}
+
+function addDateDays(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }

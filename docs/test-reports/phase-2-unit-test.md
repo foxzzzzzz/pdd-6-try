@@ -1,8 +1,8 @@
 # Phase 2 单元测试报告
 
-**日期**: 2026-06-29
+**日期**: 2026-06-30
 **版本**: v0.2.0
-**结果**: 208/208 通过 (100%)
+**结果**: 209/209 通过 (100%)
 
 ## 测试结果
 
@@ -10,6 +10,7 @@
 |--------|------|------|
 | review row extracts createdAt | ✅ |  |
 | review body row extracts createdAt | ✅ |  |
+| pending review action keeps platform review time | ✅ |  |
 | review body row uses DOM star count when innerText has icon-only stars | ✅ |  |
 | grouped review rows inherit icon-only stars from score header row | ✅ |  |
 | grouped review rows keep bad review content row | ✅ |  |
@@ -218,6 +219,6 @@
 | 多变量填充 | ✅ |  |
 
 ## 汇总
-- ✅ 通过: 208
+- ✅ 通过: 209
 - ❌ 失败: 0
 - 📊 通过率: 100%

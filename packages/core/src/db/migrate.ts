@@ -17,8 +17,8 @@ async function migrate() {
       owner TEXT,
       factory TEXT,
       ai_config TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -34,7 +34,7 @@ async function migrate() {
       worker_id TEXT,
       completion_rate REAL,
       summary TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -99,7 +99,7 @@ async function migrate() {
       comment_count_change REAL,
       anomaly_flags TEXT,
       severity TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -195,6 +195,7 @@ async function migrate() {
       review_id TEXT,
       review_content TEXT,
       review_stars INTEGER,
+      review_created_at TEXT,
       action_type TEXT NOT NULL,
       action_content TEXT,
       template_id INTEGER,
@@ -204,12 +205,13 @@ async function migrate() {
       screenshot_path TEXT,
       error_message TEXT,
       submitted_at TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
   for (const [column, type] of [
     ['action_mode', 'TEXT'],
+    ['review_created_at', 'TEXT'],
     ['submitted_at', 'TEXT'],
     ['executed_at', 'TEXT'],
     ['approved_at', 'TEXT'],
@@ -237,7 +239,7 @@ async function migrate() {
       screenshot_path TEXT,
       error_message TEXT,
       submitted_at TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -266,8 +268,8 @@ async function migrate() {
       store_id INTEGER REFERENCES stores(id),
       enabled INTEGER NOT NULL DEFAULT 1,
       usage_count INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -281,8 +283,8 @@ async function migrate() {
       enabled INTEGER NOT NULL DEFAULT 1,
       usage_count INTEGER DEFAULT 0,
       success_count INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -299,8 +301,8 @@ async function migrate() {
       rectification_status TEXT DEFAULT 'pending',
       handler TEXT,
       share_token TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -313,7 +315,7 @@ async function migrate() {
       store_ids TEXT,
       factory_ids TEXT,
       enabled INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -322,8 +324,8 @@ async function migrate() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -337,8 +339,8 @@ async function migrate() {
       status TEXT NOT NULL DEFAULT 'pending_login',
       last_login_at TEXT,
       last_used_at TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
       UNIQUE(operator_id, store_id)
     )
   `);
@@ -354,8 +356,8 @@ async function migrate() {
       generated_at TEXT NOT NULL,
       reviewed_at TEXT,
       published_at TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -374,7 +376,7 @@ async function migrate() {
       screenshot_path TEXT,
       html_path TEXT,
       status TEXT NOT NULL DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
       resolved_at TEXT
     )
   `);
@@ -391,7 +393,7 @@ async function migrate() {
       screenshot_path TEXT,
       html_path TEXT,
       details TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -406,8 +408,8 @@ async function migrate() {
       conclusion TEXT,
       evidence_path TEXT,
       owner TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `);
 
@@ -415,7 +417,7 @@ async function migrate() {
     ['review_management', '评价管理规则'],
     ['report_hide', '举报/隐藏规则'],
     ['account_security', '商家后台账号安全规则'],
-    ['automation_tools', '自动化工具/第三方工具限制'],
+    ['automation_tools', '�Զ�������/��������������'],
     ['service_agreements', '店铺推广/客服/评价相关协议'],
   ] as const) {
     db.run(sql.raw(`

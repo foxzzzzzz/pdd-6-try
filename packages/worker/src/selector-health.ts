@@ -82,7 +82,7 @@ export function ensureSelectorHealthTable(db: AppDb): void {
       screenshot_path TEXT,
       html_path TEXT,
       details TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `));
 }
