@@ -41,6 +41,7 @@ export async function executeLoginBind(
 
   const session = getOperatorStoreSession(db, operatorId, store.id);
   const browser = new BrowserManager();
+  let resultError: string | null = null;
 
   try {
     await browser.init({
@@ -90,6 +91,7 @@ export async function executeLoginBind(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    resultError = message;
     markOperatorStoreSessionStatus(db, operatorId, store.id, 'pending_login');
     db.update(schema.stores)
       .set({ status: 'pending_login', updatedAt: new Date().toISOString() })
@@ -103,6 +105,14 @@ export async function executeLoginBind(
       error: message,
     };
   } finally {
-    await browser.close();
+    if (shouldKeepLoginBindBrowserOpen(resultError)) {
+      console.log(`Store ${store.id}: Security challenge browser window left open for manual login-bind handling`);
+    } else {
+      await browser.close();
+    }
   }
+}
+
+export function shouldKeepLoginBindBrowserOpen(errorMessage: string | null | undefined): boolean {
+  return Boolean(errorMessage?.includes('Security challenge detected'));
 }

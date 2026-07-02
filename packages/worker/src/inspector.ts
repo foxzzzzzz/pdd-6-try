@@ -1,5 +1,5 @@
 import { BrowserManager } from './browser';
-import { getDb, saveDb, schema, MetricsSnapshot, quoteSqlString, type AppDb } from '@pdd-inspector/core';
+import { getDb, saveDb, schema, MetricsSnapshot, type AppDb } from '@pdd-inspector/core';
 
 const log = (...args: any[]) => { try { process.stdout.write(args.join(' ') + '\n'); } catch { /* ignore */ } };
 import { eq, and, desc, sql } from 'drizzle-orm';
@@ -130,7 +130,12 @@ export async function inspectStore(
   }
 
   async function ensureNoSecurityChallenge(phase: string): Promise<void> {
-    if (!(await browser.hasSecurityChallenge())) return;
+    try {
+      await browser.assertNoSecurityChallenge(phase, storeId);
+      return;
+    } catch (err) {
+      if (!isSecurityChallengeError(err)) throw err;
+    }
 
     const message = `Security challenge detected during ${phase}; patrol paused for manual handling`;
     await recordRiskEvent(db, {
@@ -145,33 +150,7 @@ export async function inspectStore(
       .where(eq(schema.stores.id, storeId))
       .run();
     saveDb(db);
-
-    if (resolvedConfig.headless) {
-      throw new Error(message);
-    }
-
-    const waitMs = resolveSecurityChallengeWaitMs();
-    log(`[${storeName}] Security challenge detected during ${phase}; waiting ${Math.round(waitMs / 1000)}s for manual handling`);
-    if (!(await browser.waitForSecurityChallengeCleared(waitMs))) {
-      throw new Error(`${message}; manual handling timed out`);
-    }
-
-    const refreshedStorageState = await browser.saveStorageState();
-    saveOperatorStoreSession(db, operatorId, storeId, refreshedStorageState, 'active');
-    db.update(schema.stores)
-      .set({ storageState: refreshedStorageState, status: 'active', updatedAt: new Date().toISOString() })
-      .where(eq(schema.stores.id, storeId))
-      .run();
-    db.run(sql.raw(`
-      UPDATE risk_events
-      SET status = 'resolved',
-          resolved_at = ${quoteSqlString(new Date().toISOString())}
-      WHERE store_id = ${storeId}
-        AND event_type = 'security'
-        AND status = 'active'
-    `));
-    saveDb(db);
-    log(`[${storeName}] Security challenge cleared; login state refreshed`);
+    throw new Error(message);
   }
 
   // Update inspection record: running
@@ -214,17 +193,21 @@ export async function inspectStore(
     }
 
     // Save fresh storage state
+    log(`[${storeName}] Saving fresh storage state after login check`);
     const newStorageState = await browser.saveStorageState();
     saveOperatorStoreSession(db, operatorId, storeId, newStorageState, 'active');
     db.update(schema.stores)
       .set({ storageState: newStorageState, status: 'active', updatedAt: new Date().toISOString() })
       .where(eq(schema.stores.id, storeId))
       .run();
-    await ensureNoSecurityChallenge('login');
+    log(`[${storeName}] First page stabilization wait started before startup home security check`);
+    await browser.pauseBeforeFirstReadPage();
+    log(`[${storeName}] First page stabilization wait finished; running startup home security check`);
+    await ensureNoSecurityChallenge('startup home');
+    log(`[${storeName}] Startup home security check passed`);
 
     // ======== PHASE 2: DATA COLLECTION ========
     log(`[${storeName}] Starting data collection...`);
-    await browser.pauseBeforeFirstReadPage();
 
     // Step 1: Store health metrics
     const healthMetrics = shouldSkipModule(db, 'pilot_mall', storeName)
@@ -615,7 +598,11 @@ export async function inspectStore(
     });
     saveDb(db);
   } finally {
-    await browser.close();
+    if (errors.some((error) => isSecurityChallengeErrorMessage(error))) {
+      log(`[${storeName}] Security challenge browser window left open for manual handling`);
+    } else {
+      await browser.close();
+    }
   }
 
   return { success: errors.length === 0, completionRate, errors };
@@ -687,11 +674,10 @@ function countActionRows(
   return Number(row?.count || 0);
 }
 
-function resolveSecurityChallengeWaitMs(): number {
-  const value = Number(process.env.WORKER_SECURITY_CHALLENGE_WAIT_MS);
-  return Number.isFinite(value) && value >= 0 ? value : 180000;
-}
-
 function isSecurityChallengeError(err: unknown): boolean {
   return err instanceof Error && err.message.includes('Security challenge detected');
+}
+
+function isSecurityChallengeErrorMessage(message: string): boolean {
+  return message.includes('Security challenge detected');
 }

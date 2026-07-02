@@ -34,17 +34,19 @@ import { summarizeRiskEvents } from '../risk-sentinel';
 import { buildOperatorSessionProfileKey, normalizeOperatorId } from '../operator-session';
 import { evaluateSelectorHealth, isModuleDegradedFromEvents, shouldBlockWriteActionForSelectorHealth } from '../selector-health';
 import { isRuleReviewExpired, shouldBlockActionForRuleReview } from '../rule-review';
-import { buildBrowserRuntimeOptions, inferPddPageLoginState, inferPddSecurityChallenge, isPddLoginUrl, parseStoredStorageState, resolveHumanDelayMs, resolveProfileDirectory, resolveReadPacingOptions } from '../browser';
+import { BrowserManager, SecurityChallengeError, buildBrowserRuntimeOptions, buildChromeProcessDiagnostics, buildExternalChromeLaunchArgs, inferPddPageLoginState, inferPddSecurityChallenge, inferSecurityChallengeFromScreenshotPixels, isPddLoginUrl, isProfileLockOwnerAlive, mergeChromeLanguagePreferences, parseStoredStorageState, resolveHumanDelayMs, resolveProfileDirectory, resolveReadPacingOptions } from '../browser';
 import { buildPendingReportApprovalDetail, isReviewWithinLastHours, parseReviewBodyGroupText, parseReviewBodyRowText, parseReviewGroupedRows, parseReviewRowText, parseReviewTimestamp } from '../actions/reviews';
 import { isWithinLast7Days, parseInteractionRowText } from '../actions/interactions';
 import { parseApprovalFlag } from '../worker-env';
 import { shouldInsertReviewActionDetail } from '../inspector';
+import { shouldKeepLoginBindBrowserOpen } from '../login-bind';
 
 const REPORT_FILE = path.resolve(process.cwd(), '../../docs/test-reports/phase-2-unit-test.md');
 
 let passed = 0;
 let failed = 0;
 const results: string[] = [];
+const asyncTests: Promise<void>[] = [];
 
 function assert(description: string, condition: boolean, detail = '') {
   if (condition) {
@@ -60,6 +62,131 @@ function assert(description: string, condition: boolean, detail = '') {
 
 function nearlyEqual(actual: number | null | undefined, expected: number): boolean {
   return actual != null && Math.abs(actual - expected) < 0.000001;
+}
+
+function buildSyntheticChallengePixels() {
+  const width = 800;
+  const height = 600;
+  const data = new Uint8Array(width * height * 4);
+  fillRect(data, width, 0, 0, width, height, [115, 115, 115, 255]);
+  fillRect(data, width, 240, 150, 320, 260, [248, 248, 248, 255]);
+  fillRect(data, width, 275, 180, 250, 95, [92, 150, 82, 255]);
+  fillRect(data, width, 285, 320, 230, 32, [226, 226, 226, 255]);
+  fillRect(data, width, 285, 314, 54, 54, [252, 252, 252, 255]);
+  return { width, height, data };
+}
+
+function buildSyntheticBackendPixels() {
+  const width = 800;
+  const height = 600;
+  const data = new Uint8Array(width * height * 4);
+  fillRect(data, width, 0, 0, width, height, [239, 240, 244, 255]);
+  fillRect(data, width, 40, 80, 720, 90, [255, 255, 255, 255]);
+  fillRect(data, width, 40, 200, 330, 150, [255, 255, 255, 255]);
+  fillRect(data, width, 430, 200, 330, 150, [255, 255, 255, 255]);
+  return { width, height, data };
+}
+
+function buildSyntheticBackendWithChartTooltipPixels() {
+  const width = 1920;
+  const height = 1032;
+  const data = new Uint8Array(width * height * 4);
+  fillRect(data, width, 0, 0, width, height, [245, 246, 248, 255]);
+  fillRect(data, width, 0, 0, width, 70, [255, 255, 255, 255]);
+  fillRect(data, width, 0, 70, 265, height - 70, [255, 255, 255, 255]);
+  fillRect(data, width, 285, 90, 1515, 150, [255, 255, 255, 255]);
+  fillRect(data, width, 285, 262, 1515, 160, [255, 255, 255, 255]);
+  fillRect(data, width, 285, 424, 1515, 340, [255, 255, 255, 255]);
+  fillRect(data, width, 1050, 500, 720, 230, [255, 255, 255, 255]);
+  fillRect(data, width, 1335, 500, 150, 96, [58, 58, 58, 255]);
+  fillRect(data, width, 1350, 520, 90, 10, [245, 245, 245, 255]);
+  fillRect(data, width, 1350, 545, 110, 8, [235, 235, 235, 255]);
+  fillRect(data, width, 1350, 570, 100, 8, [235, 235, 235, 255]);
+  return { width, height, data };
+}
+
+function buildSyntheticServiceDataPixels() {
+  const width = 1920;
+  const height = 1033;
+  const data = new Uint8Array(width * height * 4);
+  fillRect(data, width, 0, 0, width, height, [245, 246, 248, 255]);
+  fillRect(data, width, 0, 0, width, 72, [255, 255, 255, 255]);
+  fillRect(data, width, 0, 72, 280, height - 72, [255, 255, 255, 255]);
+  fillRect(data, width, 300, 120, 1600, 185, [255, 255, 255, 255]);
+  fillRect(data, width, 300, 328, 1570, 450, [255, 255, 255, 255]);
+  fillRect(data, width, 320, 375, 520, 310, [255, 227, 226, 255]);
+  fillRect(data, width, 340, 410, 430, 145, [241, 218, 216, 255]);
+  fillRect(data, width, 340, 575, 440, 36, [255, 255, 255, 255]);
+  fillRect(data, width, 340, 625, 470, 22, [255, 245, 245, 255]);
+  fillRect(data, width, 930, 520, 870, 215, [255, 255, 255, 255]);
+  fillRect(data, width, 930, 575, 870, 3, [226, 226, 226, 255]);
+  fillRect(data, width, 930, 640, 870, 3, [226, 226, 226, 255]);
+  fillRect(data, width, 320, 815, 1570, 170, [255, 255, 255, 255]);
+  return { width, height, data };
+}
+
+function buildSyntheticServiceDataFalsePositivePixels() {
+  const width = 1920;
+  const height = 1033;
+  const data = new Uint8Array(width * height * 4);
+  fillRect(data, width, 0, 0, width, height, [245, 246, 248, 255]);
+  fillRect(data, width, 0, 0, width, 72, [255, 255, 255, 255]);
+  fillRect(data, width, 0, 72, 280, height - 72, [255, 255, 255, 255]);
+  fillRect(data, width, 300, 120, 1600, 185, [255, 255, 255, 255]);
+  fillRect(data, width, 300, 328, 1570, 450, [255, 255, 255, 255]);
+  fillRect(data, width, 701, 424, 192, 269, [244, 244, 244, 255]);
+  fillRect(data, width, 716, 451, 162, 122, [255, 255, 255, 255]);
+  fillRect(data, width, 716, 451, 92, 122, [230, 230, 230, 255]);
+  fillRect(data, width, 728, 612, 150, 59, [255, 255, 255, 255]);
+  fillRect(data, width, 728, 612, 150, 7, [226, 226, 226, 255]);
+  fillRect(data, width, 709, 585, 50, 102, [255, 255, 255, 255]);
+  return { width, height, data };
+}
+
+function buildSyntheticOffCenterChallengePixels() {
+  const width = 1200;
+  const height = 760;
+  const data = new Uint8Array(width * height * 4);
+  fillRect(data, width, 0, 0, width, height, [112, 112, 112, 255]);
+  fillRect(data, width, 635, 335, 325, 230, [248, 248, 248, 255]);
+  fillRect(data, width, 655, 355, 285, 95, [82, 176, 206, 255]);
+  fillRect(data, width, 675, 505, 245, 34, [226, 226, 226, 255]);
+  fillRect(data, width, 657, 493, 60, 60, [252, 252, 252, 255]);
+  return { width, height, data };
+}
+
+function buildSyntheticWideLoginChallengePixels() {
+  const width = 2048;
+  const height = 768;
+  const data = new Uint8Array(width * height * 4);
+  fillRect(data, width, 0, 0, width, height, [255, 255, 255, 255]);
+  fillRect(data, width, 0, 40, 1320, 540, [15, 46, 135, 255]);
+  fillRect(data, width, 0, 0, 1320, height, [150, 150, 150, 255]);
+  fillRect(data, width, 500, 260, 230, 180, [248, 248, 248, 255]);
+  fillRect(data, width, 515, 280, 200, 75, [98, 165, 210, 255]);
+  fillRect(data, width, 535, 390, 175, 30, [226, 226, 226, 255]);
+  fillRect(data, width, 515, 384, 50, 50, [252, 252, 252, 255]);
+  return { width, height, data };
+}
+
+function fillRect(
+  data: Uint8Array,
+  width: number,
+  x: number,
+  y: number,
+  rectWidth: number,
+  rectHeight: number,
+  color: [number, number, number, number],
+) {
+  for (let yy = y; yy < y + rectHeight; yy++) {
+    for (let xx = x; xx < x + rectWidth; xx++) {
+      const offset = (yy * width + xx) * 4;
+      data[offset] = color[0];
+      data[offset + 1] = color[1];
+      data[offset + 2] = color[2];
+      data[offset + 3] = color[3];
+    }
+  }
 }
 
 // ========== Test 0a: Review action time window ==========
@@ -403,24 +530,65 @@ assert('浏览器登录态恢复包含 localStorage origins', storedState?.origi
 assert('非法浏览器登录态返回 undefined', parseStoredStorageState('{bad json') === undefined);
 const browserDefaults = buildBrowserRuntimeOptions();
 assert('browser defaults do not disable Chrome sandbox', !browserDefaults.args.includes('--no-sandbox') && !browserDefaults.args.includes('--disable-setuid-sandbox'));
+assert('browser defaults use Playwright launch mode', browserDefaults.launchMode === 'playwright');
 assert('browser defaults remove Playwright no-sandbox default arg', browserDefaults.ignoreDefaultArgs.includes('--no-sandbox'));
+assert('browser defaults reduce nonessential Playwright launch signature args', [
+  '--disable-background-networking',
+  '--disable-component-update',
+  '--disable-default-apps',
+  '--disable-extensions',
+  '--disable-sync',
+  '--password-store=basic',
+  '--use-mock-keychain',
+].every((arg) => browserDefaults.ignoreDefaultArgs.includes(arg)));
+assert('browser profile lock with dead pid is treated as stale', isProfileLockOwnerAlive('{"pid":13848}', () => false) === false);
+assert('browser profile lock with live pid keeps profile protected', isProfileLockOwnerAlive('{"pid":13848}', () => true) === true);
+const chromeProcessDiagnostics = buildChromeProcessDiagnostics([
+  { pid: 1, parentPid: 10, commandLine: '"C:\\Chrome\\chrome.exe" --user-data-dir=D:\\try\\pdd-6\\data\\profile-experiments\\manual-chrome-copy\\1_store-7 --remote-debugging-pipe' },
+  { pid: 2, parentPid: 10, commandLine: '"C:\\Chrome\\chrome.exe" --user-data-dir=C:\\Users\\34506\\AppData\\Local\\Google\\Chrome\\User Data' },
+], 'D:/try/pdd-6/data/profile-experiments/manual-chrome-copy/1_store-7');
+assert('security diagnostics marks Chrome process using active profile', chromeProcessDiagnostics[0].matchesProfile === true && chromeProcessDiagnostics[1].matchesProfile === false);
 const previousDisableSandbox = process.env.BROWSER_DISABLE_SANDBOX;
 process.env.BROWSER_DISABLE_SANDBOX = 'true';
 const sandboxDisabledBrowser = buildBrowserRuntimeOptions();
 if (previousDisableSandbox == null) delete process.env.BROWSER_DISABLE_SANDBOX;
 else process.env.BROWSER_DISABLE_SANDBOX = previousDisableSandbox;
 assert('browser sandbox disable flags require explicit env opt-in', sandboxDisabledBrowser.args.includes('--no-sandbox') && sandboxDisabledBrowser.args.includes('--disable-setuid-sandbox'));
+const previousLaunchMode = process.env.BROWSER_LAUNCH_MODE;
+process.env.BROWSER_LAUNCH_MODE = 'external-cdp';
+const externalCdpBrowser = buildBrowserRuntimeOptions();
+if (previousLaunchMode == null) delete process.env.BROWSER_LAUNCH_MODE;
+else process.env.BROWSER_LAUNCH_MODE = previousLaunchMode;
+assert('E1 external CDP launch mode is opt-in', externalCdpBrowser.launchMode === 'external-cdp' && externalCdpBrowser.cdpPort === 9222);
+const externalChromeArgs = buildExternalChromeLaunchArgs('D:\\try\\pdd-6\\data\\profile-experiments\\manual-chrome-copy\\1_store-7', 9222);
+assert('E1 external Chrome args avoid Playwright launch signature flags', externalChromeArgs.includes('--remote-debugging-port=9222') && externalChromeArgs.some((arg) => arg.startsWith('--user-data-dir=')) && !externalChromeArgs.some((arg) => arg.includes('enable-automation') || arg.includes('remote-debugging-pipe') || arg.includes('disable-blink-features')));
 assert('浏览器默认使用可见模式', browserDefaults.headless === false);
 assert('浏览器默认使用系统 Chrome channel', browserDefaults.channel === 'chrome');
 assert('浏览器启动参数不隐藏 AutomationControlled', !browserDefaults.args.some((arg) => arg.includes('AutomationControlled')));
-assert('浏览器默认固定真实窗口大小', browserDefaults.args.includes('--window-size=1920,1080') && browserDefaults.viewport.width === 1920 && browserDefaults.viewport.height === 1080);
+assert('浏览器默认不传固定窗口大小参数且不固定 Playwright viewport', !browserDefaults.args.some((arg) => arg.startsWith('--window-size=')) && browserDefaults.viewport === null && browserDefaults.contextOptions.viewport === null);
+assert('浏览器默认请求语言对齐手动 Chrome', browserDefaults.contextOptions.extraHTTPHeaders?.['Accept-Language'] === 'zh-CN,zh;q=0.9');
+assert('浏览器 profile 语言偏好对齐手动 Chrome', (mergeChromeLanguagePreferences({ intl: { accept_languages: 'en-US' } }).intl as any).accept_languages === 'zh-CN,zh');
+assert('浏览器默认不通过 Playwright locale 覆盖 navigator.languages', !('locale' in browserDefaults.contextOptions));
+const mergedFingerprintPreferences = mergeChromeLanguagePreferences({
+  intl: { accept_languages: 'en-US' },
+  partition: {
+    per_host_zoom_levels: {
+      x: {
+        'mms.pinduoduo.com': { zoom_level: -1.2239010857415447 },
+        'example.com': { zoom_level: 1 },
+      },
+    },
+  },
+});
+assert('浏览器 profile 语言 selected_languages 对齐手动 Chrome', (mergedFingerprintPreferences.intl as any).selected_languages === 'zh-CN,zh');
+assert('浏览器 profile 清理 PDD 站点缩放但保留其它站点缩放', !(mergedFingerprintPreferences.partition as any).per_host_zoom_levels.x['mms.pinduoduo.com'] && (mergedFingerprintPreferences.partition as any).per_host_zoom_levels.x['example.com'].zoom_level === 1);
 assert('浏览器默认不硬编码 userAgent', !('userAgent' in browserDefaults.contextOptions));
 assert('运营店铺 profile 目录稳定且不混用原始分隔符', resolveProfileDirectory('operator-a:store-12').endsWith(path.join('data', 'browser-profiles', 'operator-a_store-12')));
 assert('默认系统 Chrome 缺失时浏览器环境不可用', !getBrowserEnvironmentStatus({}, 'win32', () => false).ok);
 assert('显式 chromium 可跳过系统 Chrome 检查', getBrowserEnvironmentStatus({ PLAYWRIGHT_CHROME_CHANNEL: 'chromium' }, 'win32', () => false).ok);
 assert('拟人化点击等待范围可配置且带随机抖动', resolveHumanDelayMs([500, 1500], 0.5) === 1000);
 assert('拟人化等待会修正非法范围', resolveHumanDelayMs([1500, 500], 0.5) === 1500);
-const readPacingDefaults = resolveReadPacingOptions();
+const readPacingDefaults = resolveReadPacingOptions({} as NodeJS.ProcessEnv);
 assert('读采集默认导航前等待 1-2.5 秒', readPacingDefaults.navigationBeforeMs[0] === 1000 && readPacingDefaults.navigationBeforeMs[1] === 2500);
 assert('读采集默认导航后等待 2.5-5.5 秒', readPacingDefaults.navigationAfterMs[0] === 2500 && readPacingDefaults.navigationAfterMs[1] === 5500);
 assert('读采集默认模块间等待 1.5-4 秒', readPacingDefaults.moduleGapMs[0] === 1500 && readPacingDefaults.moduleGapMs[1] === 4000);
@@ -435,7 +603,121 @@ assert('PDD login URL is detected as login', isPddLoginUrl('https://mms.pinduodu
 assert('PDD backend text is authenticated even when URL stays on root', inferPddPageLoginState('https://mms.pinduoduo.com/', '拼多多 商家后台 可申诉订单 未读站内信', false) === 'authenticated');
 assert('PDD scan-login text is detected as login', inferPddPageLoginState('https://mms.pinduoduo.com/', '扫码登录 账号登录 打开拼多多商家版App扫码登录', false) === 'login');
 assert('PDD slider puzzle text is detected as security challenge', inferPddSecurityChallenge('\u8bf7\u5411\u53f3\u6ed1\u5757\u5b8c\u6210\u62fc\u56fe') === true);
+assert('PDD slider puzzle DOM signal is detected as security challenge', inferPddSecurityChallenge('', true) === true);
+assert('PDD slider puzzle overlay signal is detected as security challenge', inferPddSecurityChallenge('', false, true) === true);
+assert('PDD slider puzzle screenshot shape is detected as security challenge', inferSecurityChallengeFromScreenshotPixels(buildSyntheticChallengePixels()) === true);
+assert('PDD off-center slider puzzle screenshot shape is detected as security challenge', inferSecurityChallengeFromScreenshotPixels(buildSyntheticOffCenterChallengePixels()) === true);
+assert('PDD wide login slider screenshot shape is detected as security challenge', inferSecurityChallengeFromScreenshotPixels(buildSyntheticWideLoginChallengePixels()) === true);
+assert('normal backend screenshot shape is not a security challenge', inferSecurityChallengeFromScreenshotPixels(buildSyntheticBackendPixels()) === false);
+assert('normal backend chart tooltip screenshot shape is not a security challenge', inferSecurityChallengeFromScreenshotPixels(buildSyntheticBackendWithChartTooltipPixels()) === false);
+assert('normal service data screenshot shape is not a security challenge', inferSecurityChallengeFromScreenshotPixels(buildSyntheticServiceDataPixels()) === false);
+assert('normal service data light card false-positive shape is not a security challenge', inferSecurityChallengeFromScreenshotPixels(buildSyntheticServiceDataFalsePositivePixels()) === false);
 assert('PDD normal backend text is not a security challenge', inferPddSecurityChallenge('\u62fc\u591a\u591a \u5546\u5bb6\u540e\u53f0 \u670d\u52a1\u6570\u636e') === false);
+assert('login bind leaves browser open on security challenge', shouldKeepLoginBindBrowserOpen('Security challenge detected during login page; patrol paused for manual handling') === true);
+assert('login bind closes browser on normal login timeout', shouldKeepLoginBindBrowserOpen('Login binding requires manual login or timed out') === false);
+
+asyncTests.push((async () => {
+  const loginChallengeBrowser = new BrowserManager();
+  let loginChallengePhase = '';
+  (loginChallengeBrowser as any).openContext = async () => {
+    (loginChallengeBrowser as any).page = {
+      goto: async () => undefined,
+      url: () => 'https://mms.pinduoduo.com/login/?redirectUrl=https%3A%2F%2Fmms.pinduoduo.com%2Fhome%2F',
+    };
+  };
+  (loginChallengeBrowser as any).assertNoSecurityChallenge = async (phase: string) => {
+    loginChallengePhase = phase;
+    throw new SecurityChallengeError('Security challenge detected during login page; patrol paused for manual handling', {
+      phase,
+      url: 'https://mms.pinduoduo.com/login/?redirectUrl=https%3A%2F%2Fmms.pinduoduo.com%2Fhome%2F',
+      signals: ['screenshot-modal-overlay'],
+    });
+  };
+  (loginChallengeBrowser as any).isLoginPage = async () => true;
+  (loginChallengeBrowser as any).takeScreenshot = async () => {
+    throw new Error('login-required screenshot should not run before login challenge detection');
+  };
+  let loginChallengeDetected = false;
+  try {
+    await loginChallengeBrowser.login(7);
+  } catch (err) {
+    loginChallengeDetected = err instanceof SecurityChallengeError;
+  }
+  assert('login page security challenge is checked before login-required handling', loginChallengeDetected && loginChallengePhase === 'login page');
+})());
+
+asyncTests.push((async () => {
+  const delayedLoginChallengeBrowser = new BrowserManager();
+  const checkedPhases: string[] = [];
+  (delayedLoginChallengeBrowser as any).openContext = async () => {
+    (delayedLoginChallengeBrowser as any).page = {
+      goto: async () => undefined,
+      url: () => 'https://mms.pinduoduo.com/login/?redirectUrl=https%3A%2F%2Fmms.pinduoduo.com%2Fhome%2F',
+      waitForTimeout: async () => undefined,
+    };
+  };
+  (delayedLoginChallengeBrowser as any).assertNoSecurityChallenge = async (phase: string) => {
+    checkedPhases.push(phase);
+    if (phase === 'login page after login-required') {
+      throw new SecurityChallengeError('Security challenge detected during login page after login-required; patrol paused for manual handling', {
+        phase,
+        url: 'https://mms.pinduoduo.com/login/?redirectUrl=https%3A%2F%2Fmms.pinduoduo.com%2Fhome%2F',
+        signals: ['screenshot-modal-overlay'],
+      });
+    }
+  };
+  (delayedLoginChallengeBrowser as any).isLoginPage = async () => true;
+  (delayedLoginChallengeBrowser as any).takeScreenshot = async () => {
+    throw new Error('login-required screenshot should not run before delayed login challenge detection');
+  };
+  let delayedChallengeDetected = false;
+  try {
+    await delayedLoginChallengeBrowser.login(7);
+  } catch (err) {
+    delayedChallengeDetected = err instanceof SecurityChallengeError;
+  }
+  assert(
+    'delayed login page security challenge is checked after login-required detection',
+    delayedChallengeDetected
+      && checkedPhases.includes('login page')
+      && checkedPhases.includes('login page after login-required'),
+  );
+})());
+
+asyncTests.push((async () => {
+  const authenticatedChallengeBrowser = new BrowserManager();
+  const checkedPhases: string[] = [];
+  (authenticatedChallengeBrowser as any).openContext = async () => {
+    (authenticatedChallengeBrowser as any).page = {
+      goto: async () => undefined,
+      url: () => 'https://mms.pinduoduo.com/home/',
+      waitForTimeout: async () => undefined,
+    };
+  };
+  (authenticatedChallengeBrowser as any).assertNoSecurityChallenge = async (phase: string) => {
+    checkedPhases.push(phase);
+    if (phase === 'login page after authenticated') {
+      throw new SecurityChallengeError('Security challenge detected during login page after authenticated; patrol paused for manual handling', {
+        phase,
+        url: 'https://mms.pinduoduo.com/home/',
+        signals: ['screenshot-modal-overlay'],
+      });
+    }
+  };
+  (authenticatedChallengeBrowser as any).isLoginPage = async () => false;
+  let authenticatedChallengeDetected = false;
+  try {
+    await authenticatedChallengeBrowser.login(7);
+  } catch (err) {
+    authenticatedChallengeDetected = err instanceof SecurityChallengeError;
+  }
+  assert(
+    'authenticated login page security challenge is checked before successful login-bind close',
+    authenticatedChallengeDetected
+      && checkedPhases.includes('login page')
+      && checkedPhases.includes('login page after authenticated'),
+  );
+})());
 
 const realRunFromInspectionConfig = resolveActionSafety({
   actionMode: 'real-run',
@@ -718,6 +1000,7 @@ assert(
 );
 
 // ========== Generate Report ==========
+Promise.all(asyncTests).then(() => {
 const totalTests = passed + failed;
 const report = `# Phase 2 单元测试报告
 
@@ -742,3 +1025,8 @@ console.log(`\n\n📄 报告: ${REPORT_FILE}`);
 console.log(`结果: ${passed}/${totalTests} 通过`);
 
 if (failed > 0) process.exit(1);
+}).catch((err) => {
+  failed++;
+  console.error(err);
+  process.exit(1);
+});
